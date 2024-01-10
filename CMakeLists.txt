@@ -28,9 +28,13 @@ set(PROJECT_INCLUDE ${PROJECT_ROOT}/include)
 set(PROJECT_CONFIG_INCLUDE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 
-add_subdirectory(src/tools/bin2c)
+# add_subdirectory(src/tools/bin2c)
 add_subdirectory(src/sdlpp)
-add_subdirectory(demo)
+
+if (is_top_level)
+    add_subdirectory(demo)
+endif()
+
 add_subdirectory(ext)
 if (sdlpp_ENABLE_TESTING)
   # add_subdirectory(unittest)
