@@ -1,13 +1,25 @@
-if (NOT DEFINED CMAKE_CXX_VISIBILITY_PRESET AND NOT DEFINED CMAKE_VISIBILITY_INLINES_HIDDEN)
-    set(CMAKE_CXX_VISIBILITY_PRESET hidden)
-    set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
-endif ()
-
-if (DEFINED sdlpp_SHARED_LIBS)
-    set(BUILD_SHARED_LIBS "${sdlpp_SHARED_LIBS}")
-endif ()
-
-add_library(sdlpp INTERFACE)
+add_library(sdlpp INTERFACE
+        ${PROJECT_INCLUDE}/sdlpp/call.hh
+        ${PROJECT_INCLUDE}/sdlpp/color.hh
+        ${PROJECT_INCLUDE}/sdlpp/events/events_dispatcher.hh
+        ${PROJECT_INCLUDE}/sdlpp/events/event_types.hh
+        ${PROJECT_INCLUDE}/sdlpp/events/system_events.hh
+        ${PROJECT_INCLUDE}/sdlpp/geometry.hh
+        ${PROJECT_INCLUDE}/sdlpp/io.hh
+        ${PROJECT_INCLUDE}/sdlpp/iterator.hh
+        ${PROJECT_INCLUDE}/sdlpp/object.hh
+        ${PROJECT_INCLUDE}/sdlpp/palette.hh
+        ${PROJECT_INCLUDE}/sdlpp/pixel_format.hh
+        ${PROJECT_INCLUDE}/sdlpp/render.hh
+        ${PROJECT_INCLUDE}/sdlpp/rtc.hh
+        ${PROJECT_INCLUDE}/sdlpp/sdl2.hh
+        ${PROJECT_INCLUDE}/sdlpp/surface.hh
+        ${PROJECT_INCLUDE}/sdlpp/system.hh
+        ${PROJECT_INCLUDE}/sdlpp/texture.hh
+        ${PROJECT_INCLUDE}/sdlpp/timers.hh
+        ${PROJECT_INCLUDE}/sdlpp/window.hh
+        ${PROJECT_INCLUDE}/sdlpp/events/events.hh
+)
 
 add_library(neutrino::sdlpp ALIAS sdlpp)
 target_compile_features(sdlpp INTERFACE cxx_std_17)

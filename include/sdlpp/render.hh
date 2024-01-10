@@ -5,9 +5,9 @@
 #ifndef NEUTRINO_SDL_RENDER_HH
 #define NEUTRINO_SDL_RENDER_HH
 
-#include <hal/sdl/surface.hh>
-#include <hal/sdl/texture.hh>
-#include <neutrino/utils/array_view.hh>
+#include <sdlpp/surface.hh>
+#include <sdlpp/texture.hh>
+#include <bsw/array_view.hh>
 
 namespace neutrino::sdl {
   class renderer : public object<SDL_Renderer> {
@@ -89,14 +89,14 @@ namespace neutrino::sdl {
 
       void draw (int x1, int y1, int x2, int y2);
       void draw (const point& p1, const point& p2);
-      void draw_connected_lines (const utils::array_view1d<point>& vertices);
+      void draw_connected_lines (const bsw::array_view1d<point>& vertices);
       void draw (int x, int y);
       void draw (const point& p);
-      void draw (const utils::array_view1d<point>& points);
+      void draw (const bsw::array_view1d<point>& points);
       void draw (const rect& rec);
-      void draw (const utils::array_view1d<rect>& rec);
+      void draw (const bsw::array_view1d<rect>& rec);
       void draw_filled (const rect& rec);
-      void draw_filled (const utils::array_view1d<rect>& rec);
+      void draw_filled (const bsw::array_view1d<rect>& rec);
 
       void present () noexcept;
 
@@ -416,7 +416,7 @@ namespace neutrino::sdl {
 
   // ----------------------------------------------------------------------------------------------------------------
   inline
-  void renderer::draw_connected_lines (const utils::array_view1d<point>& vertices) {
+  void renderer::draw_connected_lines (const bsw::array_view1d<point>& vertices) {
 #if defined(_MSC_VER)
 #pragma warning ( push )
 #pragma warning ( disable : 4267)
@@ -441,7 +441,7 @@ namespace neutrino::sdl {
 
   // ----------------------------------------------------------------------------------------------------------------
   inline
-  void renderer::draw (const utils::array_view1d<point>& points) {
+  void renderer::draw (const bsw::array_view1d<point>& points) {
     SAFE_SDL_CALL(SDL_RenderDrawPoints, handle (), points.data (), points.size ());
   }
 
@@ -453,7 +453,7 @@ namespace neutrino::sdl {
 
   // ----------------------------------------------------------------------------------------------------------------
   inline
-  void renderer::draw (const utils::array_view1d<rect>& rec) {
+  void renderer::draw (const bsw::array_view1d<rect>& rec) {
 #if defined(_MSC_VER)
 #pragma warning ( push )
 #pragma warning ( disable : 4267)
@@ -472,7 +472,7 @@ namespace neutrino::sdl {
 
   // ----------------------------------------------------------------------------------------------------------------
   inline
-  void renderer::draw_filled (const utils::array_view1d<rect>& rec) {
+  void renderer::draw_filled (const bsw::array_view1d<rect>& rec) {
     SAFE_SDL_CALL(SDL_RenderFillRects, handle (), rec.data (), rec.size ());
   }
 

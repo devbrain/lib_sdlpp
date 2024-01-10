@@ -17,6 +17,10 @@ namespace neutrino::sdl {
     SDL_Delay (static_cast<uint32_t>(ms.count ()));
   }
 
+  inline void delay (const uint32_t& ms) noexcept {
+    SDL_Delay (ms);
+  }
+
   [[nodiscard]] inline uint64_t get_performance_counter () noexcept {
     return SDL_GetPerformanceCounter ();
   }
@@ -27,6 +31,14 @@ namespace neutrino::sdl {
 
   [[nodiscard]] inline std::chrono::milliseconds get_ms_since_init () noexcept {
     return std::chrono::milliseconds (SDL_GetTicks ());
+  }
+
+  [[nodiscard]] inline uint32_t get_ticks() noexcept {
+    return SDL_GetTicks();
+  }
+
+  [[nodiscard]] inline uint64_t get_ticks_64() noexcept {
+    return SDL_GetTicks64();
   }
 
   [[nodiscard]] inline SDL_TimerID
