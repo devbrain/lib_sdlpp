@@ -12,26 +12,26 @@
 #include <bsw/mp/all_same.hh>
 
 namespace neutrino::sdl {
-  enum class init_flags : uint32_t {
-      TIMER = SDL_INIT_TIMER,
-      AUDIO = SDL_INIT_AUDIO,
-      VIDEO = SDL_INIT_VIDEO,
-      JOYSTICK = SDL_INIT_JOYSTICK,
-      HAPTIC = SDL_INIT_HAPTIC,
-      GAMECONTROLLER = SDL_INIT_GAMECONTROLLER,
-      EVENTS = SDL_INIT_EVENTS,
-      SENSOR = SDL_INIT_SENSOR,
-      NOPARACHUTE = SDL_INIT_NOPARACHUTE
-  };
+	enum class init_flags : uint32_t {
+		TIMER = SDL_INIT_TIMER,
+		AUDIO = SDL_INIT_AUDIO,
+		VIDEO = SDL_INIT_VIDEO,
+		JOYSTICK = SDL_INIT_JOYSTICK,
+		HAPTIC = SDL_INIT_HAPTIC,
+		GAMECONTROLLER = SDL_INIT_GAMECONTROLLER,
+		EVENTS = SDL_INIT_EVENTS,
+		SENSOR = SDL_INIT_SENSOR,
+		NOPARACHUTE = SDL_INIT_NOPARACHUTE
+	};
 
-  class system {
-    public:
-      template <typename ... Args,
-          typename std::enable_if_t<std::conjunction_v<std::is_same<Args, init_flags>...>, void*> = nullptr>
-      explicit system (Args... flags);
+	class system {
+	 public:
+		template <typename ... Args,
+			typename std::enable_if_t<std::conjunction_v<std::is_same<Args, init_flags>...>, void*> = nullptr>
+		explicit system (Args... flags);
 
-      ~system () noexcept;
-  };
+		~system () noexcept;
+	};
 } // ns sdl
 
 // ====================================================================
@@ -40,22 +40,24 @@ namespace neutrino::sdl {
 
 namespace neutrino::sdl {
 
-  template <typename ... Args,
-      typename std::enable_if_t<std::conjunction_v<std::is_same<Args, init_flags>...>, void*>>
-  inline
-  system::system (Args... flags) {
-    uint32_t f = (static_cast<std::uint32_t>(flags) | ... | 0u);
-    if (f == 0) {
-      f = SDL_INIT_EVERYTHING;
-    }
-    SAFE_SDL_CALL(SDL_Init, f);
-  }
+	template <typename ... Args,
+		typename std::enable_if_t<std::conjunction_v<std::is_same<Args, init_flags>...>, void*>>
+	inline
+	system::system (Args... flags) {
+		uint32_t f = (static_cast<std::uint32_t>(flags) | ... | 0u);
+		if (f == 0) {
+			f = SDL_INIT_EVERYTHING;
+		}
+		SAFE_SDL_CALL(SDL_Init, f);
+		SAFE_SDL_CALL(TTF_Init);
+	}
 
-  // -----------------------------------------------------------------------------------------------
-  inline
-  system::~system () noexcept {
-    SDL_Quit ();
-  }
+	// -----------------------------------------------------------------------------------------------
+	inline
+	system::~system () noexcept {
+		TTF_Quit ();
+		SDL_Quit ();
+	}
 }
 
 #endif

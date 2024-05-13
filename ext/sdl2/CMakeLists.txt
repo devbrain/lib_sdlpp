@@ -1,7 +1,7 @@
 fetchcontent_declare(
         SDL2
         #GIT_REPOSITORY "https://github.com/libsdl-org/SDL.git"
-        URL https://www.libsdl.org/release/SDL2-2.0.22.zip
+        URL https://github.com/libsdl-org/SDL/releases/download/release-2.30.3/SDL2-2.30.3.zip
         #GIT_TAG "main"
         UPDATE_COMMAND ""
 )

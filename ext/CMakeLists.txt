@@ -7,5 +7,6 @@ set(FETCHCONTENT_QUIET off)
 add_subdirectory(doctest)
 add_subdirectory(bsw)
 add_subdirectory(sdl2)
+add_subdirectory(sdl_ttf)
 add_subdirectory(bitflags)
 

@@ -15,6 +15,7 @@
 #include <sdlpp/io.hh>
 #include <sdlpp/call.hh>
 #include <sdlpp/geometry.hh>
+#include <sdlpp/ttf.hh>
 #include <bsw/macros.hh>
 #include <bsw/array_view.hh>
 
