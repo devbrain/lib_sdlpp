@@ -32,13 +32,12 @@ namespace neutrino::sdl {
 		io (const std::string& filename, bool read_only);
 		io (FILE* fp, bool auto_close);
 
-		explicit io (std::istream &is);
-		explicit io (std::ostream &os);
+		explicit io (std::istream& is);
+		explicit io (std::ostream& os);
 		explicit io (std::vector<char>& mem);
 		explicit io (std::vector<uint8_t>& mem);
 		explicit io (const std::vector<char>& mem);
 		explicit io (const std::vector<uint8_t>& mem);
-
 
 		io (object<SDL_RWops>&& other);
 		io& operator= (object<SDL_RWops>&& other) noexcept;
@@ -69,10 +68,15 @@ namespace neutrino::sdl {
 
 	namespace detail::rwops {
 		GENERATE_HAS_MEMBER_FUNCTION(close);
+
 		GENERATE_HAS_MEMBER_FUNCTION(seek);
+
 		GENERATE_HAS_MEMBER_FUNCTION(read);
+
 		GENERATE_HAS_MEMBER_FUNCTION(write);
+
 		GENERATE_HAS_MEMBER_FUNCTION(size);
+
 		GENERATE_HAS_MEMBER_STATIC(type_id);
 	}
 
@@ -136,7 +140,7 @@ namespace neutrino::sdl {
 				  return -1;
 				};
 			}
-			if constexpr (detail::rwops::has_read<RWImpl, size_t (void * , size_t, size_t)>::value) {
+			if constexpr (detail::rwops::has_read<RWImpl, size_t (void*, size_t, size_t)>::value) {
 				ret->read = [] (SDL_RWops* ctx, void* buff, size_t s, size_t n) -> size_t {
 				  _dENFORCE_TYPE_RWOPS(0);
 				  return reinterpret_cast<RWImpl*>(ctx->hidden.unknown.data1)->read (buff, s, n);
@@ -245,35 +249,43 @@ namespace neutrino::sdl {
 		: object<SDL_RWops> (SAFE_SDL_CALL(SDL_RWFromFP, fp, static_cast<SDL_bool>(auto_close)), true) {
 
 	}
+
 	// --------------------------------------------------------------------------------------
 	inline
-	io::io (std::istream &is)
-		: object<SDL_RWops>(std::move(rw_istream(is))) {
+	io::io (std::istream& is)
+		: object<SDL_RWops> (std::move (rw_istream (is))) {
 	}
+
 	// --------------------------------------------------------------------------------------
 	inline
-	io::io (std::ostream &os) : object<SDL_RWops>(std::move(rw_ostream(os))) {
+	io::io (std::ostream& os)
+		: object<SDL_RWops> (std::move (rw_ostream (os))) {
 	}
+
 	// --------------------------------------------------------------------------------------
 	inline
 	io::io (std::vector<char>& mem)
-		: object<SDL_RWops> (SAFE_SDL_CALL(SDL_RWFromMem, mem.data(), static_cast<int>(mem.size())), true) {
+		: object<SDL_RWops> (SAFE_SDL_CALL(SDL_RWFromMem, mem.data (), static_cast<int>(mem.size ())), true) {
 	}
 
 	// --------------------------------------------------------------------------------------
 	inline
 	io::io (std::vector<uint8_t>& mem)
-	: object<SDL_RWops> (SAFE_SDL_CALL(SDL_RWFromMem, mem.data(), static_cast<int>(mem.size())), true) {
+		: object<SDL_RWops> (SAFE_SDL_CALL(SDL_RWFromMem, mem.data (), static_cast<int>(mem.size ())), true) {
 	}
+
 	// --------------------------------------------------------------------------------------
 	inline
 	io::io (const std::vector<char>& mem)
-		: object<SDL_RWops> (SAFE_SDL_CALL(SDL_RWFromConstMem, mem.data(), static_cast<int>(mem.size())), true) {
+		: object<SDL_RWops> (SAFE_SDL_CALL(SDL_RWFromConstMem, mem.data (), static_cast<int>(mem.size ())), true) {
 	}
+
 	// --------------------------------------------------------------------------------------
 	inline
-	io::io (const std::vector<uint8_t>& mem) : object<SDL_RWops> (SAFE_SDL_CALL(SDL_RWFromConstMem, mem.data(), static_cast<int>(mem.size())), true) {
+	io::io (const std::vector<uint8_t>& mem)
+		: object<SDL_RWops> (SAFE_SDL_CALL(SDL_RWFromConstMem, mem.data (), static_cast<int>(mem.size ())), true) {
 	}
+
 	// --------------------------------------------------------------------------------------
 	inline
 	io::io (object<SDL_RWops>&& other)
@@ -355,6 +367,7 @@ int64_t rw_istream::seek (int64_t offset, whence w) {
 }
 
 // -------------------------------------------------------------------------
+inline
 int64_t rw_istream::size () {
 	auto cur = m_istream.tellg ();
 	m_istream.seekg (0, std::ios::end);
@@ -398,8 +411,8 @@ int64_t rw_ostream::seek (int64_t offset, whence w) {
 		m_ostream.seekp (offset, std::ios::end);
 	}
 
-	return m_ostream.fail () ? (int64_t) - 1 : (int64_t)
-	m_ostream.tellp ();
+	return m_ostream.fail () ? (int64_t)-1 : (int64_t)
+		m_ostream.tellp ();
 }
 
 }
