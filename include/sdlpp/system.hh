@@ -49,7 +49,6 @@ namespace neutrino::sdl {
 			f = SDL_INIT_EVERYTHING;
 		}
 		SAFE_SDL_CALL(SDL_Init, f);
-		SAFE_SDL_CALL(TTF_Init);
 	}
 
 	// -----------------------------------------------------------------------------------------------
