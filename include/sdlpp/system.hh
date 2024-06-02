@@ -54,7 +54,6 @@ namespace neutrino::sdl {
 	// -----------------------------------------------------------------------------------------------
 	inline
 	system::~system () noexcept {
-		TTF_Quit ();
 		SDL_Quit ();
 	}
 }
