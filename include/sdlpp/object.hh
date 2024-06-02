@@ -33,7 +33,6 @@ namespace neutrino::sdl {
 		d_SDL_DELETER_TRAITS (SDL_Renderer, SDL_DestroyRenderer);
 		d_SDL_DELETER_TRAITS (SDL_Palette, SDL_FreePalette);
 		d_SDL_DELETER_TRAITS (SDL_RWops, SDL_FreeRW);
-		d_SDL_DELETER_TRAITS (TTF_Font, TTF_CloseFont);
 	} // ns detail
 
 	template <class SDLOBJECT>
