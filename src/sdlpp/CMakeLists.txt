@@ -18,7 +18,6 @@ add_library(sdlpp INTERFACE
         ${PROJECT_INCLUDE}/sdlpp/texture.hh
         ${PROJECT_INCLUDE}/sdlpp/timers.hh
         ${PROJECT_INCLUDE}/sdlpp/window.hh
-        ${PROJECT_INCLUDE}/sdlpp/ttf.hh
         ${PROJECT_INCLUDE}/sdlpp/events/events.hh
 )
 
@@ -26,7 +25,7 @@ add_library(neutrino::sdlpp ALIAS sdlpp)
 target_compile_features(sdlpp INTERFACE cxx_std_17)
 
 target_include_directories(sdlpp INTERFACE ${PROJECT_INCLUDE})
-target_link_libraries(sdlpp INTERFACE thirdparty::sdl2 thirdparty::sdl2_ttf thirdparty::bitflags bsw)
+target_link_libraries(sdlpp INTERFACE thirdparty::sdl2  thirdparty::bitflags bsw)
 
 
 
