@@ -4,6 +4,7 @@ fetchcontent_declare(
         URL https://github.com/libsdl-org/SDL/releases/download/release-2.30.3/SDL2-2.30.3.zip
         #GIT_TAG "main"
         UPDATE_COMMAND ""
+        OVERRIDE_FIND_PACKAGE
 )
 
 fetchcontent_makeavailable(SDL2)
