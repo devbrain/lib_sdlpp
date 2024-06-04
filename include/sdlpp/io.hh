@@ -253,13 +253,13 @@ namespace neutrino::sdl {
 	// --------------------------------------------------------------------------------------
 	inline
 	io::io (std::istream& is)
-		: object<SDL_RWops> (std::move (rw_istream (is))) {
+		: object<SDL_RWops> (rw_istream (is).release(), true) {
 	}
 
 	// --------------------------------------------------------------------------------------
 	inline
 	io::io (std::ostream& os)
-		: object<SDL_RWops> (std::move (rw_ostream (os))) {
+		: object<SDL_RWops> (rw_ostream (os).release(), true) {
 	}
 
 	// --------------------------------------------------------------------------------------

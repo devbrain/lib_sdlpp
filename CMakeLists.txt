@@ -11,6 +11,7 @@ endif()
 string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}" sdlpp_is_top_level)
 option(sdlpp_INCLUDE_PACKAGING "Include packaging rules for sdlpp" "${sdlpp_is_top_level}")
 option(sdlpp_ENABLE_TESTING "Enable testing for sdlpp" TRUE)
+option(sdlpp_use_system_libs "Enable system SDL2, SDL_Mixer, SDL_TTF, SDL_Image sdlpp" TRUE)
 
 set(CMAKE_MODULE_PATH "${CMAKE_BINARY_DIR};${CMAKE_SOURCE_DIR}/cmake")
 

@@ -39,7 +39,7 @@ namespace neutrino::sdl::detail {
 
       raw_iterator<T>& operator = (T* ptr);
 
-      operator bool () const;
+      explicit operator bool () const;
 
       bool operator == (const raw_iterator<T>& other) const;
       bool operator != (const raw_iterator<T>& other) const;

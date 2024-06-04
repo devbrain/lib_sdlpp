@@ -33,6 +33,9 @@ namespace neutrino::sdl {
 		d_SDL_DELETER_TRAITS (SDL_Renderer, SDL_DestroyRenderer);
 		d_SDL_DELETER_TRAITS (SDL_Palette, SDL_FreePalette);
 		d_SDL_DELETER_TRAITS (SDL_RWops, SDL_FreeRW);
+		d_SDL_DELETER_TRAITS (TTF_Font, TTF_CloseFont);
+		d_SDL_DELETER_TRAITS(Mix_Chunk, Mix_FreeChunk);
+		d_SDL_DELETER_TRAITS(Mix_Music , Mix_FreeMusic);
 	} // ns detail
 
 	template <class SDLOBJECT>
@@ -60,6 +63,8 @@ namespace neutrino::sdl {
 		[[nodiscard]] bool is_null () const noexcept;
 		[[nodiscard]] explicit operator bool () const noexcept;
 
+		[[nodiscard]] SDLOBJECT* release () noexcept;
+
 		void swap (object<SDLOBJECT>& s) // noexcept
 		{
 			std::swap (s.m_object, m_object);
@@ -70,6 +75,8 @@ namespace neutrino::sdl {
 		SDLOBJECT* m_object;
 		bool m_owner;
 	};
+
+
 } // ns sdl
 // ===================================================================================
 // Implementation
@@ -122,6 +129,12 @@ namespace neutrino::sdl {
 		destroy ();
 	}
 
+	template <class SDLOBJECT>
+	SDLOBJECT* object<SDLOBJECT>::release () noexcept {
+		SDLOBJECT* tmp = m_object;
+		m_object = nullptr;
+		return tmp;
+	}
 	// ----------------------------------------------------------------------------------------------
 	template <class SDLOBJECT>
 	inline

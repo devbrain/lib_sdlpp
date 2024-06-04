@@ -49,11 +49,15 @@ namespace neutrino::sdl {
 			f = SDL_INIT_EVERYTHING;
 		}
 		SAFE_SDL_CALL(SDL_Init, f);
+		TTF_Init();
+		IMG_Init (IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP |  IMG_INIT_JXL | IMG_INIT_AVIF);
 	}
 
 	// -----------------------------------------------------------------------------------------------
 	inline
 	system::~system () noexcept {
+		IMG_Quit();
+		TTF_Quit();
 		SDL_Quit ();
 	}
 }
