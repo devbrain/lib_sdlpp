@@ -370,6 +370,7 @@ namespace neutrino::sdl {
 		h = (int)a.h;
 	}
 
+	inline
 	void rect::offset (const point& p) {
 		x = p.x;
 		y = p.y;
