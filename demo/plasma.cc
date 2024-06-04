@@ -65,7 +65,9 @@ int main (int argc, char *argv[]) {
 	try {
 		plasma vga_demo (argc, argv);
 		vga_demo.run ();
+		return 0;
 	} catch (std::exception &e) {
 		std::cout << "Error: " << e.what () << std::endl;
 	}
+	return 1;
 }
