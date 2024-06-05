@@ -6,9 +6,9 @@
 #define NEUTRINO_SDL_PALETTE_HH
 
 #include <sdlpp/sdl2.hh>
-#include <sdlpp/object.hh>
+#include "sdlpp/detail/object.hh"
 #include <sdlpp/color.hh>
-#include <sdlpp/iterator.hh>
+#include "sdlpp/detail/iterator.hh"
 #include <sdlpp/call.hh>
 #include <sdlpp/rtc.hh>
 

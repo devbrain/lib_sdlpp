@@ -11,7 +11,7 @@
 
 #include <bitflags/bitflags.hpp>
 #include <sdlpp/sdl2.hh>
-#include <sdlpp/object.hh>
+#include "sdlpp/detail/object.hh"
 #include <sdlpp/io.hh>
 #include <sdlpp/detail/ttf_helper.hh>
 #include <sdlpp/surface.hh>

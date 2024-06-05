@@ -7,8 +7,8 @@ add_library(sdlpp INTERFACE
         ${PROJECT_INCLUDE}/sdlpp/events/events.hh
         ${PROJECT_INCLUDE}/sdlpp/geometry.hh
         ${PROJECT_INCLUDE}/sdlpp/io.hh
-        ${PROJECT_INCLUDE}/sdlpp/iterator.hh
-        ${PROJECT_INCLUDE}/sdlpp/object.hh
+        ${PROJECT_INCLUDE}/sdlpp/detail/iterator.hh
+        ${PROJECT_INCLUDE}/sdlpp/detail/object.hh
         ${PROJECT_INCLUDE}/sdlpp/palette.hh
         ${PROJECT_INCLUDE}/sdlpp/pixel_format.hh
         ${PROJECT_INCLUDE}/sdlpp/render.hh

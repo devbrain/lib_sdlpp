@@ -11,7 +11,7 @@
 #include <sdlpp/sdl2.hh>
 #include <sdlpp/pixel_format.hh>
 #include <sdlpp/palette.hh>
-#include <sdlpp/object.hh>
+#include "sdlpp/detail/object.hh"
 #include <sdlpp/io.hh>
 #include <sdlpp/call.hh>
 #include <sdlpp/geometry.hh>

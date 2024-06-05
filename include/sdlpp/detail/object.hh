@@ -5,7 +5,7 @@
 #ifndef NEUTRINO_SDL_OBJECT_HH
 #define NEUTRINO_SDL_OBJECT_HH
 
-#include <sdlpp/sdl2.hh>
+#include "sdlpp/sdl2.hh"
 #include <utility>
 
 namespace neutrino::sdl {

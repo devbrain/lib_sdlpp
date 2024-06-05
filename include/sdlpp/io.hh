@@ -6,7 +6,7 @@
 #define NEUTRINO_SDL_IO_HH
 
 #include <sdlpp/sdl2.hh>
-#include <sdlpp/object.hh>
+#include "sdlpp/detail/object.hh"
 #include <sdlpp/call.hh>
 #include <bsw/mp/introspection.hh>
 #include <type_traits>

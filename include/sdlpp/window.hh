@@ -11,7 +11,7 @@
 
 #include <sdlpp/sdl2.hh>
 #include <sdlpp/call.hh>
-#include <sdlpp/object.hh>
+#include "sdlpp/detail/object.hh"
 
 namespace neutrino::sdl {
   class window : public object<SDL_Window> {
