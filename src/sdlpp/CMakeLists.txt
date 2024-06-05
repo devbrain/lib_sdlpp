@@ -19,6 +19,7 @@ add_library(sdlpp INTERFACE
         ${PROJECT_INCLUDE}/sdlpp/texture.hh
         ${PROJECT_INCLUDE}/sdlpp/timers.hh
         ${PROJECT_INCLUDE}/sdlpp/ttf.hh
+        ${PROJECT_INCLUDE}/sdlpp/detail/ttf_helper.hh
         ${PROJECT_INCLUDE}/sdlpp/window.hh
 
 

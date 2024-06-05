@@ -6,45 +6,18 @@
 #define SDLPP_INCLUDE_SDLPP_TTF_HH_
 
 #include <tuple>
-#include <type_traits>
 #include <string>
-#include <string_view>
 #include <optional>
 
 #include <bitflags/bitflags.hpp>
 #include <sdlpp/sdl2.hh>
 #include <sdlpp/object.hh>
 #include <sdlpp/io.hh>
-#include <bsw/macros.hh>
-#include <bsw/mp/if_then_else.hh>
+#include <sdlpp/detail/ttf_helper.hh>
+#include <sdlpp/surface.hh>
+#include <bsw/errors.hh>
 
 namespace neutrino::sdl {
-
-	namespace detail {
-		template <class T>
-		struct remove_cvref {
-			using type = std::remove_cv_t<std::remove_reference_t<T>>;
-		};
-
-		template <class From, class To>
-		struct is_compatible
-		{
-			static constexpr bool value = std::is_constructible_v<From, To>
-										  || std::is_convertible_v<From, To>
-										  || std::is_same_v<typename remove_cvref<From>::type, To>;
-		};
-
-		template <typename T>
-		struct string_traits {
-			using from = std::decay_t<T>;
-			static constexpr bool is_ucs = is_compatible<from, std::wstring>::value;
-			static constexpr bool is_utf8 = is_compatible<from, std::string>::value;
-			static constexpr bool is_string = is_ucs || is_utf8;
-		};
-	}
-
-	template<typename LikeAString>
-	using ensure_string = typename std::enable_if<detail::string_traits<LikeAString>::is_string>::type*;
 
 	class ttf : public object<TTF_Font> {
 	 public:
@@ -77,12 +50,12 @@ namespace neutrino::sdl {
 		ttf (const std::string& path, int ptsize, int index);
 		ttf (const std::string& path, int ptsize, int index, unsigned int hdpi, unsigned int vdpi);
 
-		ttf (io& rwops, int ptsize);
-		ttf (io& rwops, int ptsize, unsigned int hdpi, unsigned int vdpi);
-		ttf (io& rwops, int ptsize, int index);
-		ttf (io& rwops, int ptsize, int index, unsigned int hdpi, unsigned int vdpi);
+		ttf (object<SDL_RWops>& rwops, int ptsize);
+		ttf (object<SDL_RWops>& rwops, int ptsize, unsigned int hdpi, unsigned int vdpi);
+		ttf (object<SDL_RWops>& rwops, int ptsize, int index);
+		ttf (object<SDL_RWops>& rwops, int ptsize, int index, unsigned int hdpi, unsigned int vdpi);
 
-		ttf (object<TTF_Font>&& other);
+		explicit ttf (object<TTF_Font>&& other);
 		ttf& operator= (object<TTF_Font>&& other) noexcept;
 		ttf& operator= (ttf&& other) noexcept;
 
@@ -134,11 +107,47 @@ namespace neutrino::sdl {
 		[[nodiscard]] std::optional<text_size_t> get_text_size (LikeAString&& str,
 																ensure_string<LikeAString> = nullptr) const;
 
-
+		template<typename LikeAChar>
+		[[nodiscard]] int get_kerning(LikeAChar a, LikeAChar b, ensure_char<LikeAChar> = nullptr) const;
 		// num of chars that can be rendered, latest calculated width
 		template<typename LikeAString>
 		[[nodiscard]] text_size_t measure_text (LikeAString&& str, int max_width_pixels, ensure_string<LikeAString> = nullptr) const;
 
+		template<typename LikeAString>
+		[[nodiscard]] surface render_transparent(LikeAString&& str, color fg, ensure_string<LikeAString> = nullptr) const;
+
+		template<typename LikeAChar>
+		[[nodiscard]] surface render_transparent(LikeAChar ch, color fg, ensure_char<LikeAChar> = nullptr) const;
+
+		template<typename LikeAString>
+		[[nodiscard]] surface render_transparent(LikeAString&& str, color fg, int max_width_pixels, ensure_string<LikeAString> = nullptr) const;
+
+		template<typename LikeAString>
+		[[nodiscard]] surface render_blended(LikeAString&& str, color fg, ensure_string<LikeAString> = nullptr) const;
+
+		template<typename LikeAString>
+		[[nodiscard]] surface render_blended(LikeAString&& str, color fg, int max_width_pixels, ensure_string<LikeAString> = nullptr) const;
+
+		template<typename LikeAChar>
+		[[nodiscard]] surface render_blended(LikeAChar ch, color fg, ensure_char<LikeAChar> = nullptr) const;
+
+		template<typename LikeAString>
+		[[nodiscard]] surface render_lcd(LikeAString&& str, color fg, color bg, ensure_string<LikeAString> = nullptr) const;
+
+		template<typename LikeAString>
+		[[nodiscard]] surface render_lcd(LikeAString&& str, color fg, color bg, int max_width_pixels, ensure_string<LikeAString> = nullptr) const;
+
+		template<typename LikeAChar>
+		[[nodiscard]] surface render_lcd(LikeAChar ch, color fg, color bg, ensure_char<LikeAChar> = nullptr) const;
+
+		template<typename LikeAString>
+		[[nodiscard]] surface render_shaded(LikeAString&& str, color fg, color bg, ensure_string<LikeAString> = nullptr) const;
+
+		template<typename LikeAString>
+		[[nodiscard]] surface render_shaded(LikeAString&& str, color fg, color bg, int max_width_pixels, ensure_string<LikeAString> = nullptr) const;
+
+		template<typename LikeAChar>
+		[[nodiscard]] surface render_shaded(LikeAChar ch, color fg, color bg, ensure_char<LikeAChar> = nullptr) const;
 	};
 
 }
@@ -179,12 +188,12 @@ namespace neutrino::sdl {
 	}
 
 	inline
-	ttf::ttf (io& rwops, int ptsize)
+	ttf::ttf (object<SDL_RWops>& rwops, int ptsize)
 		: object<TTF_Font> (SAFE_SDL_CALL(TTF_OpenFontRW, rwops.handle (), 0, ptsize), true) {
 	}
 
 	inline
-	ttf::ttf (io& rwops, int ptsize, int index)
+	ttf::ttf (object<SDL_RWops>& rwops, int ptsize, int index)
 		: object<TTF_Font> (SAFE_SDL_CALL(TTF_OpenFontIndexRW, rwops.handle (), 0, ptsize, index), true) {
 	}
 
@@ -201,12 +210,12 @@ namespace neutrino::sdl {
 	}
 
 	inline
-	ttf::ttf (io& rwops, int ptsize, unsigned int hdpi, unsigned int vdpi)
+	ttf::ttf (object<SDL_RWops>& rwops, int ptsize, unsigned int hdpi, unsigned int vdpi)
 		: object<TTF_Font> (SAFE_SDL_CALL(TTF_OpenFontDPIRW, rwops.handle (), 0, ptsize, hdpi, vdpi), true) {
 	}
 
 	inline
-	ttf::ttf (io& rwops, int ptsize, int index, unsigned int hdpi, unsigned int vdpi)
+	ttf::ttf (object<SDL_RWops>& rwops, int ptsize, int index, unsigned int hdpi, unsigned int vdpi)
 		: object<TTF_Font> (SAFE_SDL_CALL(TTF_OpenFontIndexDPIRW, rwops
 		.handle (), 0, ptsize, index, hdpi, vdpi), true) {
 	}
@@ -381,144 +390,7 @@ namespace neutrino::sdl {
 		return std::nullopt;
 	}
 
-	namespace detail {
 
-		template <bool wchar_is_4_bytes>
-		struct conv_buffer_t : public std::vector<Uint16> {
-			void init (const std::wstring& str) {
-				resize (str.size ());
-			}
-
-			void init (const std::wstring_view& str) {
-				resize (str.size ());
-			}
-
-			void init (const wchar_t* str) {
-				if (!str) {
-					resize (0);
-				} else {
-					resize (wcslen (str));
-				}
-			}
-
-			void put (std::size_t i, wchar_t x) {
-				(*this)[i] = (Uint16)(x & 0xFFFF);
-			}
-
-			[[nodiscard]] const Uint16* text () const {
-				return data ();
-			}
-		};
-
-		template <>
-		struct conv_buffer_t<false> {
-			const wchar_t* m_ptr;
-			std::size_t n;
-
-			conv_buffer_t ()
-				: m_ptr (nullptr), n (0) {}
-
-			void init (const std::wstring& str) {
-				m_ptr = str.c_str ();
-				n = str.size ();
-			}
-
-			void init (const wchar_t* str) {
-				m_ptr = str;
-				n = wcslen (str);
-			}
-
-			void init (const std::wstring_view& str) {
-				m_ptr = str.data();
-				n = str.size();
-			}
-
-			void put ([[maybe_unused]] std::size_t i, [[maybe_unused]] wchar_t x) {
-			}
-
-			[[nodiscard]] constexpr size_t size () const noexcept {
-				return n;
-			}
-
-			[[nodiscard]] const Uint16* text () const {
-				return reinterpret_cast<const Uint16*>(m_ptr);
-			}
-		};
-
-		using conv_buffer = conv_buffer_t<sizeof (wchar_t) == 4>;
-
-		template <typename What, typename ... Args>
-		struct is_present {
-			static constexpr bool value{(is_compatible<typename remove_cvref<Args>::type, What>::value || ...)};
-		};
-
-
-
-		template <typename T>
-		constexpr T proxy (T arg,
-						   [[maybe_unused]] conv_buffer& buff,
-						   typename std::enable_if<!string_traits<T>::is_string>::type* = nullptr) {
-			return arg;
-		}
-
-		template <typename T>
-		const Uint16* proxy (T arg,
-							 conv_buffer& buff,
-							 typename std::enable_if<string_traits<T>::is_ucs>::type* = nullptr) {
-			buff.init (arg);
-			for (std::size_t i = 0; i < buff.size (); i++) {
-				buff.put (i, arg[i]);
-			}
-			return buff.text ();
-		}
-
-		template <typename T>
-		const char* proxy (T arg,
-						   [[maybe_unused]] conv_buffer& buff,
-						   typename std::enable_if<string_traits<T>::is_utf8>::type* = nullptr) {
-			if constexpr (std::is_same_v<std::decay_t<T>, std::string>) {
-				return arg.c_str ();
-			} else if constexpr (std::is_same_v<std::decay_t<T>, std::string_view>) {
-				return arg.data ();
-			} else {
-				return arg;
-			}
-		}
-
-
-#define d_TTF_CALLER_PROXY(NAME, UTF8_FN, UNICODE_FN)                                                                \
-        struct NAME {                                                                                                \
-            static constexpr auto utf8_fn = UTF8_FN;                                                                 \
-            static constexpr auto ucs_fn = UNICODE_FN;                                                               \
-                                                                                                                     \
-            template <typename ...Args>                                                                              \
-            static auto utf8_call(Args&& ...args) {                                                                  \
-				conv_buffer cvt;  																					 \
-                return utf8_fn(proxy(std::forward<Args&&>(args), cvt)...);                                           \
-            }                                                                                                        \
-            template <typename ...Args>                                                                              \
-            static auto ucs_call(Args&& ...args) {                                                                   \
-                conv_buffer cvt;                                                                                     \
-                return ucs_fn(proxy(std::forward<Args&&>(args), cvt)...);                                            \
-            }                                                                                                        \
-                                                                                                                     \
-            template <typename ...Args>                                                                              \
-            static auto call(Args&& ...args) {                                                                       \
-                if constexpr (is_present<std::wstring, Args...>::value) {                                            \
-                    return ucs_call (std::forward<Args&&>(args)...);                                                 \
-                } else {                                                                                             \
-                    return utf8_call (std::forward<Args&&>(args)...);                                                \
-                }                                                                                                    \
-            }                                                                                                        \
-        }
-
-#define d_TTF_CALL(Name) \
-d_TTF_CALLER_PROXY(PPCAT(PPCAT(TTF_, Name), _impl), PPCAT(PPCAT(TTF_, Name), UTF8), PPCAT(PPCAT(TTF_, Name), UNICODE))
-
-		d_TTF_CALL(Size);
-
-		d_TTF_CALL(Measure);
-	} // ns detail
 
 	template<typename LikeAString>
 	[[nodiscard]] std::optional<ttf::text_size_t> ttf::get_text_size (LikeAString&& str,
@@ -538,6 +410,133 @@ d_TTF_CALLER_PROXY(PPCAT(PPCAT(TTF_, Name), _impl), PPCAT(PPCAT(TTF_, Name), UTF
 		auto* f = const_cast<TTF_Font*>(handle ());
 		detail::TTF_Measure_impl::call (f, std::forward<LikeAString&&>(str), max_width_pixels, &extent, &count);
 		return std::make_tuple (count, extent);
+	}
+
+	template<typename LikeAString>
+	surface ttf::render_transparent(LikeAString&& str, color fg, ensure_string<LikeAString>) const {
+		auto* f = const_cast<TTF_Font*>(handle ());
+		SDL_Surface* rendered_surface = detail::TTF_RenderSolid_impl::call (f, std::forward<LikeAString&&>(str), fg);
+		ENFORCE(rendered_surface)
+		return surface(object<SDL_Surface>(rendered_surface, true));
+	}
+
+
+
+	template<typename LikeAString>
+	surface ttf::render_transparent(LikeAString&& str, color fg, int max_width_pixels, ensure_string<LikeAString>) const {
+		auto* f = const_cast<TTF_Font*>(handle ());
+		SDL_Surface* rendered_surface = detail::TTF_RenderSolid_Wrapped_impl::call (f, std::forward<LikeAString&&>(str), fg, max_width_pixels);
+		ENFORCE(rendered_surface)
+		return surface(object<SDL_Surface>(rendered_surface, true));
+	}
+
+	template<typename LikeAChar>
+	surface ttf::render_transparent(LikeAChar ch, color fg, ensure_char<LikeAChar>) const {
+		auto* f = const_cast<TTF_Font*>(handle ());
+		SDL_Surface* rendered_surface = nullptr;
+		if constexpr (std::is_same_v<LikeAChar, char> || sizeof (ch) == 2) {
+			rendered_surface = TTF_RenderGlyph_Solid (f, detail::proxy (ch), fg);
+		} else {
+			rendered_surface = TTF_RenderGlyph32_Solid (f, detail::proxy (ch), fg);
+		}
+		ENFORCE(rendered_surface)
+		return surface(object<SDL_Surface>(rendered_surface, true));
+	}
+
+	template<typename LikeAString>
+	surface ttf::render_blended(LikeAString&& str, color fg, ensure_string<LikeAString>) const {
+		auto* f = const_cast<TTF_Font*>(handle ());
+		SDL_Surface* rendered_surface = detail::TTF_RenderBlended_impl::call (f, std::forward<LikeAString&&>(str), fg);
+		ENFORCE(rendered_surface)
+		return surface(object<SDL_Surface>(rendered_surface, true));
+	}
+
+	template<typename LikeAString>
+	surface ttf::render_blended(LikeAString&& str, color fg, int max_width_pixels, ensure_string<LikeAString>) const {
+		auto* f = const_cast<TTF_Font*>(handle ());
+		SDL_Surface* rendered_surface = detail::TTF_RenderBlended_Wrapped_impl::call (f, std::forward<LikeAString&&>(str), fg, max_width_pixels);
+		ENFORCE(rendered_surface)
+		return surface(object<SDL_Surface>(rendered_surface, true));
+	}
+
+	template<typename LikeAChar>
+	surface ttf::render_blended(LikeAChar ch, color fg, ensure_char<LikeAChar>) const {
+		auto* f = const_cast<TTF_Font*>(handle ());
+		SDL_Surface* rendered_surface = nullptr;
+		if constexpr (std::is_same_v<LikeAChar, char> || sizeof (ch) == 2) {
+			rendered_surface = TTF_RenderGlyph_Blended(f, detail::proxy (ch), fg);
+		} else {
+			rendered_surface = TTF_RenderGlyph32_Blended(f, detail::proxy (ch), fg);
+		}
+		ENFORCE(rendered_surface)
+		return surface(object<SDL_Surface>(rendered_surface, true));
+	}
+
+	template<typename LikeAString>
+	surface ttf::render_lcd(LikeAString&& str, color fg, color bg, ensure_string<LikeAString>) const {
+		auto* f = const_cast<TTF_Font*>(handle ());
+		SDL_Surface* rendered_surface = detail::TTF_RenderLCD_impl::call (f, std::forward<LikeAString&&>(str), fg, bg);
+		ENFORCE(rendered_surface)
+		return surface(object<SDL_Surface>(rendered_surface, true));
+	}
+
+	template<typename LikeAString>
+	surface ttf::render_lcd(LikeAString&& str, color fg, color bg, int max_width_pixels, ensure_string<LikeAString>) const {
+		auto* f = const_cast<TTF_Font*>(handle ());
+		SDL_Surface* rendered_surface = detail::TTF_RenderLCD_Wrapped_impl::call (f, std::forward<LikeAString&&>(str), fg, bg, max_width_pixels);
+		ENFORCE(rendered_surface)
+		return surface(object<SDL_Surface>(rendered_surface, true));
+	}
+
+	template<typename LikeAChar>
+	surface ttf::render_lcd(LikeAChar ch, color fg, color bg, ensure_char<LikeAChar>) const {
+		auto* f = const_cast<TTF_Font*>(handle ());
+		SDL_Surface* rendered_surface = nullptr;
+		if constexpr (std::is_same_v<LikeAChar, char> || sizeof (ch) == 2) {
+			rendered_surface = TTF_RenderGlyph_LCD(f, detail::proxy (ch), fg, bg);
+		} else {
+			rendered_surface = TTF_RenderGlyph32_LCD(f, detail::proxy (ch), fg, bg);
+		}
+		ENFORCE(rendered_surface)
+		return surface(object<SDL_Surface>(rendered_surface, true));
+	}
+
+	template<typename LikeAString>
+	surface ttf::render_shaded(LikeAString&& str, color fg, color bg, ensure_string<LikeAString>) const {
+		auto* f = const_cast<TTF_Font*>(handle ());
+		SDL_Surface* rendered_surface = detail::TTF_RenderShaded_impl::call (f, std::forward<LikeAString&&>(str), fg, bg);
+		ENFORCE(rendered_surface)
+		return surface(object<SDL_Surface>(rendered_surface, true));
+	}
+
+	template<typename LikeAString>
+	surface ttf::render_shaded(LikeAString&& str, color fg, color bg, int max_width_pixels, ensure_string<LikeAString>) const {
+		auto* f = const_cast<TTF_Font*>(handle ());
+		SDL_Surface* rendered_surface = detail::TTF_RenderShaded_Wrapped_impl::call (f, std::forward<LikeAString&&>(str), fg, bg, max_width_pixels);
+		ENFORCE(rendered_surface)
+		return surface(object<SDL_Surface>(rendered_surface, true));
+	}
+
+	template<typename LikeAChar>
+	surface ttf::render_shaded(LikeAChar ch, color fg, color bg, ensure_char<LikeAChar>) const {
+		auto* f = const_cast<TTF_Font*>(handle ());
+		SDL_Surface* rendered_surface = nullptr;
+		if constexpr (std::is_same_v<LikeAChar, char> || sizeof (ch) == 2) {
+			rendered_surface = TTF_RenderGlyph_Shaded(f, detail::proxy (ch), fg, bg);
+		} else {
+			rendered_surface = TTF_RenderGlyph32_Shaded(f, detail::proxy (ch), fg, bg);
+		}
+		ENFORCE(rendered_surface)
+		return surface(object<SDL_Surface>(rendered_surface, true));
+	}
+	template<typename LikeAChar>
+	int ttf::get_kerning(LikeAChar a, LikeAChar b, ensure_char<LikeAChar>) const {
+		auto* f = const_cast<TTF_Font*>(handle ());
+		if constexpr (std::is_same_v<LikeAChar, char> || sizeof (a) == 2) {
+			return TTF_GetFontKerningSizeGlyphs(f, detail::proxy (a), detail::proxy (b));
+		} else {
+			return TTF_GetFontKerningSizeGlyphs32(f, detail::proxy (a), detail::proxy (b));
+		}
 	}
 }
 

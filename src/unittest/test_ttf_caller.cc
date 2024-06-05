@@ -2,8 +2,8 @@
 // Created by igor on 6/5/24.
 //
 #include <doctest/doctest.h>
+#include <sdlpp/detail/ttf_helper.hh>
 #include <sdlpp/ttf.hh>
-#include <bsw/mp/type_name/type_name.hpp>
 #include <iostream>
 
 static int utf8_func(const char* x, int n) {

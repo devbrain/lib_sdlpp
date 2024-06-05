@@ -29,7 +29,7 @@ set(PROJECT_INCLUDE ${PROJECT_ROOT}/include)
 set(PROJECT_CONFIG_INCLUDE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 
-if (is_top_level)
+if (sdlpp_is_top_level)
     set(BINARY_OUT_DIR ${CMAKE_BINARY_DIR}/bin)
     set(LIB_OUT_DIR ${CMAKE_BINARY_DIR}/lib)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BINARY_OUT_DIR})
