@@ -6,15 +6,46 @@
 #define SDLPP_INCLUDE_SDLPP_TTF_HH_
 
 #include <tuple>
+#include <type_traits>
 #include <string>
+#include <string_view>
 #include <optional>
 
 #include <bitflags/bitflags.hpp>
 #include <sdlpp/sdl2.hh>
 #include <sdlpp/object.hh>
 #include <sdlpp/io.hh>
+#include <bsw/macros.hh>
+#include <bsw/mp/if_then_else.hh>
 
 namespace neutrino::sdl {
+
+	namespace detail {
+		template <class T>
+		struct remove_cvref {
+			using type = std::remove_cv_t<std::remove_reference_t<T>>;
+		};
+
+		template <class From, class To>
+		struct is_compatible
+		{
+			static constexpr bool value = std::is_constructible_v<From, To>
+										  || std::is_convertible_v<From, To>
+										  || std::is_same_v<typename remove_cvref<From>::type, To>;
+		};
+
+		template <typename T>
+		struct string_traits {
+			using from = std::decay_t<T>;
+			static constexpr bool is_ucs = is_compatible<from, std::wstring>::value;
+			static constexpr bool is_utf8 = is_compatible<from, std::string>::value;
+			static constexpr bool is_string = is_ucs || is_utf8;
+		};
+	}
+
+	template<typename LikeAString>
+	using ensure_string = typename std::enable_if<detail::string_traits<LikeAString>::is_string>::type*;
+
 	class ttf : public object<TTF_Font> {
 	 public:
 		BEGIN_BITFLAGS(style_t)
@@ -98,12 +129,16 @@ namespace neutrino::sdl {
 
 		// width, height in pixels
 		using text_size_t = std::tuple<int, int>;
-		[[nodiscard]] std::optional<text_size_t> get_text_size (const std::string& str) const;
-		[[nodiscard]] std::optional<text_size_t> get_text_size (const std::wstring& str) const;
+
+		template<typename LikeAString>
+		[[nodiscard]] std::optional<text_size_t> get_text_size (LikeAString&& str,
+																ensure_string<LikeAString> = nullptr) const;
+
 
 		// num of chars that can be rendered, latest calculated width
-		[[nodiscard]] text_size_t measure_text (const std::string& str, int max_width_pixels) const;
-		[[nodiscard]] text_size_t measure_text (const std::wstring& str, int max_width_pixels) const;
+		template<typename LikeAString>
+		[[nodiscard]] text_size_t measure_text (LikeAString&& str, int max_width_pixels, ensure_string<LikeAString> = nullptr) const;
+
 	};
 
 }
@@ -285,12 +320,12 @@ namespace neutrino::sdl {
 
 	inline
 	bool ttf::get_sdf_enabled () const {
-		return TTF_GetFontSDF (handle()) == SDL_TRUE;
+		return TTF_GetFontSDF (handle ()) == SDL_TRUE;
 	}
 
 	inline
 	void ttf::set_sdf_enabled (bool v) {
-		TTF_SetFontSDF (handle(), v ? SDL_TRUE : SDL_FALSE);
+		TTF_SetFontSDF (handle (), v ? SDL_TRUE : SDL_FALSE);
 	}
 
 	inline
@@ -325,7 +360,7 @@ namespace neutrino::sdl {
 
 	inline
 	std::optional<ttf::metrics_t> ttf::get_metrics (wchar_t ch) const {
-		static_assert (sizeof (ch) == 4 || sizeof (ch) == 32);
+		static_assert (sizeof (ch) == 4 || sizeof (ch) == 2);
 
 		int minx;
 		int maxx;
@@ -346,63 +381,176 @@ namespace neutrino::sdl {
 		return std::nullopt;
 	}
 
-	inline
-	std::optional<ttf::text_size_t> ttf::get_text_size (const std::wstring& str) const {
-		int w;
-		int h;
-		if constexpr (sizeof (wchar_t) == 2) {
-			if (0 != TTF_SizeUNICODE (const_cast<TTF_Font*>(handle ()), (Uint16*)str.c_str (), &w, &h)) {
-				return std::make_tuple (w, h);
+	namespace detail {
+
+		template <bool wchar_is_4_bytes>
+		struct conv_buffer_t : public std::vector<Uint16> {
+			void init (const std::wstring& str) {
+				resize (str.size ());
 			}
-		} else {
+
+			void init (const std::wstring_view& str) {
+				resize (str.size ());
+			}
+
+			void init (const wchar_t* str) {
+				if (!str) {
+					resize (0);
+				} else {
+					resize (wcslen (str));
+				}
+			}
+
+			void put (std::size_t i, wchar_t x) {
+				(*this)[i] = (Uint16)(x & 0xFFFF);
+			}
+
+			[[nodiscard]] const Uint16* text () const {
+				return data ();
+			}
+		};
+
+		template <>
+		struct conv_buffer_t<false> {
+			const wchar_t* m_ptr;
+			std::size_t n;
+
+			conv_buffer_t ()
+				: m_ptr (nullptr), n (0) {}
+
+			void init (const std::wstring& str) {
+				m_ptr = str.c_str ();
+				n = str.size ();
+			}
+
+			void init (const wchar_t* str) {
+				m_ptr = str;
+				n = wcslen (str);
+			}
+
+			void init (const std::wstring_view& str) {
+				m_ptr = str.data();
+				n = str.size();
+			}
+
+			void put ([[maybe_unused]] std::size_t i, [[maybe_unused]] wchar_t x) {
+			}
+
+			[[nodiscard]] constexpr size_t size () const noexcept {
+				return n;
+			}
+
+			[[nodiscard]] const Uint16* text () const {
+				return reinterpret_cast<const Uint16*>(m_ptr);
+			}
+		};
+
+		using conv_buffer = conv_buffer_t<sizeof (wchar_t) == 4>;
+
+		std::vector<Uint16> ucs4_to_ucs2 (const std::wstring& str) {
+			static_assert (sizeof (std::wstring::value_type) == 4);
 			std::vector<Uint16> text (str.size (), 0);
 			for (std::size_t i = 0; i < str.size (); i++) {
-				text[i] = (Uint16)str[i];
+				text[i] = (Uint16)(str[i] & 0xFFFF);
 			}
-			if (0 != TTF_SizeUNICODE (const_cast<TTF_Font*>(handle ()), text.data (), &w, &h)) {
-				return std::make_tuple (w, h);
+			return text;
+		}
+
+
+
+
+		template <typename What, typename ... Args>
+		struct is_present {
+			static constexpr bool value{(is_compatible<typename remove_cvref<Args>::type, What>::value || ...)};
+		};
+
+
+
+		template <typename T>
+		constexpr T proxy (T arg,
+						   [[maybe_unused]] conv_buffer& buff,
+						   typename std::enable_if<!string_traits<T>::is_string>::type* = nullptr) {
+			return arg;
+		}
+
+		template <typename T>
+		const Uint16* proxy (T arg,
+							 conv_buffer& buff,
+							 typename std::enable_if<string_traits<T>::is_ucs>::type* = nullptr) {
+			buff.init (arg);
+			for (std::size_t i = 0; i < buff.size (); i++) {
+				buff.put (i, arg[i]);
+			}
+			return buff.text ();
+		}
+
+		template <typename T>
+		const char* proxy (T arg,
+						   [[maybe_unused]] conv_buffer& buff,
+						   typename std::enable_if<string_traits<T>::is_utf8>::type* = nullptr) {
+			if constexpr (std::is_same_v<std::decay_t<T>, std::string>) {
+				return arg.c_str ();
+			} else if constexpr (std::is_same_v<std::decay_t<T>, std::string_view>) {
+				return arg.data ();
+			} else {
+				return arg;
 			}
 		}
-		return std::nullopt;
-	}
 
-	inline
-	std::optional<ttf::text_size_t> ttf::get_text_size (const std::string& str) const {
+
+#define d_TTF_CALLER_PROXY(NAME, UTF8_FN, UNICODE_FN)                                                                \
+        struct NAME {                                                                                                \
+            static constexpr auto utf8_fn = UTF8_FN;                                                                 \
+            static constexpr auto ucs_fn = UNICODE_FN;                                                               \
+                                                                                                                     \
+            template <typename ...Args>                                                                              \
+            static auto utf8_call(Args&& ...args) {                                                                  \
+				conv_buffer cvt;  																					 \
+                return utf8_fn(proxy(std::forward<Args&&>(args), cvt)...);                                           \
+            }                                                                                                        \
+            template <typename ...Args>                                                                              \
+            static auto ucs_call(Args&& ...args) {                                                                   \
+                conv_buffer cvt;                                                                                     \
+                return ucs_fn(proxy(std::forward<Args&&>(args), cvt)...);                                            \
+            }                                                                                                        \
+                                                                                                                     \
+            template <typename ...Args>                                                                              \
+            static auto call(Args&& ...args) {                                                                       \
+                if constexpr (is_present<std::wstring, Args...>::value) {                                            \
+                    return ucs_call (std::forward<Args&&>(args)...);                                                 \
+                } else {                                                                                             \
+                    return utf8_call (std::forward<Args&&>(args)...);                                                \
+                }                                                                                                    \
+            }                                                                                                        \
+        }
+
+#define d_TTF_CALL(Name) \
+d_TTF_CALLER_PROXY(PPCAT(PPCAT(TTF_, Name), _impl), PPCAT(PPCAT(TTF_, Name), UTF8), PPCAT(PPCAT(TTF_, Name), UNICODE))
+
+		d_TTF_CALL(Size);
+
+		d_TTF_CALL(Measure);
+	} // ns detail
+
+	template<typename LikeAString>
+	[[nodiscard]] std::optional<ttf::text_size_t> ttf::get_text_size (LikeAString&& str,
+																	  ensure_string<LikeAString>) const {
 		int w;
 		int h;
-
-		if (0 != TTF_SizeUTF8 (const_cast<TTF_Font*>(handle ()), str.c_str (), &w, &h)) {
+		if (0 != detail::TTF_Size_impl::call(const_cast<TTF_Font*>(handle ()), std::forward<LikeAString&&>(str), &w, &h)) {
 			return std::make_tuple (w, h);
 		}
 		return std::nullopt;
 	}
 
-	inline
-	ttf::text_size_t ttf::measure_text (const std::string& str, int max_width_pixels) const {
+	template<typename LikeAString>
+	[[nodiscard]] ttf::text_size_t ttf::measure_text (LikeAString&& str, int max_width_pixels, ensure_string<LikeAString>) const {
 		int extent;
 		int count;
 		auto* f = const_cast<TTF_Font*>(handle ());
-		SAFE_SDL_CALL(TTF_MeasureUTF8, f, str.c_str (), max_width_pixels, &extent, &count);
+		detail::TTF_Measure_impl::call (f, std::forward<LikeAString&&>(str), max_width_pixels, &extent, &count);
 		return std::make_tuple (count, extent);
 	}
-
-	inline
-	ttf::text_size_t ttf::measure_text (const std::wstring& str, int max_width_pixels) const {
-		int extent;
-		int count;
-		auto* f = const_cast<TTF_Font*>(handle ());
-		if constexpr (sizeof (wchar_t) == 2) {
-			SAFE_SDL_CALL(TTF_MeasureUNICODE, f, (Uint16*)str.c_str (), max_width_pixels, &extent, &count);
-		} else {
-			std::vector<Uint16> text (str.size (), 0);
-			for (std::size_t i = 0; i < str.size (); i++) {
-				text[i] = (Uint16)str[i];
-			}
-			SAFE_SDL_CALL(TTF_MeasureUNICODE, f, text.data (), max_width_pixels, &extent, &count);
-		}
-		return std::make_tuple (count, extent);
-	}
-
 }
 
 #endif //SDLPP_INCLUDE_SDLPP_TTF_HH_

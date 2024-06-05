@@ -10,8 +10,8 @@ endif()
 
 string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}" sdlpp_is_top_level)
 option(sdlpp_INCLUDE_PACKAGING "Include packaging rules for sdlpp" "${sdlpp_is_top_level}")
-option(sdlpp_ENABLE_TESTING "Enable testing for sdlpp" TRUE)
-option(sdlpp_use_system_libs "Enable system SDL2, SDL_Mixer, SDL_TTF, SDL_Image sdlpp" TRUE)
+option(sdlpp_ENABLE_TESTING "Enable testing" "${sdlpp_is_top_level}")
+option(sdlpp_ENABLE_DEMO "Enable testing" "${sdlpp_is_top_level}")
 
 set(CMAKE_MODULE_PATH "${CMAKE_BINARY_DIR};${CMAKE_SOURCE_DIR}/cmake")
 
@@ -29,16 +29,31 @@ set(PROJECT_INCLUDE ${PROJECT_ROOT}/include)
 set(PROJECT_CONFIG_INCLUDE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 
-# add_subdirectory(src/tools/bin2c)
-add_subdirectory(src/sdlpp)
+if (is_top_level)
+    set(BINARY_OUT_DIR ${CMAKE_BINARY_DIR}/bin)
+    set(LIB_OUT_DIR ${CMAKE_BINARY_DIR}/lib)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BINARY_OUT_DIR})
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BINARY_OUT_DIR})
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${LIB_OUT_DIR})
 
-if (sdlpp_is_top_level)
-    add_subdirectory(demo)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${BINARY_OUT_DIR})
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${BINARY_OUT_DIR})
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${LIB_OUT_DIR})
+
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${BINARY_OUT_DIR})
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${BINARY_OUT_DIR})
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${LIB_OUT_DIR})
 endif()
 
 add_subdirectory(ext)
+add_subdirectory(src/sdlpp)
+
+if (sdlpp_ENABLE_DEMO)
+    add_subdirectory(demo)
+endif()
+
 if (sdlpp_ENABLE_TESTING)
-  # add_subdirectory(unittest)
+   add_subdirectory(src/unittest)
 endif()
 
 
