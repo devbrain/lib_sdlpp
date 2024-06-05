@@ -350,7 +350,7 @@ namespace neutrino::sdl {
 
 	inline
 	bool ttf::has_glyph (wchar_t ch) const {
-		static_assert (sizeof (ch) == 4 || sizeof (ch) == 32);
+		static_assert (sizeof (ch) == 4 || sizeof (ch) == 2);
 		if constexpr (sizeof (ch) == 2) {
 			return TTF_GlyphIsProvided (const_cast<TTF_Font*>(handle ()), (Uint16)ch);
 		} else {
@@ -446,18 +446,6 @@ namespace neutrino::sdl {
 		};
 
 		using conv_buffer = conv_buffer_t<sizeof (wchar_t) == 4>;
-
-		std::vector<Uint16> ucs4_to_ucs2 (const std::wstring& str) {
-			static_assert (sizeof (std::wstring::value_type) == 4);
-			std::vector<Uint16> text (str.size (), 0);
-			for (std::size_t i = 0; i < str.size (); i++) {
-				text[i] = (Uint16)(str[i] & 0xFFFF);
-			}
-			return text;
-		}
-
-
-
 
 		template <typename What, typename ... Args>
 		struct is_present {
