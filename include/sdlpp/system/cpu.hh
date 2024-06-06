@@ -6,10 +6,11 @@
 #define SDLPP_INCLUDE_SDLPP_CPU_HH_
 
 #include <cstddef>
-#include "bitflags/bitflags.hpp"
-#include "sdlpp/detail/sdl2.hh"
-#include "sdlpp/detail/call.hh"
-#include "bsw/macros.hh"
+
+#include <bitflags/bitflags.hpp>
+#include <bsw/macros.hh>
+#include <sdlpp/detail/call.hh>
+#include <sdlpp/detail/sdl2.hh>
 
 namespace neutrino::sdl {
 	struct cpu {

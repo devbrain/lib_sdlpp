@@ -8,9 +8,9 @@
 #include <chrono>
 #include <cstdint>
 
-#include "sdlpp/detail/sdl2.hh"
-#include "sdlpp/detail/call.hh"
-#include "bsw/exception.hh"
+#include <bsw/exception.hh>
+#include <sdlpp/detail/call.hh>
+#include <sdlpp/detail/sdl2.hh>
 
 namespace neutrino::sdl {
   inline void delay (const std::chrono::milliseconds& ms) noexcept {

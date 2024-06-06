@@ -7,10 +7,9 @@
 
 #include <cstdint>
 
-#include "sdlpp/detail/call.hh"
-#include "sdlpp/detail/sdl2.hh"
-#include "cpu.hh"
-#include "bsw/mp/all_same.hh"
+#include <bsw/mp/all_same.hh>
+#include <sdlpp/detail/call.hh>
+#include <sdlpp/detail/sdl2.hh>
 
 namespace neutrino::sdl {
 	enum class init_flags : uint32_t {

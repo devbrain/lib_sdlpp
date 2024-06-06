@@ -1,4 +1,6 @@
-add_library(sdlpp INTERFACE
+include(GenerateExportHeader)
+
+add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/detail/call.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/iterator.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/object.hh
@@ -37,13 +39,25 @@ add_library(sdlpp INTERFACE
         ${PROJECT_INCLUDE}/sdlpp/video/ttf.hh
         ${PROJECT_INCLUDE}/sdlpp/video/window.hh
 
+        thirdparty/gfx/SDL2_gfxPrimitives.c
+        thirdparty/gfx/SDL2_gfxPrimitives.h
+        thirdparty/gfx/SDL2_gfxPrimitives_font.h
+        thirdparty/gfx/SDL2_rotozoom.c
+        thirdparty/gfx/SDL2_rotozoom.h
+
+        video/render.cc
+        video/surface.cc
 )
 
-add_library(neutrino::sdlpp ALIAS sdlpp)
-target_compile_features(sdlpp INTERFACE cxx_std_17)
+generate_export_header(sdlpp EXPORT_FILE_NAME ${PROJECT_CONFIG_INCLUDE}/sdlpp/export_defines.h)
 
-target_include_directories(sdlpp INTERFACE ${PROJECT_INCLUDE})
-target_link_libraries(sdlpp INTERFACE thirdparty::sdl2 thirdparty::sdl2_ttf thirdparty::sdl2_mixer thirdparty::sdl2_image thirdparty::bitflags bsw)
+add_library(neutrino::sdlpp ALIAS sdlpp)
+
+target_include_directories(sdlpp
+        PUBLIC ${PROJECT_INCLUDE} ${PROJECT_CONFIG_INCLUDE}
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+)
+target_link_libraries(sdlpp PUBLIC thirdparty::sdl2 thirdparty::sdl2_ttf thirdparty::sdl2_mixer thirdparty::sdl2_image thirdparty::bitflags bsw)
 
 
 

@@ -9,11 +9,12 @@
 #include <string>
 #include <tuple>
 #include <optional>
-#include "sdlpp/detail/sdl2.hh"
-#include "sdlpp/detail/call.hh"
-#include "sdlpp/video/geometry.hh"
-#include "sdlpp/video/pixel_format.hh"
-#include "bsw/errors.hh"
+
+#include <bsw/errors.hh>
+#include <sdlpp/detail/call.hh>
+#include <sdlpp/detail/sdl2.hh>
+#include <sdlpp/video/geometry.hh>
+#include <sdlpp/video/pixel_format.hh>
 
 namespace neutrino::sdl {
 	class display {

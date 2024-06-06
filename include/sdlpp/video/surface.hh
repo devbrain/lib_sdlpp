@@ -8,15 +8,15 @@
 #include <string>
 #include <optional>
 
-#include "sdlpp/detail/sdl2.hh"
-#include "pixel_format.hh"
-#include "palette.hh"
-#include "sdlpp/detail/object.hh"
-#include "sdlpp/io/io.hh"
-#include "sdlpp/detail/call.hh"
-#include "geometry.hh"
-#include "bsw/macros.hh"
-#include "bsw/array_view.hh"
+#include <bsw/array_view.hh>
+#include <bsw/macros.hh>
+#include <sdlpp/detail/call.hh>
+#include <sdlpp/detail/object.hh>
+#include <sdlpp/detail/sdl2.hh>
+#include <sdlpp/io/io.hh>
+#include <sdlpp/video/geometry.hh>
+#include <sdlpp/video/palette.hh>
+#include <sdlpp/video/pixel_format.hh>
 
 namespace neutrino::sdl {
 	enum class blend_mode : uint32_t {
@@ -26,7 +26,7 @@ namespace neutrino::sdl {
 		MOD = SDL_BLENDMODE_MOD
 	};
 
-	class surface : public object<SDL_Surface> {
+	class SDLPP_EXPORT surface : public object<SDL_Surface> {
 	 public:
 		surface ();
 		explicit surface (object<SDL_Surface>&& other);
@@ -42,18 +42,15 @@ namespace neutrino::sdl {
 		// pitch - size of the scanline in bytes
 		surface (void* data, unsigned width, unsigned height, unsigned pitch, pixel_format format);
 
-		explicit surface(object<SDL_RWops>& rwops);
+		explicit surface (object<SDL_RWops>& rwops);
 
 		[[nodiscard]] static surface make_8bit (unsigned width, unsigned height);
 		[[nodiscard]] static surface make_rgba_32bit (unsigned width, unsigned height);
 
-		[[nodiscard]] static surface from_bmp (const std::string& path);
-		[[nodiscard]] static surface from_bmp (io& stream);
-
 		void save_bmp (const std::string& path) const;
 		void save_bmp (object<SDL_RWops>& stream) const;
 
-		surface clone () const;
+		[[nodiscard]] surface clone () const;
 		void lock () noexcept;
 		void unlock () noexcept;
 		[[nodiscard]] bool must_lock () const noexcept;
@@ -161,7 +158,14 @@ namespace neutrino::sdl {
 		// this method returns reference to the actual palette
 		[[nodiscard]] palette get_palette () const;
 		void set_palette (const palette& pal);
+
+		[[nodiscard]] surface roto_zoom (double angle, double zoom, bool smooth) const;
+		[[nodiscard]] surface roto_zoom (double angle, double zoom_x, double zoom_y, bool smooth) const;
+
+		[[nodiscard]] area_type roto_zoom_size (double angle, double zoom) const;
+		[[nodiscard]] area_type roto_zoom_size (double angle, double zoom_x, double zoom_y) const;
 	};
+
 	namespace detail {
 		template <bool LOCK_IF_NEEDED>
 		class lock_surface {
@@ -253,20 +257,22 @@ namespace neutrino::sdl {
 	// ----------------------------------------------------------------------------------------------
 	inline
 	surface::surface (void* data, unsigned width, unsigned height, unsigned pitch, pixel_format format)
-	: object<SDL_Surface> (SAFE_SDL_CALL(SDL_CreateRGBSurfaceWithFormatFrom, data,
-																			 static_cast<int>(width),
-																			 static_cast<int>(height),
-																			 format.get_bits_per_pixels (),
-																			 static_cast<int>(pitch),
-																			 format.value ()), true) {
+		: object<SDL_Surface> (SAFE_SDL_CALL(SDL_CreateRGBSurfaceWithFormatFrom, data,
+											 static_cast<int>(width),
+											 static_cast<int>(height),
+											 format.get_bits_per_pixels (),
+											 static_cast<int>(pitch),
+											 format.value ()), true) {
 
 	}
+
 	// ----------------------------------------------------------------------------------------------
 	inline
-	surface::surface(object<SDL_RWops>& rwops)
-	: object<SDL_Surface>(SAFE_SDL_CALL(IMG_Load_RW, rwops.handle(), SDL_FALSE), true) {
+	surface::surface (object<SDL_RWops>& rwops)
+		: object<SDL_Surface> (SAFE_SDL_CALL(IMG_Load_RW, rwops.handle (), SDL_FALSE), true) {
 
 	}
+
 	// ----------------------------------------------------------------------------------------------
 	inline
 	surface surface::make_8bit (unsigned width, unsigned height) {
@@ -280,16 +286,7 @@ namespace neutrino::sdl {
 	}
 
 	// ----------------------------------------------------------------------------------------------
-	inline
-	surface surface::from_bmp (const std::string& path) {
-		return surface (object<SDL_Surface> (SAFE_SDL_CALL(SDL_LoadBMP_RW, SDL_RWFromFile (path.c_str (), "rb"), 1), true));
-	}
 
-	// ----------------------------------------------------------------------------------------------
-	inline
-	surface surface::from_bmp (io& stream) {
-		return surface (object<SDL_Surface> (SAFE_SDL_CALL(SDL_LoadBMP_RW, stream.handle (), 0), true));
-	}
 
 	inline
 	surface surface::clone () const {
@@ -302,11 +299,13 @@ namespace neutrino::sdl {
 	void surface::save_bmp (const std::string& path) const {
 		SAFE_SDL_CALL(SDL_SaveBMP_RW, const_handle (), SDL_RWFromFile (path.c_str (), "wb"), 1);
 	}
+
 	// ----------------------------------------------------------------------------------------------
 	inline
 	void surface::save_bmp (object<SDL_RWops>& stream) const {
 		SAFE_SDL_CALL(SDL_SaveBMP_RW, const_handle (), stream.handle (), 0);
 	}
+
 	// ----------------------------------------------------------------------------------------------
 	inline
 	void surface::lock () noexcept {

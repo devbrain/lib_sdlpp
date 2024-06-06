@@ -9,13 +9,13 @@
 #include <string>
 #include <optional>
 
-#include "bitflags/bitflags.hpp"
-#include "sdlpp/detail/sdl2.hh"
-#include "sdlpp/detail/object.hh"
-#include "sdlpp/io/io.hh"
-#include "sdlpp/detail/ttf_helper.hh"
-#include "surface.hh"
-#include "bsw/errors.hh"
+#include <bitflags/bitflags.hpp>
+#include <bsw/errors.hh>
+#include <sdlpp/detail/object.hh>
+#include <sdlpp/detail/sdl2.hh>
+#include <sdlpp/detail/ttf_helper.hh>
+#include <sdlpp/io/io.hh>
+#include <sdlpp/video/surface.hh>
 
 namespace neutrino::sdl {
 

@@ -5,12 +5,13 @@
 #ifndef NEUTRINO_SDL_RENDER_HH
 #define NEUTRINO_SDL_RENDER_HH
 
-#include "surface.hh"
-#include "texture.hh"
-#include "bsw/array_view.hh"
+#include <string>
+#include <sdlpp/video/surface.hh>
+#include <sdlpp/video/texture.hh>
+#include <bsw/array_view.hh>
 
 namespace neutrino::sdl {
-	class renderer : public object<SDL_Renderer> {
+	class SDLPP_EXPORT renderer : public object<SDL_Renderer> {
 	 public:
 		enum class flags : uint32_t {
 			NONE = 0,
@@ -85,19 +86,83 @@ namespace neutrino::sdl {
 		void copy (const texture& t, const rect& srcrect, flip flip_ = flip::NONE);
 		void copy (const texture& t, const rect& srcrect, const rect& dstrect, flip flip_ = flip::NONE);
 		void copy (const texture& t, const rect& srcrect, const rect& dstrect, double angle, flip flip_ = flip::NONE);
-		void
-		copy (const texture& t, const rect& srcrect, const rect& dstrect, double angle, const point& pt, flip flip_);
+		void copy (const texture& t, const rect& srcrect, const rect& dstrect, double angle, const point& pt, flip flip_);
 
-		void draw (int x1, int y1, int x2, int y2);
-		void draw (const point& p1, const point& p2);
+		void draw_line    (int x1, int y1, int x2, int y2);
+		void draw_line_aa (int x1, int y1, int x2, int y2);
+		void draw_line (const point& p1, const point& p2);
+		void draw_line_aa (const point& p1, const point& p2);
+		void draw_thick_line(int x1, int y1, int x2, int y2, unsigned width);
+		void draw_thick_line(const point& p1, const point& p2, unsigned width);
+
+		void draw_hline(int x1, int x2, int y);
+		void draw_vline(int y1, int y2, int x);
 		void draw_connected_lines (const bsw::array_view1d<point>& vertices);
-		void draw (int x, int y);
-		void draw (const point& p);
-		void draw (const bsw::array_view1d<point>& points);
-		void draw (const rect& rec);
-		void draw (const bsw::array_view1d<rect>& rec);
-		void draw_filled (const rect& rec);
-		void draw_filled (const bsw::array_view1d<rect>& rec);
+
+		void draw_point (int x, int y);
+		void draw_point (const point& p);
+		void draw_points (const bsw::array_view1d<point>& points);
+
+		void draw_rectangle (const rect& rec);
+		void draw_rectangles (const bsw::array_view1d<rect>& rec);
+		void draw_rounded_rect(const rect& rec, unsigned radius);
+		void draw_rounded_rect_filled(const rect& rec, unsigned radius);
+
+		void draw_rectangle_filled (const rect& rec);
+		void draw_rectangles_filled (const bsw::array_view1d<rect>& rec);
+
+
+
+		void draw_circle(int x, int y, unsigned radius);
+		void draw_circle(const point& center, unsigned radius);
+
+		void draw_circle_aa(int x, int y, unsigned radius);
+		void draw_circle_aa(const point& center, unsigned radius);
+
+		void draw_circle_filled(int x, int y, unsigned radius);
+		void draw_circle_filled(const point& center, unsigned radius);
+
+		void draw_arc(int x, int y, int start, int end, unsigned radius);
+		void draw_arc(const point& p, int start, int end, unsigned radius);
+
+		void draw_arc_filled(int x, int y, int start, int end, unsigned radius);
+		void draw_arc_filled(const point& p, int start, int end, unsigned radius);
+
+		void draw_ellipse(int x, int y, unsigned rx, unsigned ry);
+		void draw_ellipse(const point& center, unsigned rx, unsigned ry);
+
+		void draw_ellipse_aa(int x, int y, unsigned rx, unsigned ry);
+		void draw_ellipse_aa(const point& center, unsigned rx, unsigned ry);
+
+		void draw_ellipse_filled(int x, int y, unsigned rx, unsigned ry);
+		void draw_ellipse_filled(const point& center, unsigned rx, unsigned ry);
+
+		void draw_triangle(int x1, int y1, int x2, int y2, int x3, int y3);
+		void draw_triangle(const point& a, const point& b, const point& c);
+
+		void draw_triangle_aa(int x1, int y1, int x2, int y2, int x3, int y3);
+		void draw_triangle_aa(const point& a, const point& b, const point& c);
+
+		void draw_triangle_filled(int x1, int y1, int x2, int y2, int x3, int y3);
+		void draw_triangle_filled(const point& a, const point& b, const point& c);
+
+		void draw_polygon (const bsw::array_view1d<point>& points);
+		void draw_polygon_aa (const bsw::array_view1d<point>& points);
+		void draw_polygon (const int16_t* vx, const int16_t* vy, std::size_t n);
+		void draw_polygon_aa (const int16_t* vx, const int16_t* vy, std::size_t n);
+
+		void draw_polygon (const bsw::array_view1d<point>& points, const object<SDL_Surface>& tex,
+						   int texture_dx, int texture_dy);
+		void draw_polygon (const int16_t* vx, const int16_t* vy, std::size_t n, const object<SDL_Surface>& tex,
+						   int texture_dx, int texture_dy);
+
+		void draw_polygon_filled (const bsw::array_view1d<point>& points);
+		void draw_polygon_filled (const int16_t* vx, const int16_t* vy, std::size_t n);
+
+		void draw_bezier(const bsw::array_view1d<point>& points, unsigned steps);
+		void draw_bezier(const int16_t* vx, const int16_t* vy, std::size_t n, unsigned steps);
+		void draw_latin1_string (int x, int y, const std::string& s);
+		void draw_latin1_string (const point& p, const std::string& s);
 
 		void present () noexcept;
 
@@ -407,16 +472,25 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::draw (int x1, int y1, int x2, int y2) {
+	void renderer::draw_line (int x1, int y1, int x2, int y2) {
 		SAFE_SDL_CALL(SDL_RenderDrawLine, handle (), x1, y1, x2, y2);
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::draw (const point& p1, const point& p2) {
-		draw (p1.x, p1.y, p2.x, p2.y);
+	void renderer::draw_line (const point& p1, const point& p2) {
+		draw_line (p1.x, p1.y, p2.x, p2.y);
 	}
 
+	inline
+	void renderer::draw_thick_line(const point& p1, const point& p2, unsigned width) {
+		draw_thick_line (p1.x, p1.y, p2.x, p2.y, width);
+	}
+
+	inline
+	void renderer::draw_line_aa (const point& p1, const point& p2) {
+		draw_line_aa (p1.x, p1.y, p2.x, p2.y);
+	}
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
 	void renderer::draw_connected_lines (const bsw::array_view1d<point>& vertices) {
@@ -432,31 +506,31 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::draw (int x, int y) {
+	void renderer::draw_point (int x, int y) {
 		SAFE_SDL_CALL(SDL_RenderDrawPoint, handle (), x, y);
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::draw (const point& p) {
-		draw (p.x, p.y);
+	void renderer::draw_point (const point& p) {
+		draw_point (p.x, p.y);
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::draw (const bsw::array_view1d<point>& points) {
+	void renderer::draw_points (const bsw::array_view1d<point>& points) {
 		SAFE_SDL_CALL(SDL_RenderDrawPoints, handle (), points.data (), points.size ());
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::draw (const rect& rec) {
+	void renderer::draw_rectangle (const rect& rec) {
 		SAFE_SDL_CALL(SDL_RenderDrawRect, handle (), &rec);
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::draw (const bsw::array_view1d<rect>& rec) {
+	void renderer::draw_rectangles (const bsw::array_view1d<rect>& rec) {
 #if defined(_MSC_VER)
 #pragma warning ( push )
 #pragma warning ( disable : 4267)
@@ -469,13 +543,13 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::draw_filled (const rect& rec) {
+	void renderer::draw_rectangle_filled (const rect& rec) {
 		SAFE_SDL_CALL(SDL_RenderFillRect, handle (), &rec);
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::draw_filled (const bsw::array_view1d<rect>& rec) {
+	void renderer::draw_rectangles_filled (const bsw::array_view1d<rect>& rec) {
 		SAFE_SDL_CALL(SDL_RenderFillRects, handle (), rec.data (), rec.size ());
 	}
 
@@ -484,6 +558,67 @@ namespace neutrino::sdl {
 	void renderer::present () noexcept {
 		SDL_RenderPresent (const_handle ());
 	}
+
+	inline
+	void renderer::draw_circle (const point& center, unsigned int radius) {
+		draw_circle (center.x, center.y, radius);
+	}
+
+	inline
+	void renderer::draw_circle_aa (const point& center, unsigned int radius) {
+		draw_circle_aa (center.x, center.y, radius);
+	}
+
+	inline
+	void renderer::draw_circle_filled (const point& center, unsigned int radius) {
+		draw_circle_filled (center.x, center.y, radius);
+	}
+
+	inline
+	void renderer::draw_arc (const point& p, int start, int end, unsigned int radius) {
+		draw_arc (p.x, p.y, start, end, radius);
+	}
+
+	inline
+	void renderer::draw_arc_filled (const point& p, int start, int end, unsigned int radius) {
+		draw_arc_filled (p.x, p.y, start, end, radius);
+	}
+
+	inline
+	void renderer::draw_ellipse (const point& center, unsigned int rx, unsigned int ry) {
+		draw_ellipse (center.x, center.y, rx, ry);
+	}
+
+	inline
+	void renderer::draw_ellipse_aa (const point& center, unsigned int rx, unsigned int ry) {
+		draw_ellipse_aa (center.x, center.y, rx, ry);
+	}
+
+	inline
+	void renderer::draw_ellipse_filled (const point& center, unsigned int rx, unsigned int ry) {
+		draw_ellipse_filled(center.x, center.y, rx, ry);
+	}
+
+	inline
+	void renderer::draw_triangle (const point& a, const point& b, const point& c) {
+		draw_triangle (a.x, a.y, b.x, b.y, c.x, c.y);
+	}
+
+	inline
+	void renderer::draw_triangle_aa (const point& a, const point& b, const point& c) {
+		draw_triangle_aa (a.x, a.y, b.x, b.y, c.x, c.y);
+	}
+
+	inline
+	void renderer::draw_triangle_filled (const point& a, const point& b, const point& c) {
+		draw_triangle_filled (a.x, a.y, b.x, b.y, c.x, c.y);
+	}
+
+	inline
+	void renderer::draw_latin1_string (const point& p, const std::string& s) {
+		draw_latin1_string (p.x, p.y, s);
+	}
+
 }
 
 #endif

@@ -12,6 +12,7 @@ string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}" sdlpp_i
 option(sdlpp_INCLUDE_PACKAGING "Include packaging rules for sdlpp" "${sdlpp_is_top_level}")
 option(sdlpp_ENABLE_TESTING "Enable testing" "${sdlpp_is_top_level}")
 option(sdlpp_ENABLE_DEMO "Enable testing" "${sdlpp_is_top_level}")
+option(sdlpp_SHARED_LIBS "Build shared libs" ON)
 
 set(CMAKE_MODULE_PATH "${CMAKE_BINARY_DIR};${CMAKE_SOURCE_DIR}/cmake")
 
@@ -28,6 +29,9 @@ set(PROJECT_INCLUDE_PRIVATE ${PROJECT_ROOT}/src)
 set(PROJECT_INCLUDE ${PROJECT_ROOT}/include)
 set(PROJECT_CONFIG_INCLUDE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
+if (DEFINED sdlpp_SHARED_LIBS)
+    set(BUILD_SHARED_LIBS "${sdlpp_SHARED_LIBS}")
+endif ()
 
 if (sdlpp_is_top_level)
     set(BINARY_OUT_DIR ${CMAKE_BINARY_DIR}/bin)

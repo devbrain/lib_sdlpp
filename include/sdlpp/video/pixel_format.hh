@@ -5,8 +5,8 @@
 #include <cstdint>
 #include <tuple>
 
-#include "sdlpp/detail/sdl2.hh"
-#include "bsw/exception.hh"
+#include <sdlpp/detail/sdl2.hh>
+#include <bsw/exception.hh>
 
 namespace neutrino::sdl {
 	class pixel_format {
