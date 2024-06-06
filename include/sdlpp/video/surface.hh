@@ -8,15 +8,15 @@
 #include <string>
 #include <optional>
 
-#include <sdlpp/sdl2.hh>
-#include <sdlpp/pixel_format.hh>
-#include <sdlpp/palette.hh>
+#include "sdlpp/detail/sdl2.hh"
+#include "pixel_format.hh"
+#include "palette.hh"
 #include "sdlpp/detail/object.hh"
-#include <sdlpp/io.hh>
-#include <sdlpp/call.hh>
-#include <sdlpp/geometry.hh>
-#include <bsw/macros.hh>
-#include <bsw/array_view.hh>
+#include "sdlpp/io/io.hh"
+#include "sdlpp/detail/call.hh"
+#include "geometry.hh"
+#include "bsw/macros.hh"
+#include "bsw/array_view.hh"
 
 namespace neutrino::sdl {
 	enum class blend_mode : uint32_t {
@@ -42,13 +42,16 @@ namespace neutrino::sdl {
 		// pitch - size of the scanline in bytes
 		surface (void* data, unsigned width, unsigned height, unsigned pitch, pixel_format format);
 
+		explicit surface(object<SDL_RWops>& rwops);
+
 		[[nodiscard]] static surface make_8bit (unsigned width, unsigned height);
 		[[nodiscard]] static surface make_rgba_32bit (unsigned width, unsigned height);
+
 		[[nodiscard]] static surface from_bmp (const std::string& path);
 		[[nodiscard]] static surface from_bmp (io& stream);
 
 		void save_bmp (const std::string& path) const;
-		void save_bmp (io& stream) const;
+		void save_bmp (object<SDL_RWops>& stream) const;
 
 		surface clone () const;
 		void lock () noexcept;
@@ -150,7 +153,7 @@ namespace neutrino::sdl {
 		void fill (const bsw::array_view1d<rect>& rects, uint32_t c);
 		void fill (const bsw::array_view1d<rect>& rects, const color& c);
 
-		surface convert (const pixel_format& fmt) const;
+		[[nodiscard]] surface convert (const pixel_format& fmt) const;
 
 		[[nodiscard]] pixel_format get_pixel_format () const;
 		[[nodiscard]] uint32_t map_color (const color& c);
@@ -260,6 +263,12 @@ namespace neutrino::sdl {
 	}
 	// ----------------------------------------------------------------------------------------------
 	inline
+	surface::surface(object<SDL_RWops>& rwops)
+	: object<SDL_Surface>(SAFE_SDL_CALL(IMG_Load_RW, rwops.handle(), SDL_FALSE), true) {
+
+	}
+	// ----------------------------------------------------------------------------------------------
+	inline
 	surface surface::make_8bit (unsigned width, unsigned height) {
 		return {width, height, pixel_format::make_8bit ()};
 	}
@@ -293,13 +302,11 @@ namespace neutrino::sdl {
 	void surface::save_bmp (const std::string& path) const {
 		SAFE_SDL_CALL(SDL_SaveBMP_RW, const_handle (), SDL_RWFromFile (path.c_str (), "wb"), 1);
 	}
-
 	// ----------------------------------------------------------------------------------------------
 	inline
-	void surface::save_bmp (io& stream) const {
+	void surface::save_bmp (object<SDL_RWops>& stream) const {
 		SAFE_SDL_CALL(SDL_SaveBMP_RW, const_handle (), stream.handle (), 0);
 	}
-
 	// ----------------------------------------------------------------------------------------------
 	inline
 	void surface::lock () noexcept {

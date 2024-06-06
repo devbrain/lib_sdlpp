@@ -9,11 +9,7 @@
 #include <string>
 #include <vector>
 
-#include <sdlpp/window.hh>
-#include <sdlpp/system.hh>
-#include <sdlpp/surface.hh>
-#include <sdlpp/texture.hh>
-#include <sdlpp/render.hh>
+#include "sdlpp/sdlpp.hh"
 
 #include <vga_demo_export.h>
 

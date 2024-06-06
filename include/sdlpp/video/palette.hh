@@ -5,12 +5,12 @@
 #ifndef NEUTRINO_SDL_PALETTE_HH
 #define NEUTRINO_SDL_PALETTE_HH
 
-#include <sdlpp/sdl2.hh>
+#include "sdlpp/detail/sdl2.hh"
 #include "sdlpp/detail/object.hh"
-#include <sdlpp/color.hh>
+#include "color.hh"
 #include "sdlpp/detail/iterator.hh"
-#include <sdlpp/call.hh>
-#include <sdlpp/rtc.hh>
+#include "sdlpp/detail/call.hh"
+#include "sdlpp/detail/rtc.hh"
 
 namespace neutrino::sdl {
 	class palette : public object<SDL_Palette> {

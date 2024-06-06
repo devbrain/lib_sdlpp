@@ -17,3 +17,5 @@ target_link_libraries(plasma PRIVATE vga_demo thirdparty::sdl2-main)
 add_executable(ttf_demo ttf_demo.cc)
 target_link_libraries(ttf_demo PRIVATE neutrino::sdlpp thirdparty::sdl2-main)
 
+add_executable(sys_info sys_info.cc)
+target_link_libraries(sys_info PRIVATE neutrino::sdlpp thirdparty::sdl2-main)

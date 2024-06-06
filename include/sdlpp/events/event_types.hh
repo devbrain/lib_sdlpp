@@ -5,7 +5,7 @@
 #ifndef NEUTRINO_SDL_EVENTS_EVENT_TYPES_HH
 #define NEUTRINO_SDL_EVENTS_EVENT_TYPES_HH
 
-#include <sdlpp/sdl2.hh>
+#include "sdlpp/detail/sdl2.hh"
 #include <cstdint>
 
 namespace neutrino::sdl {

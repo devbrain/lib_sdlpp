@@ -7,11 +7,11 @@
 
 #include <optional>
 
-#include <sdlpp/sdl2.hh>
+#include "sdlpp/detail/sdl2.hh"
 #include "sdlpp/detail/object.hh"
-#include <sdlpp/pixel_format.hh>
-#include <sdlpp/call.hh>
-#include <sdlpp/surface.hh>
+#include "pixel_format.hh"
+#include "sdlpp/detail/call.hh"
+#include "surface.hh"
 
 namespace neutrino::sdl {
   class texture : public object<SDL_Texture> {

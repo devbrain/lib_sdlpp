@@ -9,7 +9,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include <sdlpp/sdl2.hh>
+#include "sdl2.hh"
 #include <bsw/macros.hh>
 
 namespace neutrino::sdl {

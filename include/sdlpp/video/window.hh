@@ -9,8 +9,8 @@
 #include <cstdint>
 #include <tuple>
 
-#include <sdlpp/sdl2.hh>
-#include <sdlpp/call.hh>
+#include "sdlpp/detail/sdl2.hh"
+#include "sdlpp/detail/call.hh"
 #include "sdlpp/detail/object.hh"
 
 namespace neutrino::sdl {

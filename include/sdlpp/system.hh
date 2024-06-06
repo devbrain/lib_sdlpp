@@ -1,65 +1,13 @@
 //
-// Created by igor on 31/05/2020.
+// Created by igor on 6/6/24.
 //
 
-#ifndef NEUTRINO_SDL_SYSTEM_HH
-#define NEUTRINO_SDL_SYSTEM_HH
+#ifndef SDLPP_INCLUDE_SDLPP_SYSTEM_HH_
+#define SDLPP_INCLUDE_SDLPP_SYSTEM_HH_
 
-#include <cstdint>
+#include "sdlpp/system/cpu.hh"
+#include "sdlpp/system/display.hh"
+#include "sdlpp/system/system.hh"
+#include "sdlpp/system/timers.hh"
 
-#include <sdlpp/call.hh>
-#include <sdlpp/sdl2.hh>
-#include <bsw/mp/all_same.hh>
-
-namespace neutrino::sdl {
-	enum class init_flags : uint32_t {
-		TIMER = SDL_INIT_TIMER,
-		AUDIO = SDL_INIT_AUDIO,
-		VIDEO = SDL_INIT_VIDEO,
-		JOYSTICK = SDL_INIT_JOYSTICK,
-		HAPTIC = SDL_INIT_HAPTIC,
-		GAMECONTROLLER = SDL_INIT_GAMECONTROLLER,
-		EVENTS = SDL_INIT_EVENTS,
-		SENSOR = SDL_INIT_SENSOR,
-		NOPARACHUTE = SDL_INIT_NOPARACHUTE
-	};
-
-	class system {
-	 public:
-		template <typename ... Args,
-			typename std::enable_if_t<std::conjunction_v<std::is_same<Args, init_flags>...>, void*> = nullptr>
-		explicit system (Args... flags);
-
-		~system () noexcept;
-	};
-} // ns sdl
-
-// ====================================================================
-// Implementation
-// ====================================================================
-
-namespace neutrino::sdl {
-
-	template <typename ... Args,
-		typename std::enable_if_t<std::conjunction_v<std::is_same<Args, init_flags>...>, void*>>
-	inline
-	system::system (Args... flags) {
-		uint32_t f = (static_cast<std::uint32_t>(flags) | ... | 0u);
-		if (f == 0) {
-			f = SDL_INIT_EVERYTHING;
-		}
-		SAFE_SDL_CALL(SDL_Init, f);
-		TTF_Init();
-		IMG_Init (IMG_INIT_JPG | IMG_INIT_PNG | IMG_INIT_TIF | IMG_INIT_WEBP |  IMG_INIT_JXL | IMG_INIT_AVIF);
-	}
-
-	// -----------------------------------------------------------------------------------------------
-	inline
-	system::~system () noexcept {
-		IMG_Quit();
-		TTF_Quit();
-		SDL_Quit ();
-	}
-}
-
-#endif
+#endif //SDLPP_INCLUDE_SDLPP_SYSTEM_HH_

@@ -3,7 +3,7 @@
 //
 #include <doctest/doctest.h>
 #include <sdlpp/detail/ttf_helper.hh>
-#include <sdlpp/ttf.hh>
+#include "sdlpp/video/ttf.hh"
 #include <iostream>
 
 static int utf8_func(const char* x, int n) {

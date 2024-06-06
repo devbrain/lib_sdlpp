@@ -5,9 +5,9 @@
 #ifndef NEUTRINO_SDL_RENDER_HH
 #define NEUTRINO_SDL_RENDER_HH
 
-#include <sdlpp/surface.hh>
-#include <sdlpp/texture.hh>
-#include <bsw/array_view.hh>
+#include "surface.hh"
+#include "texture.hh"
+#include "bsw/array_view.hh"
 
 namespace neutrino::sdl {
 	class renderer : public object<SDL_Renderer> {

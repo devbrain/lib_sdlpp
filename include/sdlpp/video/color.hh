@@ -10,7 +10,7 @@
 #include <tuple>
 #include <cmath>
 
-#include <sdlpp/sdl2.hh>
+#include "sdlpp/detail/sdl2.hh"
 
 namespace neutrino::sdl {
   struct color : public SDL_Color {

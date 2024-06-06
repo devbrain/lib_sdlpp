@@ -6,11 +6,7 @@
 #include <stdexcept>
 #include <filesystem>
 
-#include <sdlpp/system.hh>
-#include <sdlpp/window.hh>
-#include <sdlpp/render.hh>
-#include <sdlpp/io.hh>
-#include <sdlpp/ttf.hh>
+#include "sdlpp/sdlpp.hh"
 #include <sdlpp/events/events.hh>
 
 
@@ -19,9 +15,6 @@ int main(int argc, char* argv[]) {
 		std::cerr << "USAGE: " << argv[0] << " <path to ttf file" << std::endl;
 		return 1;
 	}
-
-
-
 
 	std::ifstream ifs(argv[1], std::ios::in | std::ios::binary);
 	if (!ifs) {

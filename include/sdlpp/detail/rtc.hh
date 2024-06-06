@@ -1,7 +1,7 @@
 #ifndef NEUTRINO_SDL_RTC_HH
 #define NEUTRINO_SDL_RTC_HH
 
-#include <bsw/exception.hh>
+#include "bsw/exception.hh"
 
 #define RTC_PALETTE
 

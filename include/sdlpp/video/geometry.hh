@@ -5,7 +5,7 @@
 #ifndef NEUTRINO_SDL_GEOMETRY_HH
 #define NEUTRINO_SDL_GEOMETRY_HH
 
-#include <sdlpp/sdl2.hh>
+#include "sdlpp/detail/sdl2.hh"
 #include <utility>
 #include <cmath>
 #include <vector>

@@ -5,8 +5,8 @@
 #include <filesystem>
 #include <vector>
 #include <cstring>
-#include <sdlpp/timers.hh>
-#include <sdlpp/surface.hh>
+#include "sdlpp/sdlpp.hh"
+
 #include <sdlpp/events/events.hh>
 
 #include "demo.hh"

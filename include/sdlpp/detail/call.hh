@@ -5,8 +5,8 @@
 #ifndef NEUTRINO_SDL_CALL_HH
 #define NEUTRINO_SDL_CALL_HH
 
-#include <sdlpp/sdl2.hh>
-#include <bsw/exception.hh>
+#include "sdl2.hh"
+#include "bsw/exception.hh"
 
 namespace neutrino::sdl {
 
