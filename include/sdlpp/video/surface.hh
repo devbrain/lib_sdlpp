@@ -142,6 +142,7 @@ namespace neutrino::sdl {
 
 		// returns pixels, pitch, w, h
 		[[nodiscard]] std::tuple<void*, std::size_t, unsigned, unsigned> pixels_data () const;
+		[[nodiscard]] area_type get_dimanesions() const;
 
 		void fill (const rect& r, uint32_t c);
 		void fill (const rect& r, const color& c);
@@ -472,7 +473,12 @@ namespace neutrino::sdl {
 		const auto* s = handle ();
 		return {s->pixels, s->pitch, s->w, s->h};
 	}
-
+	// ----------------------------------------------------------------------------------------------
+	inline
+	area_type surface::get_dimanesions() const {
+		const auto* s = handle ();
+		return {s->w, s->h};
+	}
 	// ----------------------------------------------------------------------------------------------
 	inline
 	void surface::fill (const rect& r, uint32_t c) {
