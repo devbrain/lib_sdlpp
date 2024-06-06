@@ -14,4 +14,6 @@ target_link_libraries(blob PRIVATE vga_demo thirdparty::sdl2-main)
 add_executable(plasma plasma.cc)
 target_link_libraries(plasma PRIVATE vga_demo thirdparty::sdl2-main)
 
+add_executable(ttf_demo ttf_demo.cc)
+target_link_libraries(ttf_demo PRIVATE neutrino::sdlpp thirdparty::sdl2-main)
 

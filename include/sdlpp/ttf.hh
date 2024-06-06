@@ -41,6 +41,7 @@ namespace neutrino::sdl {
 			CENTER = TTF_WRAPPED_ALIGN_CENTER,
 			RIGHT = TTF_WRAPPED_ALIGN_RIGHT
 		};
+
 	 public:
 		ttf () = default;
 
@@ -86,6 +87,8 @@ namespace neutrino::sdl {
 
 		[[nodiscard]] bool get_sdf_enabled () const;
 		void set_sdf_enabled (bool v);
+
+
 
 		[[nodiscard]] std::size_t get_faces () const;
 		[[nodiscard]] bool get_is_fixed_width () const;
