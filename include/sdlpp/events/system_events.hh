@@ -5,6 +5,8 @@
 #ifndef SDLPP_SYSTEM_EVENTS_HH
 #define SDLPP_SYSTEM_EVENTS_HH
 
+#include <string>
+#include <iosfwd>
 #include <bsw/mp/typelist.hh>
 #include <sdlpp/events/event_types.hh>
 
@@ -40,40 +42,38 @@ namespace neutrino::sdl::events {
 		}
 	};
 
-#define d_DEFINE_NO_MEMBERS_EVENT_WIN(NAME)                         \
-  class NAME : public detail::window_event                          \
-  {                                                                 \
-    public: explicit NAME (const SDL_WindowEvent& e)                \
-      : detail::window_event (e.windowID) {}                        \
-  }
+	SDLPP_EXPORT std::string to_string(const keyboard& t);
+	SDLPP_EXPORT std::ostream& operator << (std::ostream& os, const keyboard& t);
+
+#define d_DEFINE_NO_MEMBERS_EVENT_WIN(NAME)                         		\
+  class NAME : public detail::window_event                          		\
+  {                                                                 		\
+    public: explicit NAME (const SDL_WindowEvent& e)                		\
+      : detail::window_event (e.windowID) {}                        		\
+  };                                                                 		\
+  SDLPP_EXPORT std::string to_string(const NAME& t);						\
+  SDLPP_EXPORT std::ostream& operator << (std::ostream& os, const NAME& t)
+
 
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_shown);
-
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_hidden);
-
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_exposed);
-
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_minimized);
-
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_maximized);
-
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_restored);
-
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_mouse_entered);
-
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_mouse_leaved);
-
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_focus_gained);
-
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_focus_lost);
-
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_close);
 
 #define d_DEFINE_NO_MEMBERS_EVENT(NAME)         \
   class NAME                                    \
   {                                             \
     public: NAME () {}                          \
-  }
+  };                                                                 		\
+  SDLPP_EXPORT std::string to_string(const NAME& t);						\
+  SDLPP_EXPORT std::ostream& operator << (std::ostream& os, const NAME& t)
 
 // urgent events
 	d_DEFINE_NO_MEMBERS_EVENT(terminating);
@@ -148,13 +148,16 @@ namespace neutrino::sdl::events {
 
 // ======================================================================
 	enum class mousebutton {
-
 		LEFT = SDL_BUTTON_LEFT,
 		RIGHT = SDL_BUTTON_RIGHT,
 		MIDDLE = SDL_BUTTON_MIDDLE,
 		X1 = SDL_BUTTON_X1,
 		X2 = SDL_BUTTON_X2
 	};
+
+	SDLPP_EXPORT std::string to_string(mousebutton t);
+	SDLPP_EXPORT std::ostream& operator << (std::ostream& os, mousebutton t);
+
 	typedef Uint32 mouse_id_t;
 
 	struct mouse_motion : public detail::window_event {
@@ -318,6 +321,9 @@ namespace neutrino::sdl::events {
 		HAT_DOWN = SDL_HAT_DOWN,
 		HAT_RIGHTDOWN = SDL_HAT_RIGHTDOWN
 	};
+
+	SDLPP_EXPORT std::string to_string(joystick_hat_state t);
+	SDLPP_EXPORT std::ostream& operator << (std::ostream& os, joystick_hat_state t);
 
 	class joystick_hat {
 

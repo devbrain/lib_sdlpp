@@ -5,8 +5,10 @@
 #ifndef NEUTRINO_SDL_EVENTS_EVENT_TYPES_HH
 #define NEUTRINO_SDL_EVENTS_EVENT_TYPES_HH
 
-#include "sdlpp/detail/sdl2.hh"
 #include <cstdint>
+#include <string>
+#include <iosfwd>
+#include <sdlpp/detail/sdl2.hh>
 
 namespace neutrino::sdl {
 	enum class event_type : uint32_t {
@@ -96,11 +98,18 @@ namespace neutrino::sdl {
 		USEREVENT = SDL_USEREVENT
 	};
 
+	SDLPP_EXPORT std::string to_string(event_type t);
+	SDLPP_EXPORT std::ostream& operator << (std::ostream& os, event_type t);
+
 	enum class event_action {
 		ADD = SDL_ADDEVENT,
 		PEEK = SDL_PEEKEVENT,
 		GET = SDL_GETEVENT
 	};
+
+	SDLPP_EXPORT std::string to_string(event_action t);
+	SDLPP_EXPORT std::ostream& operator << (std::ostream& os, event_action t);
+
 
 	enum scancode {
 		UNKNOWN = SDL_SCANCODE_UNKNOWN,
@@ -347,6 +356,9 @@ namespace neutrino::sdl {
 		NUM_SCANCODES = SDL_NUM_SCANCODES
 	};
 
+	SDLPP_EXPORT std::string to_string(scancode t);
+	SDLPP_EXPORT std::ostream& operator << (std::ostream& os, scancode t);
+
 	enum class keycode {
 		UNKNOWN = SDLK_UNKNOWN,
 		RETURN = SDLK_RETURN,
@@ -585,6 +597,9 @@ namespace neutrino::sdl {
 		SLEEP = SDLK_SLEEP,
 	};
 
+	SDLPP_EXPORT std::string to_string(keycode t);
+	SDLPP_EXPORT std::ostream& operator << (std::ostream& os, keycode t);
+
 	enum class keymod : uint16_t {
 		LSHIFT = KMOD_LSHIFT,
 		RSHIFT = KMOD_RSHIFT,
@@ -604,6 +619,8 @@ namespace neutrino::sdl {
 		GUI = LGUI | RGUI
 	};
 
+	SDLPP_EXPORT std::string to_string(keymod t);
+	SDLPP_EXPORT std::ostream& operator << (std::ostream& os, keymod t);
 }
 
 #endif //NEUTRINO_SDL_EVENTS_EVENT_TYPES_HH

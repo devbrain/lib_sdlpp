@@ -47,6 +47,9 @@ add_library(sdlpp
 
         video/render.cc
         video/surface.cc
+        events/event_types.cc
+        events/system_events.cc
+        utils/switch_ostream.hh
 )
 
 generate_export_header(sdlpp EXPORT_FILE_NAME ${PROJECT_CONFIG_INCLUDE}/sdlpp/export_defines.h)
