@@ -9,6 +9,13 @@
 #include <bsw/exception.hh>
 
 namespace neutrino::sdl {
+	/**
+	 * @class pixel_format
+	 * @brief Represents the format of a pixel.
+	 *
+	 * This class provides methods to get information about the format of a pixel, such as the format type,
+	 * the order of the components, and the layout of the packed pixels.
+	 */
 	class pixel_format {
 	 public:
 		enum format : std::uint32_t {

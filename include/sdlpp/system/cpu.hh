@@ -11,6 +11,7 @@
 #include <bsw/macros.hh>
 #include <sdlpp/detail/call.hh>
 #include <sdlpp/detail/sdl2.hh>
+#include <sdlpp/detail/ostreamops.hh>
 
 namespace neutrino::sdl {
 	struct cpu {
@@ -92,6 +93,8 @@ namespace neutrino::sdl {
 
 #undef d_evalCap
 	};
+
+	d_SDLPP_OSTREAM(cpu::capability_t);
 }
 
 #endif //SDLPP_INCLUDE_SDLPP_CPU_HH_

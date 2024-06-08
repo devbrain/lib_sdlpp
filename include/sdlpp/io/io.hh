@@ -21,6 +21,13 @@
 #include "bsw/mp/introspection.hh"
 
 namespace neutrino::sdl {
+
+	/**
+	 * @class io
+	 * @brief The io class provides a wrapper for the SDL_RWops data structure in SDL, which allows for read/write access to various data sources.
+	 *
+	 * The io class provides functions for reading and writing data, seeking within the data stream, and getting the current offset in the stream.
+	 */
 	class io : public object<SDL_RWops> {
 	 public:
 		// Use this function to prepare a read-only memory buffer for use with RWops.

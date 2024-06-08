@@ -8,6 +8,12 @@
 #include <sdlpp/io/rwops.hh>
 
 namespace neutrino::sdl {
+	/**
+	 * @class rw_ostream
+	 * @brief A class that provides write operations on an std::ostream object.
+	 *
+	 * The rw_ostream class is a derived class of rwops_base and provides write operations on an std::ostream object.
+	 */
 	class rw_ostream : public rwops_base<rw_ostream> {
 	 public:
 		explicit rw_ostream (std::ostream& is);
@@ -27,6 +33,14 @@ namespace neutrino::sdl {
 		std::ostream& m_ostream;
 	};
 
+	/**
+	 * @class rw_istream
+	 *
+	 * @brief Class representing an input stream for reading data.
+	 *
+	 * The rw_istream class is used to read data from an input stream. It is derived from the rwops_base class,
+	 * which provides the underlying functionality for stream operations.
+	 */
 	class rw_istream : public rwops_base<rw_istream> {
 	 public:
 		explicit rw_istream (std::istream& is);

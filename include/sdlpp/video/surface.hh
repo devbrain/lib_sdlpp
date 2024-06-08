@@ -26,6 +26,14 @@ namespace neutrino::sdl {
 		MOD = SDL_BLENDMODE_MOD
 	};
 
+	/**
+	 * @class surface
+	 * @brief A class representing a surface in SDL.
+	 *
+	 * This class is used for representing a collection of pixels used in software blitting.
+	 * It provides functionality for manipulating and blitting surfaces, as well as changing properties
+	 * like color, transparency, and blending.
+	 */
 	class SDLPP_EXPORT surface : public object<SDL_Surface> {
 	 public:
 		surface ();

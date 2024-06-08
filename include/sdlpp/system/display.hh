@@ -19,6 +19,13 @@
 namespace neutrino::sdl {
 	class display {
 	 public:
+		/**
+		 * @enum orientation
+		 * @brief Represents the possible orientations of a display.
+		 *
+		 * The orientation enum class provides the different orientations that a display can have,
+		 * allowing for easier handling of screen rotations and orientation changes.
+		 */
 		enum class orientation : int {
 			UNKNOWN = SDL_ORIENTATION_UNKNOWN,            /**< The display orientation can't be determined */
 			LANDSCAPE = SDL_ORIENTATION_LANDSCAPE,          /**< The display is in landscape mode, with the right side up, relative to portrait mode */
@@ -27,10 +34,28 @@ namespace neutrino::sdl {
 			PORTRAIT_FLIPPED = SDL_ORIENTATION_PORTRAIT_FLIPPED    /**< The display is in portrait mode, upside down */
 		};
 	 public:
+		/**
+		 * @class mode
+		 * @brief Represents a display mode.
+		 *
+		 * The mode class provides information about a specific display mode,
+		 * such as pixel format, refresh rate, and bounds.
+		 *
+		 * @see display
+		 */
 		class mode {
 			friend class display;
 
 		 public:
+			/**
+			 * @class mode
+			 * @brief Represents a display mode.
+			 *
+			 * The mode class provides information about a specific display mode,
+			 * such as pixel format, refresh rate, and bounds.
+			 *
+			 * @see display
+			 */
 			mode (const display& d, std::size_t mode_index);
 
 			[[nodiscard]] pixel_format get_pixel_format () const noexcept;

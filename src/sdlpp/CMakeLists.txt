@@ -4,6 +4,7 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/detail/call.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/iterator.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/object.hh
+        ${PROJECT_INCLUDE}/sdlpp/detail/ostreamops.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/rtc.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/sdl2.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/ttf_helper.hh
@@ -45,10 +46,12 @@ add_library(sdlpp
         thirdparty/gfx/SDL2_rotozoom.c
         thirdparty/gfx/SDL2_rotozoom.h
 
+        io/whence.cc
         video/render.cc
         video/surface.cc
         events/event_types.cc
         events/system_events.cc
+        system/cpu.cc
         utils/switch_ostream.hh
 )
 

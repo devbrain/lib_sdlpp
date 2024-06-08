@@ -14,7 +14,16 @@
 #include <sdlpp/video/surface.hh>
 
 namespace neutrino::sdl {
-  class texture : public object<SDL_Texture> {
+	/**
+	 * @class texture
+	 *
+	 * @brief Represents an SDL texture.
+	 *
+	 * This class provides functionality to create, modify, and access SDL textures.
+	 * It inherits from the object class, which manages the ownership and lifetime of the underlying SDL_Texture.
+	 *
+	 */
+	class texture : public object<SDL_Texture> {
     public:
       enum class access : uint32_t {
           STATIC = SDL_TEXTUREACCESS_STATIC,

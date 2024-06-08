@@ -19,6 +19,12 @@
 
 namespace neutrino::sdl {
 
+	/**
+	 * @class ttf
+	 * @brief Represents a TrueType font object.
+	 *
+	 * This class provides functionality to load and manipulate TrueType fonts.
+	 */
 	class ttf : public object<TTF_Font> {
 	 public:
 		BEGIN_BITFLAGS(style_t)

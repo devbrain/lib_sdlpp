@@ -13,32 +13,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	std::cout << "\tCPU count " << cpu::count () << std::endl;
 	std::cout << "\tCache line " << cpu::cache_line () << " bytes" << std::endl;
 	std::cout << "\tRAM " << neutrino::sdl::system::ram_in_mb() << " MB" << std::endl;
+	std::cout << "\tCapabilities: " << cpu::capabilities() << std::endl;
 
-	std::cout << "\tCapabilities: ";
-	auto c = cpu::capabilities();
-
-#define d_evalCap(NAME) 														\
-		if (c & cpu::capability_t::PPCAT(HAS_, NAME)) { 						\
-	 		std::cout << " " << cpu::capability_t::PPCAT(HAS_, NAME).name;      \
-		}
-	d_evalCap(3DNow)
-	d_evalCap(AltiVec)
-	d_evalCap(ARMSIMD)
-	d_evalCap(AVX)
-	d_evalCap(AVX2)
-	d_evalCap(AVX512F)
-	d_evalCap(LASX)
-	d_evalCap(LSX)
-	d_evalCap(MMX)
-	d_evalCap(NEON)
-	d_evalCap(RDTSC)
-	d_evalCap(SSE)
-	d_evalCap(SSE2)
-	d_evalCap(SSE3)
-	d_evalCap(SSE41)
-	d_evalCap(SSE42)
-
-	std::cout << std::endl;
 
 	std::cout << "Display Info" << std::endl;
 	std::cout << "\tScreen saver enabled: " << display::screen_saver_enabled() << std::endl;

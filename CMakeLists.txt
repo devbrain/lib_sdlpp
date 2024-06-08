@@ -11,7 +11,8 @@ endif()
 string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}" sdlpp_is_top_level)
 option(sdlpp_INCLUDE_PACKAGING "Include packaging rules for sdlpp" "${sdlpp_is_top_level}")
 option(sdlpp_ENABLE_TESTING "Enable testing" "${sdlpp_is_top_level}")
-option(sdlpp_ENABLE_DEMO "Enable testing" "${sdlpp_is_top_level}")
+option(sdlpp_ENABLE_DEMO "Enable demo" "${sdlpp_is_top_level}")
+option(sdlpp_BUILD_DOCS "Enable docs" "${sdlpp_is_top_level}")
 option(sdlpp_SHARED_LIBS "Build shared libs" ON)
 
 set(CMAKE_MODULE_PATH "${CMAKE_BINARY_DIR};${CMAKE_SOURCE_DIR}/cmake")
@@ -60,6 +61,27 @@ if (sdlpp_ENABLE_TESTING)
    add_subdirectory(src/unittest)
 endif()
 
+if (sdlpp_BUILD_DOCS)
+    find_package(Doxygen QUIET)
+    if (DOXYGEN_FOUND)
+        # set input and output files
+        set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in)
+        set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+
+        # request to configure the file
+        configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+        message("Doxygen found")
+        file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc_doxygen/)
+        # note the option ALL which allows to build the docs together with the application
+        add_custom_target(doc_doxygen ALL
+                COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+                COMMENT "Generating API documentation with Doxygen"
+                VERBATIM )
+    else (DOXYGEN_FOUND)
+        message("Doxygen need to be installed to generate the doxygen documentation")
+    endif (DOXYGEN_FOUND)
+endif()
 
 if (sdlpp_INCLUDE_PACKAGING)
  #   add_subdirectory(packaging)

@@ -14,7 +14,11 @@
 #include <sdlpp/detail/sdl2.hh>
 
 namespace neutrino::sdl {
-  class window : public object<SDL_Window> {
+	/**
+	 * @class window
+	 * @brief The window class represents a graphical window that can be displayed on the screen.
+	 */
+	class window : public object<SDL_Window> {
     public:
       enum class flags_t : uint32_t {
           FULL_SCREEN = SDL_WINDOW_FULLSCREEN, // fullscreen window

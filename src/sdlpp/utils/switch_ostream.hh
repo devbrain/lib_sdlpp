@@ -6,6 +6,7 @@
 #define SDLPP_SRC_SDLPP_UTILS_SWITCH_OSTREAM_HH_
 
 #include <ostream>
+#include <type_traits>
 #include <sstream>
 #include <bsw/macros.hh>
 
@@ -29,11 +30,12 @@
          return os.str();                  								\
     }                                									\
 	std::ostream& operator << (std::ostream& os, const TYPE& t) { 		\
-		os << STRINGIZE(TYPE) << "\n";
+		os << STRINGIZE(TYPE) << '\n';
 
 #define END_CLASS_OUTPUT	return os; }
 
 #define MEMBER(X)	os << "\t" STRINGIZE(X) " : " << t.X << '\n'
+#define MEMBER_U8(X)	os << "\t" STRINGIZE(X) " : " << ((int)t.X & 0xFF) << '\n'
 #define MEMBER_T(X, T)	os << "\t" STRINGIZE(X) " : " << (T)t.X << '\n'
 
 #endif //SDLPP_SRC_SDLPP_UTILS_SWITCH_OSTREAM_HH_
