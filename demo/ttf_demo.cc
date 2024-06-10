@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
 		auto image = font.render_blended ("Hello World", {255, 0,0});
 
 
-		sdl::window window(640, 480, sdl::window::flags_t::SHOWN);
+		sdl::window window(640, 480, sdl::window::flags::SHOWN);
 		sdl::renderer renderer(window, sdl::renderer::flags::ACCELERATED);
 
 		sdl::texture texture(renderer, image);

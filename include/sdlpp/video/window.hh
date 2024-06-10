@@ -21,7 +21,7 @@ namespace neutrino::sdl {
 	 */
 	class window : public object<SDL_Window> {
 	 public:
-		enum class flags_t : uint32_t {
+		enum class flags : uint32_t {
 			FULL_SCREEN = SDL_WINDOW_FULLSCREEN, // fullscreen window
 			FULL_SCREEN_DESKTOP = SDL_WINDOW_FULLSCREEN_DESKTOP, // fullscreen window at the current desktop resolution
 			OPENGL = SDL_WINDOW_OPENGL, // window usable with OpenGL context
@@ -48,19 +48,19 @@ namespace neutrino::sdl {
 		window () = default;
 
 		template <typename ... Args,
-			typename std::enable_if<(std::is_same_v<flags_t, Args> && ...), int>::type = 0>
+			typename std::enable_if<(std::is_same_v<flags, Args> && ...), int>::type = 0>
 		window (int w, int h, Args...args);
 
 		template <typename ... Args,
-			typename std::enable_if<(std::is_same_v<flags_t, Args> && ...), int>::type = 0>
+			typename std::enable_if<(std::is_same_v<flags, Args> && ...), int>::type = 0>
 		window (const std::string& title, int w, int h, Args...args);
 
 		template <typename ... Args,
-			typename std::enable_if<(std::is_same_v<flags_t, Args> && ...), int>::type = 0>
+			typename std::enable_if<(std::is_same_v<flags, Args> && ...), int>::type = 0>
 		window (int x, int y, int w, int h, Args...args);
 
 		template <typename ... Args,
-			typename std::enable_if<(std::is_same_v<flags_t, Args> && ...), int>::type = 0>
+			typename std::enable_if<(std::is_same_v<flags, Args> && ...), int>::type = 0>
 		window (const std::string& title, int x, int y, int w, int h, Args...args);
 
 		explicit window (object<SDL_Window>&& other);
@@ -99,14 +99,14 @@ namespace neutrino::sdl {
 		void swap_opengl_window () noexcept;
 	};
 
-	d_SDLPP_OSTREAM(window::flags_t);
+	d_SDLPP_OSTREAM(window::flags);
 }
 // ======================================================================================================
 // Implementation
 // ======================================================================================================
 namespace neutrino::sdl {
 	template <typename ... Args,
-		typename std::enable_if<(std::is_same_v<window::flags_t, Args> && ...), int>::type>
+		typename std::enable_if<(std::is_same_v<window::flags, Args> && ...), int>::type>
 	window::window (int w, int h, Args...args)
 		:object<SDL_Window> (SAFE_SDL_CALL(
 								 SDL_CreateWindow,
@@ -121,7 +121,7 @@ namespace neutrino::sdl {
 
 	// --------------------------------------------------------------------------------------------
 	template <typename ... Args,
-		typename std::enable_if<(std::is_same_v<window::flags_t, Args> && ...), int>::type>
+		typename std::enable_if<(std::is_same_v<window::flags, Args> && ...), int>::type>
 	window::window (const std::string& title, int w, int h, Args...args)
 		:object<SDL_Window> (SAFE_SDL_CALL(
 								 SDL_CreateWindow,
@@ -136,7 +136,7 @@ namespace neutrino::sdl {
 
 	// --------------------------------------------------------------------------------------------
 	template <typename ... Args,
-		typename std::enable_if<(std::is_same_v<window::flags_t, Args> && ...), int>::type>
+		typename std::enable_if<(std::is_same_v<window::flags, Args> && ...), int>::type>
 	window::window (int x, int y, int w, int h, Args...args)
 		:object<SDL_Window> (SAFE_SDL_CALL(
 								 SDL_CreateWindow,
@@ -151,7 +151,7 @@ namespace neutrino::sdl {
 
 	// --------------------------------------------------------------------------------------------
 	template <typename ... Args,
-		typename std::enable_if<(std::is_same_v<window::flags_t, Args> && ...), int>::type>
+		typename std::enable_if<(std::is_same_v<window::flags, Args> && ...), int>::type>
 	window::window (const std::string& title, int x, int y, int w, int h, Args...args)
 		:object<SDL_Window> (SAFE_SDL_CALL(
 								 SDL_CreateWindow,

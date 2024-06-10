@@ -13,7 +13,7 @@
 
 demo::demo (int argc, char *argv[])
 	: m_system (neutrino::sdl::init_flags::VIDEO),
-	  m_window (WIDTH, HEIGHT, neutrino::sdl::window::flags_t::SHOWN),
+	  m_window (WIDTH, HEIGHT, neutrino::sdl::window::flags::SHOWN),
 	  m_render (m_window, neutrino::sdl::renderer::flags::ACCELERATED),
 	  m_base_name (std::filesystem::path (argv[0]).filename ().u8string()),
 	  m_vga (WIDTH * HEIGHT) {
