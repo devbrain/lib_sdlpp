@@ -46,12 +46,20 @@ add_library(sdlpp
         thirdparty/gfx/SDL2_rotozoom.c
         thirdparty/gfx/SDL2_rotozoom.h
 
-        io/whence.cc
-        video/render.cc
-        video/surface.cc
         events/event_types.cc
         events/system_events.cc
+
+        io/whence.cc
         system/cpu.cc
+        video/color.cc
+        video/display.cc
+        video/geometry.cc
+        video/pixel_format.cc
+        video/render.cc
+        video/surface.cc
+        video/texture.cc
+        video/window.cc
+
         utils/switch_ostream.hh
 )
 

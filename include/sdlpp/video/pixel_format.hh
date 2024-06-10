@@ -6,6 +6,7 @@
 #include <tuple>
 
 #include <sdlpp/detail/sdl2.hh>
+#include <sdlpp/detail/ostreamops.hh>
 #include <bsw/exception.hh>
 
 namespace neutrino::sdl {
@@ -18,6 +19,10 @@ namespace neutrino::sdl {
 	 */
 	class pixel_format {
 	 public:
+		/**
+		 * @enum format
+		 * @brief Represents the available pixel formats.
+		 */
 		enum format : std::uint32_t {
 			INDEX1LSB = SDL_PIXELFORMAT_INDEX1LSB,
 			INDEX1MSB = SDL_PIXELFORMAT_INDEX1MSB,
@@ -67,6 +72,23 @@ namespace neutrino::sdl {
 			OES = SDL_PIXELFORMAT_EXTERNAL_OES,       /**< Android video texture format */
 		};
 
+		/**
+		 * @brief The type enum class represents the pixel types for a given SDL pixel format.
+		 *
+		 * The type enum class defines the following pixel types:
+		 * - UNKNOWN: Unknown pixel type
+		 * - INDEX1: 1-bit index pixel type
+		 * - INDEX4: 4-bit index pixel type
+		 * - INDEX8: 8-bit index pixel type
+		 * - PACKED8: 8-bit packed pixel type
+		 * - PACKED16: 16-bit packed pixel type
+		 * - PACKED32: 32-bit packed pixel type
+		 * - ARRAYU8: 8-bit unsigned pixel array type
+		 * - ARRAYU16: 16-bit unsigned pixel array type
+		 * - ARRAYU32: 32-bit unsigned pixel array type
+		 * - ARRAYF16: 16-bit floating point pixel array type
+		 * - ARRAYF32: 32-bit floating point pixel array type
+		 */
 		enum class type : uint8_t {
 			UNKNOWN = SDL_PIXELTYPE_UNKNOWN,
 			INDEX1 = SDL_PIXELTYPE_INDEX1,
@@ -81,11 +103,36 @@ namespace neutrino::sdl {
 			ARRAYF16 = SDL_PIXELTYPE_ARRAYF16,
 			ARRAYF32 = SDL_PIXELTYPE_ARRAYF32
 		};
+		/**
+		 * @enum order
+		 * @brief The enumeration class for ordering of bits in pixel formats.
+		 *
+		 * The order enumeration class defines the possible bit ordering in pixel formats.
+		 * It is used to specify the desired bit ordering when creating pixel formats.
+		 */
 		enum class order : uint8_t {
 			NONE = SDL_BITMAPORDER_NONE,
 			ORDER_4321 = SDL_BITMAPORDER_4321,
 			ORDER_1234 = SDL_BITMAPORDER_1234
 		};
+		/**
+		 * @enum component_order
+		 * An enumeration representing the component order of a packed pixel format.
+		 * The component order determines the order of the color components in a pixel value.
+		 *
+		 * The available component orders are:
+		 * - NONE: No specific component order (SDL_PACKEDORDER_NONE).
+		 * - XRGB: XRGB component order (SDL_PACKEDORDER_XRGB).
+		 * - RGBX: RGBX component order (SDL_PACKEDORDER_RGBX).
+		 * - ARGB: ARGB component order (SDL_PACKEDORDER_ARGB).
+		 * - RGBA: RGBA component order (SDL_PACKEDORDER_RGBA).
+		 * - XBGR: XBGR component order (SDL_PACKEDORDER_XBGR).
+		 * - BGRX: BGRX component order (SDL_PACKEDORDER_BGRX).
+		 * - ABGR: ABGR component order (SDL_PACKEDORDER_ABGR).
+		 * - BGRA: BGRA component order (SDL_PACKEDORDER_BGRA).
+		 *
+		 * @warning This enumeration is dependent on the SDL library and should not be modified directly.
+		 */
 		enum class component_order : uint8_t {
 			NONE = SDL_PACKEDORDER_NONE,
 			XRGB = SDL_PACKEDORDER_XRGB,
@@ -97,6 +144,31 @@ namespace neutrino::sdl {
 			ABGR = SDL_PACKEDORDER_ABGR,
 			BGRA = SDL_PACKEDORDER_BGRA
 		};
+		/**
+		 * @brief The array_order enum class represents the order of pixel components in an array.
+		 *
+		 * The array_order enum class provides values for different pixel component orders that can be used in an array of pixels.
+		 * These values are used to specify the arrangement of components (e.g. red, green, blue, alpha) in an array of pixels.
+		 * The underlying type of the enum class is uint8_t.
+		 *
+		 * The possible values of the array_order enum class are:
+		 *   - NONE: No specific pixel component order.
+		 *   - RGB: Red, Green, Blue.
+		 *   - RGBA: Red, Green, Blue, Alpha.
+		 *   - ARGB: Alpha, Red, Green, Blue.
+		 *   - BGR: Blue, Green, Red.
+		 *   - BGRA: Blue, Green, Red, Alpha.
+		 *   - ABGR: Alpha, Blue, Green, Red.
+		 *
+		 * Usage example:
+		 * @code
+		 * array_order order = array_order::RGBA;
+		 * @endcode
+		 *
+		 * @note This enum class is based on the SDL_array_order enum from the Simple DirectMedia Layer (SDL) library.
+		 *       The SDL_array_order enum values are used as the underlying values for the array_order enum class.
+		 *       More information about SDL can be found at https://www.libsdl.org/
+		 */
 		enum class array_order : uint8_t {
 			NONE = SDL_ARRAYORDER_NONE,
 			RGB = SDL_ARRAYORDER_RGB,
@@ -107,6 +179,10 @@ namespace neutrino::sdl {
 			ABGR = SDL_ARRAYORDER_ABGR
 		};
 
+		/**
+		 * @enum layout
+		 * Enum class representing the layout options for packed pixel formats.
+		 */
 		enum class layout : uint8_t {
 			NONE = SDL_PACKEDLAYOUT_NONE,
 			LAYOUT_332 = SDL_PACKEDLAYOUT_332,
@@ -123,7 +199,22 @@ namespace neutrino::sdl {
 		explicit pixel_format (format f);
 		pixel_format (uint8_t bpp, uint32_t rmask, uint32_t gmask, uint32_t bmask, uint32_t amask);
 
+		/**
+		 * @brief Creates a pixel format with 8 bits per pixel.
+		 *
+		 * This static function creates a pixel format object with 8 bits per pixel.
+		 *
+		 * @return The pixel format object with 8 bits per pixel.
+		 */
 		static pixel_format make_8bit ();
+		/**
+		 * @brief Creates a 32-bit RGBA pixel format.
+		 *
+		 * This function creates a pixel format object that represents a 32-bit RGBA format.
+		 * The pixel format is returned as an instance of the pixel_format class.
+		 *
+		 * @return A pixel_format object representing a 32-bit RGBA format.
+		 */
 		static pixel_format make_rgba_32bit ();
 
 		[[nodiscard]] explicit operator std::uint32_t () const noexcept;
@@ -143,12 +234,32 @@ namespace neutrino::sdl {
 		[[nodiscard]] bool is_fourcc () const noexcept;
 		[[nodiscard]] bool is_packed () const noexcept;
 
-		// bpp, rmask, gmask, bmask, amask
+		/**
+		 * @fn std::tuple<std::uint8_t, std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t> pixel_format::get_mask () const
+		 * @brief Retrieves the pixel mask information.
+		 *
+		 * This function returns the bit mask information for the pixels in the format, including the number of bits per pixel
+		 * and the masks for the red, green, blue, and alpha components. The returned information is stored in a tuple.
+		 *
+		 * @return A tuple containing the number of bits per pixel, and the masks for the red, green, blue, and alpha components.
+		 *
+		 * @throws std::runtime_error If no pixel format conversion is possible.
+		 */
+// bpp, rmask, gmask, bmask, amask
 		[[nodiscard]] std::tuple<std::uint8_t,
 								 std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t> get_mask () const;
 	 private:
 		std::uint32_t m_value;
 	};
+
+	d_SDLPP_OSTREAM(pixel_format::format);
+	d_SDLPP_OSTREAM(pixel_format::type);
+	d_SDLPP_OSTREAM(pixel_format::order);
+	d_SDLPP_OSTREAM(pixel_format::component_order);
+	d_SDLPP_OSTREAM(pixel_format::array_order);
+	d_SDLPP_OSTREAM(pixel_format::layout);
+
+	d_SDLPP_OSTREAM(const pixel_format&);
 }
 
 inline

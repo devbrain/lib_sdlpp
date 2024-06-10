@@ -6,7 +6,17 @@
 #include "thirdparty/gfx/SDL2_rotozoom.h"
 #include <bsw/errors.hh>
 
+#include "utils/switch_ostream.hh"
+
 namespace neutrino::sdl {
+
+	BEGIN_IMPL_OUTPUT(blend_mode)
+			case blend_mode::NONE: return "NONE";
+			case blend_mode::BLEND: return "BLEND";
+			case blend_mode::ADD: return "ADD";
+			case blend_mode::MOD: return "MOD";
+	END_IMPL_OUTPUT(blend_mode)
+
 	surface surface::roto_zoom (double angle, double zoom, bool smooth) const {
 		SDL_Surface* rotated = rotozoomSurface (const_cast<SDL_Surface*>(handle ()), angle, zoom,
 												smooth ? SMOOTHING_ON : SMOOTHING_OFF);

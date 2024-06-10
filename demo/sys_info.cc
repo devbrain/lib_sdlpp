@@ -30,9 +30,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	auto n = display::count();
 	std::cout << "\tDisplays:" << std::endl;
 	for (std::size_t i = 0; i<n; i++) {
-		std::cout << "\t\tDisplay " << i << std::endl;
 		display d(i);
-		std::cout << "\t\t\tName " << d.get_name() << std::endl;
+		std::cout << "\t\t\t" << d << std::endl;
+		for (std::size_t j=0; j<d.get_modes(); j++) {
+			auto m = d.get_mode (j);
+			std::cout << "MODE #" << j << std::endl
+			<< m << std::endl;
+		}
 	}
 
 	return 0;

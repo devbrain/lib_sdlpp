@@ -5,13 +5,16 @@
 #ifndef NEUTRINO_SDL_GEOMETRY_HH
 #define NEUTRINO_SDL_GEOMETRY_HH
 
-#include "sdlpp/detail/sdl2.hh"
+
 #include <utility>
 #include <cmath>
 #include <vector>
 #include <utility>
 #include <array>
 #include <cstdint>
+
+#include <sdlpp/detail/sdl2.hh>
+#include <sdlpp/detail/ostreamops.hh>
 
 namespace neutrino::sdl {
 
@@ -23,6 +26,8 @@ namespace neutrino::sdl {
 		area_type (const area_type&) = default;
 		area_type& operator= (const area_type&) = default;
 	};
+
+	d_SDLPP_OSTREAM(const area_type&);
 
 	struct point : public SDL_Point {
 		point () noexcept;
@@ -65,9 +70,8 @@ namespace neutrino::sdl {
 		return !(a == b);
 	}
 
-	using dimensions = point;
+	d_SDLPP_OSTREAM(const point&);
 
-	std::ostream& operator<< (std::ostream& os, const point& p);
 
 	struct rect : public SDL_Rect {
 		rect () noexcept;
@@ -106,6 +110,8 @@ namespace neutrino::sdl {
 
 		[[nodiscard]] point center () const noexcept;
 	};
+
+	d_SDLPP_OSTREAM(const rect&);
 
 	[[nodiscard]] inline bool inside (const rect& r, const point& p) noexcept {
 		return SDL_TRUE == SDL_PointInRect (&p, &r);

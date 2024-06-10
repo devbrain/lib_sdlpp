@@ -8,6 +8,7 @@
 #include <string>
 #include <sdlpp/video/surface.hh>
 #include <sdlpp/video/texture.hh>
+#include <sdlpp/detail/ostreamops.hh>
 #include <bsw/array_view.hh>
 
 namespace neutrino::sdl {
@@ -815,6 +816,9 @@ namespace neutrino::sdl {
 		void present () noexcept;
 
 	};
+
+	d_SDLPP_OSTREAM(renderer::flags);
+	d_SDLPP_OSTREAM(renderer::flip);
 }
 
 // ===========================================================================================================

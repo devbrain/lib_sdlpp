@@ -4,9 +4,25 @@
 
 #include <vector>
 #include <sdlpp/video/render.hh>
+#include "utils/switch_ostream.hh"
 #include "thirdparty/gfx/SDL2_gfxPrimitives.h"
 
 namespace neutrino::sdl {
+
+	BEGIN_IMPL_OUTPUT(renderer::flags)
+			case renderer::flags::NONE: return "NONE";
+			case renderer::flags::SOFTWARE: return "SOFTWARE";
+			case renderer::flags::ACCELERATED: return "ACCELERATED";
+			case renderer::flags::PRESENTVSYNC: return "PRESENTVSYNC";
+			case renderer::flags::TARGETTEXTURE: return "TARGETTEXTURE";
+	END_IMPL_OUTPUT(renderer::flags)
+
+	BEGIN_IMPL_OUTPUT(renderer::flip)
+			case renderer::flip::NONE: return "NONE";
+			case renderer::flip::HORIZONTAL: return "HORIZONTAL";
+			case renderer::flip::VERTICAL: return "VERTICAL";
+	END_IMPL_OUTPUT(renderer::flip)
+
 	void renderer::draw_hline (int x1, int x2, int y) {
 		const auto c = active_color ();
 		hlineRGBA (handle (),
@@ -225,10 +241,10 @@ namespace neutrino::sdl {
 		}
 		const auto c = active_color ();
 		aapolygonRGBA (handle (),
-					 vx.data (),
-					 vy.data (),
-					 static_cast<int>(points.size ()),
-					 c.r, c.g, c.b, c.a);
+					   vx.data (),
+					   vy.data (),
+					   static_cast<int>(points.size ()),
+					   c.r, c.g, c.b, c.a);
 	}
 
 	void renderer::draw_polygon (const bsw::array_view1d<point>& points, const object<SDL_Surface>& tex,
@@ -276,10 +292,10 @@ namespace neutrino::sdl {
 	void renderer::draw_polygon_aa (const int16_t* vx, const int16_t* vy, std::size_t n) {
 		const auto c = active_color ();
 		aapolygonRGBA (handle (),
-					 vx,
-					 vy,
-					 static_cast<int>(n),
-					 c.r, c.g, c.b, c.a);
+					   vx,
+					   vy,
+					   static_cast<int>(n),
+					   c.r, c.g, c.b, c.a);
 	}
 
 	void renderer::draw_polygon_filled (const int16_t* vx, const int16_t* vy, std::size_t n) {

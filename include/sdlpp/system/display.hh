@@ -15,6 +15,7 @@
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/video/geometry.hh>
 #include <sdlpp/video/pixel_format.hh>
+#include <sdlpp/detail/ostreamops.hh>
 
 namespace neutrino::sdl {
 	class display {
@@ -130,6 +131,10 @@ namespace neutrino::sdl {
 		std::size_t m_num_of_modes;
 
 	};
+
+	d_SDLPP_OSTREAM(display::orientation);
+	d_SDLPP_OSTREAM(const display::mode&);
+	d_SDLPP_OSTREAM(const display&);
 
 	inline
 	display::mode::mode (const display& d, std::size_t mode_index) {
