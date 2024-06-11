@@ -7,6 +7,7 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/detail/ostreamops.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/rtc.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/sdl2.hh
+        ${PROJECT_INCLUDE}/sdlpp/detail/sdl_string.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/ttf_helper.hh
 
         ${PROJECT_INCLUDE}/sdlpp/events/event_types.hh
@@ -14,8 +15,12 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/events/events_dispatcher.hh
         ${PROJECT_INCLUDE}/sdlpp/events/system_events.hh
 
+        ${PROJECT_INCLUDE}/sdlpp/system/clipboard.hh
         ${PROJECT_INCLUDE}/sdlpp/system/cpu.hh
         ${PROJECT_INCLUDE}/sdlpp/system/display.hh
+        ${PROJECT_INCLUDE}/sdlpp/system/locale.hh
+        ${PROJECT_INCLUDE}/sdlpp/system/power.hh
+        ${PROJECT_INCLUDE}/sdlpp/system/shared_object.hh
         ${PROJECT_INCLUDE}/sdlpp/system/system.hh
         ${PROJECT_INCLUDE}/sdlpp/system/timers.hh
 
@@ -31,6 +36,7 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/system.hh
 
         ${PROJECT_INCLUDE}/sdlpp/video/color.hh
+
         ${PROJECT_INCLUDE}/sdlpp/video/geometry.hh
         ${PROJECT_INCLUDE}/sdlpp/video/palette.hh
         ${PROJECT_INCLUDE}/sdlpp/video/pixel_format.hh
@@ -51,6 +57,7 @@ add_library(sdlpp
 
         io/whence.cc
         system/cpu.cc
+        system/power.cc
         video/color.cc
         video/display.cc
         video/geometry.cc
