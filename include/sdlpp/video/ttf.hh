@@ -12,10 +12,12 @@
 #include <bitflags/bitflags.hpp>
 #include <bsw/errors.hh>
 #include <sdlpp/detail/object.hh>
+#include <sdlpp/detail/ostreamops.hh>
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/detail/ttf_helper.hh>
 #include <sdlpp/io/io.hh>
 #include <sdlpp/video/surface.hh>
+
 
 namespace neutrino::sdl {
 
@@ -110,7 +112,7 @@ namespace neutrino::sdl {
 		[[nodiscard]] std::optional<metrics_t> get_metrics (wchar_t ch) const;
 
 		// width, height in pixels
-		using text_size_t = std::tuple<int, int>;
+		using text_size_t = area_type;
 
 		template<typename LikeAString>
 		[[nodiscard]] std::optional<text_size_t> get_text_size (LikeAString&& str,
@@ -159,6 +161,9 @@ namespace neutrino::sdl {
 		[[nodiscard]] surface render_shaded(LikeAChar ch, color fg, color bg, ensure_char<LikeAChar> = nullptr) const;
 	};
 
+	d_SDLPP_OSTREAM(ttf::style_t);
+	d_SDLPP_OSTREAM(ttf::alignment_t);
+	d_SDLPP_OSTREAM(ttf::hinting_t);
 }
 
 // =============================================================================
@@ -407,7 +412,7 @@ namespace neutrino::sdl {
 		int w;
 		int h;
 		if (0 != detail::TTF_Size_impl::call(const_cast<TTF_Font*>(handle ()), std::forward<LikeAString&&>(str), &w, &h)) {
-			return std::make_tuple (w, h);
+			return area_type (w, h);
 		}
 		return std::nullopt;
 	}
@@ -418,7 +423,7 @@ namespace neutrino::sdl {
 		int count;
 		auto* f = const_cast<TTF_Font*>(handle ());
 		detail::TTF_Measure_impl::call (f, std::forward<LikeAString&&>(str), max_width_pixels, &extent, &count);
-		return std::make_tuple (count, extent);
+		return {count, extent};
 	}
 
 	template<typename LikeAString>

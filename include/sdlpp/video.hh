@@ -5,6 +5,8 @@
 #ifndef SDLPP_INCLUDE_SDLPP_VIDEO_HH_
 #define SDLPP_INCLUDE_SDLPP_VIDEO_HH_
 #include "sdlpp/video/color.hh"
+#include "sdlpp/video/color_names.hh"
+#include "sdlpp/video/cursor.hh"
 #include "sdlpp/video/geometry.hh"
 #include "sdlpp/video/palette.hh"
 #include "sdlpp/video/pixel_format.hh"

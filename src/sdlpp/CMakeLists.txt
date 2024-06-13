@@ -18,11 +18,19 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/system/clipboard.hh
         ${PROJECT_INCLUDE}/sdlpp/system/cpu.hh
         ${PROJECT_INCLUDE}/sdlpp/system/display.hh
+        ${PROJECT_INCLUDE}/sdlpp/system/joystick.hh
         ${PROJECT_INCLUDE}/sdlpp/system/locale.hh
         ${PROJECT_INCLUDE}/sdlpp/system/power.hh
+        ${PROJECT_INCLUDE}/sdlpp/system/sensors.hh
         ${PROJECT_INCLUDE}/sdlpp/system/shared_object.hh
         ${PROJECT_INCLUDE}/sdlpp/system/system.hh
         ${PROJECT_INCLUDE}/sdlpp/system/timers.hh
+
+        ${PROJECT_INCLUDE}/sdlpp/input.hh
+        ${PROJECT_INCLUDE}/sdlpp/input/joystick.hh
+        ${PROJECT_INCLUDE}/sdlpp/input/mouse.hh
+        ${PROJECT_INCLUDE}/sdlpp/input/keyboard.hh
+        ${PROJECT_INCLUDE}/sdlpp/input/sensor.hh
 
         ${PROJECT_INCLUDE}/sdlpp/io/io.hh
         ${PROJECT_INCLUDE}/sdlpp/io/rwops.hh
@@ -36,7 +44,8 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/system.hh
 
         ${PROJECT_INCLUDE}/sdlpp/video/color.hh
-
+        ${PROJECT_INCLUDE}/sdlpp/video/color_names.hh
+        ${PROJECT_INCLUDE}/sdlpp/video/cursor.hh
         ${PROJECT_INCLUDE}/sdlpp/video/geometry.hh
         ${PROJECT_INCLUDE}/sdlpp/video/palette.hh
         ${PROJECT_INCLUDE}/sdlpp/video/pixel_format.hh
@@ -57,14 +66,18 @@ add_library(sdlpp
 
         io/whence.cc
         system/cpu.cc
+        system/joystic.cc
         system/power.cc
+        system/sensor.cc
         video/color.cc
+        video/cursor.cc
         video/display.cc
         video/geometry.cc
         video/pixel_format.cc
         video/render.cc
         video/surface.cc
         video/texture.cc
+        video/ttf.cc
         video/window.cc
 
         utils/switch_ostream.hh

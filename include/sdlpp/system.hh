@@ -8,9 +8,11 @@
 #include <sdlpp/system/clipboard.hh>
 #include <sdlpp/system/cpu.hh>
 #include <sdlpp/system/display.hh>
+#include <sdlpp/system/joystick.hh>
 #include <sdlpp/system/locale.hh>
 #include <sdlpp/system/system.hh>
 #include <sdlpp/system/power.hh>
+#include <sdlpp/system/sensors.hh>
 #include <sdlpp/system/shared_object.hh>
 #include <sdlpp/system/timers.hh>
 

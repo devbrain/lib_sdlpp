@@ -8,6 +8,7 @@
 #include <string>
 #include <iosfwd>
 #include <bsw/mp/typelist.hh>
+#include <bitflags/bitflags.hpp>
 #include <sdlpp/events/event_types.hh>
 #include <sdlpp/detail/ostreamops.hh>
 
@@ -214,15 +215,36 @@ namespace neutrino::sdl::events {
 	 * @enum mousebutton
 	 * @brief Enum class representing the state of a mouse button.
 	 */
-	enum class mousebutton {
-		LEFT = SDL_BUTTON_LEFT,
-		RIGHT = SDL_BUTTON_RIGHT,
-		MIDDLE = SDL_BUTTON_MIDDLE,
-		X1 = SDL_BUTTON_X1,
-		X2 = SDL_BUTTON_X2
-	};
+	BEGIN_BITFLAGS(mousebutton)
+		FLAG(LEFT)
+		FLAG(RIGHT)
+		FLAG(MIDDLE)
+		FLAG(X1)
+		FLAG(X2)
+	END_BITFLAGS(mousebutton)
+
 
 	d_SDLPP_OSTREAM(mousebutton);
+
+	inline mousebutton map_mousebutton_from_bitflags(uint32_t b) {
+		mousebutton out;
+		if ((b & SDL_BUTTON_LMASK) == SDL_BUTTON_LMASK) {
+			out |= mousebutton::LEFT;
+		}
+		if ((b & SDL_BUTTON_RMASK) == SDL_BUTTON_RMASK) {
+			out |= mousebutton::RIGHT;
+		}
+		if ((b & SDL_BUTTON_MMASK) == SDL_BUTTON_MMASK) {
+			out |= mousebutton::MIDDLE;
+		}
+		if ((b & SDL_BUTTON_X1MASK) == SDL_BUTTON_X1MASK) {
+			out |= mousebutton::X1;
+		}
+		if ((b & SDL_BUTTON_X2MASK) == SDL_BUTTON_X2MASK) {
+			out |= mousebutton::X2;
+		}
+		return out;
+	}
 
 	typedef Uint32 mouse_id_t;
 
@@ -234,7 +256,7 @@ namespace neutrino::sdl::events {
 	struct mouse_motion : public detail::window_event {
 	 public:
 		mouse_id_t mouse_id;
-		uint32_t state;
+		mousebutton state;
 		int x;
 		int y;
 		int xrel;
@@ -243,7 +265,7 @@ namespace neutrino::sdl::events {
 		explicit mouse_motion (const SDL_MouseMotionEvent& e)
 			: detail::window_event (e.windowID),
 			  mouse_id (static_cast <mouse_id_t> (e.which)),
-			  state (e.state),
+			  state (map_mousebutton_from_bitflags (e.state)),
 			  x (e.x),
 			  y (e.y),
 			  xrel (e.xrel),
@@ -290,7 +312,7 @@ namespace neutrino::sdl::events {
 	class mouse_button : public detail::window_event {
 	 public:
 		mouse_id_t mouse_id;
-		uint32_t button;
+		mousebutton button;
 		int x;
 		int y;
 		bool pressed;
@@ -298,11 +320,12 @@ namespace neutrino::sdl::events {
 		explicit mouse_button (const SDL_MouseButtonEvent& e)
 			: detail::window_event (e.windowID),
 			  mouse_id (static_cast <mouse_id_t> (e.which)),
-			  button (static_cast <uint32_t> (e.button)),
+			  button (map_mousebutton_from_bitflags (e.button)),
 			  x (e.x),
 			  y (e.y),
 			  pressed (e.state == SDL_PRESSED) {
 		}
+
 	};
 
 	d_SDLPP_OSTREAM(const mouse_button&);

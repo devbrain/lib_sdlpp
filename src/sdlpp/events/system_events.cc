@@ -18,20 +18,20 @@
 namespace neutrino::sdl::events {
 
 	std::string to_string (mousebutton t) {
-		static std::array<uint16_t, 5> mask = {
-			SDL_BUTTON_LEFT,
-			SDL_BUTTON_RIGHT,
-			SDL_BUTTON_MIDDLE,
-			SDL_BUTTON_X1,
-			SDL_BUTTON_X2
+		static std::array<mousebutton , 5> mask = {
+			mousebutton ::LEFT,
+			mousebutton ::RIGHT,
+			mousebutton ::MIDDLE,
+			mousebutton ::X1,
+			mousebutton ::X2,
 		};
 
-		static std::array<const char*, 5> names = {
-			"LEFT",
-			"RIGHT",
-			"MIDDLE",
-			"X1",
-			"X2"
+		static std::array<std::string_view, 5> names = {
+			mousebutton ::LEFT.name,
+			mousebutton ::RIGHT.name,
+			mousebutton ::MIDDLE.name,
+			mousebutton ::X1.name,
+			mousebutton ::X2.name,
 		};
 		std::string out;
 		auto v = (uint16_t)t;
