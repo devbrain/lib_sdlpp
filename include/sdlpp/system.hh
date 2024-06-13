@@ -15,5 +15,6 @@
 #include <sdlpp/system/sensors.hh>
 #include <sdlpp/system/shared_object.hh>
 #include <sdlpp/system/timers.hh>
+#include <sdlpp/system/touch.hh>
 
 #endif //SDLPP_INCLUDE_SDLPP_SYSTEM_HH_

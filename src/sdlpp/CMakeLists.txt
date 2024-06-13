@@ -25,6 +25,7 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/system/shared_object.hh
         ${PROJECT_INCLUDE}/sdlpp/system/system.hh
         ${PROJECT_INCLUDE}/sdlpp/system/timers.hh
+        ${PROJECT_INCLUDE}/sdlpp/system/touch.hh
 
         ${PROJECT_INCLUDE}/sdlpp/input.hh
         ${PROJECT_INCLUDE}/sdlpp/input/joystick.hh
@@ -91,7 +92,7 @@ target_include_directories(sdlpp
         PUBLIC ${PROJECT_INCLUDE} ${PROJECT_CONFIG_INCLUDE}
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 )
-target_link_libraries(sdlpp PUBLIC thirdparty::sdl2 thirdparty::sdl2_ttf thirdparty::sdl2_mixer thirdparty::sdl2_image thirdparty::bitflags bsw)
+target_link_libraries(sdlpp PUBLIC thirdparty::sdl2 thirdparty::sdl2_ttf thirdparty::sdl2_mixer thirdparty::sdl2_image thirdparty::bitflags thirdparty::strong_type bsw)
 
 
 

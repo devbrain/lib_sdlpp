@@ -123,6 +123,19 @@ namespace neutrino::sdl {
 			return static_cast<type_t>(SDL_JoystickGetDeviceType (static_cast<int>(idx)));
 		}
 
+		[[nodiscard]] static bool is_game_controller(std::size_t idx) {
+			return SDL_TRUE == SDL_IsGameController (static_cast<int>(idx));
+		}
+
+		[[nodiscard]] static std::string get_game_controller_name(std::size_t idx) {
+			return SAFE_SDL_CALL(SDL_GameControllerNameForIndex, static_cast<int>(idx));
+		}
+
+		[[nodiscard]] static std::string get_game_controller_path(std::size_t idx) {
+			return SAFE_SDL_CALL(SDL_GameControllerPathForIndex, static_cast<int>(idx));
+		}
+
+
 		static void lock();
 		static void unlock();
 
