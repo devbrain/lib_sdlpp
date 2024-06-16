@@ -22,12 +22,7 @@ namespace neutrino::sdl {
 	using haptic_axis_t   = strong::type<std::size_t, struct _haptic_axis_, strong::bicrementable, strong::ordered, strong::ostreamable>;
 	using haptic_effect_t = strong::type<std::size_t, struct _haptic_effect_, strong::bicrementable, strong::ordered, strong::ostreamable>;
 
-	class joystick_device;
-	class mouse;
-
 	class haptic : public object<SDL_Haptic> {
-		friend class mouse;
-		friend class joystick;
 	 public:
 		BEGIN_BITFLAGS(features)
 			FLAG(CONSTANT_EFFECT)
@@ -48,6 +43,7 @@ namespace neutrino::sdl {
 			FLAG(PAUSE)
 		END_BITFLAGS(features)
 	 public:
+		haptic() = default;
 		haptic& operator= (object<SDL_Haptic>&& other) noexcept;
 		haptic& operator= (haptic&& other) noexcept;
 
@@ -78,9 +74,6 @@ namespace neutrino::sdl {
 		void play (haptic_effect_t effect, uint32_t iterations);
 		void play_inf (haptic_effect_t effect);
 
-	 private:
-		explicit haptic(const object<SDL_Joystick>& j);
-		explicit haptic(SDL_Haptic* j);
 	};
 
 	d_SDLPP_OSTREAM(haptic::features);
@@ -97,19 +90,7 @@ namespace neutrino::sdl {
 		return *this;
 	}
 
-	inline
-	haptic::haptic (const object<SDL_Joystick>& j)
-		: object<SDL_Haptic>(SAFE_SDL_CALL(SDL_HapticOpenFromJoystick,j.const_handle()), true)
-	{
 
-	}
-
-	inline
-	haptic::haptic (SDL_Haptic* j)
-		: object<SDL_Haptic>(j, true)
-	{
-
-	}
 
 	inline
 	bool haptic::has_rumble () const {

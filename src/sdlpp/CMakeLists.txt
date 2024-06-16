@@ -36,6 +36,7 @@ add_library(sdlpp
 
         ${PROJECT_INCLUDE}/sdlpp/input.hh
         ${PROJECT_INCLUDE}/sdlpp/input/mouse.hh
+        ${PROJECT_INCLUDE}/sdlpp/input/game_controller.hh
         ${PROJECT_INCLUDE}/sdlpp/input/joystick.hh
         ${PROJECT_INCLUDE}/sdlpp/input/haptic.hh
         ${PROJECT_INCLUDE}/sdlpp/input/keyboard.hh
@@ -52,6 +53,7 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/sdlpp.hh
         ${PROJECT_INCLUDE}/sdlpp/system.hh
 
+        ${PROJECT_INCLUDE}/sdlpp/video/blend_mode.hh
         ${PROJECT_INCLUDE}/sdlpp/video/color.hh
         ${PROJECT_INCLUDE}/sdlpp/video/color_names.hh
         ${PROJECT_INCLUDE}/sdlpp/video/cursor.hh
@@ -70,16 +72,17 @@ add_library(sdlpp
         thirdparty/gfx/SDL2_rotozoom.c
         thirdparty/gfx/SDL2_rotozoom.h
 
+        audio/music.cc
         events/event_types.cc
         events/system_events.cc
-        audio/music.cc
-        io/whence.cc
-        system/cpu.cc
-        input/joystick.cc
         input/haptic.cc
+        input/joystick.cc
+        io/whence.cc
+        system/audio.cc
+        system/cpu.cc
         system/power.cc
         system/sensor.cc
-        system/audio.cc
+        video/blend_mode.cc
         video/color.cc
         video/cursor.cc
         video/display.cc

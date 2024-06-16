@@ -27,8 +27,16 @@ namespace neutrino::sdl {
 			return joystick_device_id_t{static_cast<std::size_t >(rc)};
 		}
 
-		static joystick open (joystick_device_id_t idx) {
-			return joystick(idx);
+		static object<SDL_Joystick> open (joystick_device_id_t idx) {
+			return {SAFE_SDL_CALL(SDL_JoystickOpen, static_cast<int>(idx.value_of ())), true};
+		}
+
+		static object<SDL_Joystick> open (joystick_id_t idx) {
+			return {SAFE_SDL_CALL(SDL_JoystickFromInstanceID, static_cast<int>(idx.value_of ())), true};
+		}
+
+		static object<SDL_Joystick> open (joystick_player_index_t idx) {
+			return {SAFE_SDL_CALL(SDL_JoystickFromPlayerIndex, static_cast<int>(idx.value_of ())), true};
 		}
 
 		[[nodiscard]] static std::string get_name(joystick_device_id_t idx) {
@@ -102,20 +110,15 @@ namespace neutrino::sdl {
 		}
 
 
-		static void lock();
-		static void unlock();
+		static void lock() {
+			SDL_LockJoysticks();
+		}
 
+		static void unlock() {
+			SDL_UnlockJoysticks();
+		}
 	};
 
-	inline
-	void joystick_device::lock () {
-		SDL_LockJoysticks();
-	}
-
-	inline
-	void joystick_device::unlock ()  {
-		SDL_UnlockJoysticks();
-	}
 }
 
 #endif //SDLPP_INCLUDE_SDLPP_SYSTEM_JOYSTICK_HH_

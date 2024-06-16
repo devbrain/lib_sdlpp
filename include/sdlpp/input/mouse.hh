@@ -12,7 +12,7 @@
 #include <sdlpp/video/window.hh>
 #include <sdlpp/video/geometry.hh>
 #include <sdlpp/events/system_events.hh>
-#include <sdlpp/input/haptic.hh>
+
 
 namespace neutrino::sdl {
 	class mouse {
@@ -87,8 +87,8 @@ namespace neutrino::sdl {
 			return SDL_MouseIsHaptic() == SDL_TRUE;
 		}
 
-		static haptic as_haptic() {
-			return haptic(SAFE_SDL_CALL(SDL_HapticOpenFromMouse));
+		static object<SDL_Haptic> as_haptic() {
+			return {SAFE_SDL_CALL(SDL_HapticOpenFromMouse), true};
 		}
 	};
 }

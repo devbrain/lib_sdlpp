@@ -17,17 +17,10 @@
 #include <sdlpp/video/geometry.hh>
 #include <sdlpp/video/palette.hh>
 #include <sdlpp/video/pixel_format.hh>
-#include <sdlpp/detail/ostreamops.hh>
+#include <sdlpp/video/blend_mode.hh>
 
 namespace neutrino::sdl {
-	enum class blend_mode : uint32_t {
-		NONE = SDL_BLENDMODE_NONE,
-		BLEND = SDL_BLENDMODE_BLEND,
-		ADD = SDL_BLENDMODE_ADD,
-		MOD = SDL_BLENDMODE_MOD
-	};
 
-	d_SDLPP_OSTREAM(blend_mode);
 
 	/**
 	 * @class surface

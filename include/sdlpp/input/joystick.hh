@@ -19,7 +19,6 @@
 #include <sdlpp/video/color.hh>
 #include <sdlpp/detail/joystick_id.hh>
 #include <sdlpp/events/system_events.hh>
-#include <sdlpp/input/haptic.hh>
 
 namespace neutrino::sdl {
 	using joystick_axis_t = strong::type<std::size_t,
@@ -42,17 +41,11 @@ namespace neutrino::sdl {
 										strong::bicrementable,
 										strong::ordered,
 										strong::ostreamable>;
-	using joystick_player_index_t = strong::type<int,
-												 struct _joystick_player_index_,
-												 strong::bicrementable,
-												 strong::ordered,
-												 strong::ostreamable>;
 
-	class joystick_device;
+
+
 
 	class joystick : public object<SDL_Joystick> {
-		friend class joystick_device;
-
 	 public:
 		enum class power_level {
 			UNKNOWN = SDL_JOYSTICK_POWER_UNKNOWN,
@@ -78,11 +71,14 @@ namespace neutrino::sdl {
 		};
 
 	 public:
+		joystick() = default;
 		joystick& operator= (object<SDL_Joystick>&& other) noexcept;
 		joystick& operator= (joystick&& other) noexcept;
 
 		joystick& operator= (const joystick& other) = delete;
 		joystick (const joystick& other) = delete;
+
+		[[nodiscard]] joystick_id_t get_id() const;
 
 		[[nodiscard]] std::string get_name () const;
 		[[nodiscard]] std::string get_path () const;
@@ -119,9 +115,10 @@ namespace neutrino::sdl {
 		void send_effect (const void* data, std::size_t size);
 
 		[[nodiscard]] bool is_haptic () const;
-		[[nodiscard]] haptic as_haptic () const;
-	 private:
-		explicit joystick (joystick_device_id_t index);
+		[[nodiscard]] object<SDL_Haptic> as_haptic () const;
+		[[nodiscard]] bool is_game_cotroller () const;
+		[[nodiscard]] object<SDL_GameController> as_game_cotroller() const;
+
 	};
 
 	d_SDLPP_OSTREAM(joystick::power_level);
@@ -137,12 +134,6 @@ namespace neutrino::sdl {
 	joystick& joystick::operator= (joystick&& other) noexcept {
 		object<SDL_Joystick>::operator= (std::move (other));
 		return *this;
-	}
-
-	inline
-	joystick::joystick (joystick_device_id_t index)
-		: object<SDL_Joystick> (SAFE_SDL_CALL(SDL_JoystickOpen, static_cast<int>(index.value_of ())), true) {
-
 	}
 
 	inline
@@ -317,13 +308,27 @@ namespace neutrino::sdl {
 	}
 
 	inline
-	neutrino::sdl::haptic neutrino::sdl::joystick::as_haptic () const {
-		return haptic (*this);
+	object<SDL_Haptic> joystick::as_haptic () const {
+		return {SAFE_SDL_CALL(SDL_HapticOpenFromJoystick, const_handle()), true};
 	}
 
 	inline
-	bool neutrino::sdl::joystick::is_haptic () const {
+	bool joystick::is_haptic () const {
 		return SDL_JoystickIsHaptic (const_handle ()) == SDL_TRUE;
+	}
+
+	inline
+	joystick_id_t joystick::get_id () const {
+		return joystick_id_t (SDL_JoystickInstanceID(const_handle()));
+	}
+
+	object<SDL_GameController> joystick::as_game_cotroller () const {
+		return {SAFE_SDL_CALL(SDL_GameControllerFromInstanceID, get_id().value_of()), true};
+	}
+
+	bool joystick::is_game_cotroller () const {
+		object<SDL_GameController> o(SDL_GameControllerFromInstanceID(get_id().value_of()), true);
+		return !o.is_null();
 	}
 
 }

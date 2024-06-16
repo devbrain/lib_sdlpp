@@ -11,7 +11,9 @@
 #include <sdlpp/detail/object.hh>
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/video/pixel_format.hh>
-#include <sdlpp/video/surface.hh>
+#include <sdlpp/video/blend_mode.hh>
+#include <sdlpp/video/color.hh>
+#include <sdlpp/video/geometry.hh>
 #include <sdlpp/detail/ostreamops.hh>
 
 namespace neutrino::sdl {
