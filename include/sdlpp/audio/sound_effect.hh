@@ -8,6 +8,7 @@
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/detail/object.hh>
 #include <sdlpp/detail/call.hh>
+#include <sdlpp/detail/clamp.hh>
 
 namespace neutrino::sdl {
 	class sound_effect : public object<Mix_Chunk> {
@@ -46,7 +47,7 @@ namespace neutrino::sdl {
 
 	inline
 	void sound_effect::set_volume (unsigned int v) {
-		SAFE_SDL_CALL(Mix_VolumeChunk, handle(), static_cast<int>(v));
+		SAFE_SDL_CALL(Mix_VolumeChunk, handle(), clamp(static_cast<int>(v), 0, MIX_MAX_VOLUME));
 	}
 
 	inline

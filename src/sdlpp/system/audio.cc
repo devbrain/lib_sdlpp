@@ -47,7 +47,7 @@ namespace neutrino::sdl {
 	}
 
 	void audio::set_volume (unsigned v) {
-		Mix_MasterVolume (static_cast<int>(v));
+		Mix_MasterVolume (clamp(static_cast<int>(v), 0, MIX_MAX_VOLUME));
 	}
 
 	audio_channel_id_t audio::get_channels_count () {

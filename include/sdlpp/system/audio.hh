@@ -17,11 +17,13 @@
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/detail/call.hh>
 #include <sdlpp/detail/object.hh>
+#include <sdlpp/detail/clamp.hh>
 #include <sdlpp/detail/ostreamops.hh>
 
 namespace neutrino::sdl {
-	using audio_channel_id_t = strong::type<std::size_t, struct channel_index_t_, strong::bicrementable, strong::ordered, strong::ostreamable>;
-	using audio_group_id_t = strong::type<unsigned, struct channel_index_t_, strong::bicrementable, strong::ordered, strong::ostreamable>;
+	using audio_channel_id_t = strong::type<std::size_t, struct _channel_index_t_, strong::bicrementable, strong::ordered, strong::ostreamable>;
+	using audio_group_id_t = strong::type<unsigned, struct _channel_index_t_, strong::bicrementable, strong::ordered, strong::ostreamable>;
+
 	using music_hook_function_t = std::function<void(uint8_t* stream, std::size_t len)>;
 	using post_mix_function_t = std::function<void(uint8_t* stream, std::size_t len)>;
 

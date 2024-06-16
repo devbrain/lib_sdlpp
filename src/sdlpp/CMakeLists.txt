@@ -6,6 +6,8 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/audio/music.hh
 
         ${PROJECT_INCLUDE}/sdlpp/detail/call.hh
+        ${PROJECT_INCLUDE}/sdlpp/detail/clamp.hh
+        ${PROJECT_INCLUDE}/sdlpp/detail/joystick_id.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/iterator.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/object.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/ostreamops.hh
@@ -33,8 +35,9 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/system/touch.hh
 
         ${PROJECT_INCLUDE}/sdlpp/input.hh
-        ${PROJECT_INCLUDE}/sdlpp/input/joystick.hh
         ${PROJECT_INCLUDE}/sdlpp/input/mouse.hh
+        ${PROJECT_INCLUDE}/sdlpp/input/joystick.hh
+        ${PROJECT_INCLUDE}/sdlpp/input/haptic.hh
         ${PROJECT_INCLUDE}/sdlpp/input/keyboard.hh
         ${PROJECT_INCLUDE}/sdlpp/input/sensor.hh
 
@@ -72,7 +75,8 @@ add_library(sdlpp
         audio/music.cc
         io/whence.cc
         system/cpu.cc
-        system/joystic.cc
+        input/joystick.cc
+        input/haptic.cc
         system/power.cc
         system/sensor.cc
         system/audio.cc

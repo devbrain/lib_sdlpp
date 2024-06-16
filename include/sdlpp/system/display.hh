@@ -22,9 +22,9 @@
 namespace neutrino::sdl {
 	class display {
 	 public:
-		using index_t = strong::type<std::size_t, struct display_index_t_, strong::bicrementable, strong::ordered, strong::ostreamable>;
-		using mode_index_t = strong::type<std::size_t, struct mode_index_t_, strong::bicrementable, strong::ordered, strong::ostreamable>;
-		using driver_index_t = strong::type<std::size_t, struct display_index_t_, strong::bicrementable, strong::ordered, strong::ostreamable>;
+		using index_t = strong::type<std::size_t, struct _display_index_t_, strong::bicrementable, strong::ordered, strong::ostreamable>;
+		using mode_index_t = strong::type<std::size_t, struct _mode_index_t_, strong::bicrementable, strong::ordered, strong::ostreamable>;
+		using driver_index_t = strong::type<std::size_t, struct _display_index_t_, strong::bicrementable, strong::ordered, strong::ostreamable>;
 		/**
 		 * @enum orientation
 		 * @brief Represents the possible orientations of a display.

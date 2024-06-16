@@ -35,6 +35,7 @@ namespace neutrino::sdl {
 		d_SDL_DELETER_TRAITS (SDL_RWops, SDL_FreeRW);
 		d_SDL_DELETER_TRAITS (SDL_Cursor, SDL_FreeCursor);
 		d_SDL_DELETER_TRAITS (SDL_Joystick , SDL_JoystickClose);
+		d_SDL_DELETER_TRAITS (SDL_Haptic , SDL_HapticClose);
 		d_SDL_DELETER_TRAITS (SDL_Sensor , SDL_SensorClose);
 		d_SDL_DELETER_TRAITS (SDL_GameController , SDL_GameControllerClose);
 		d_SDL_DELETER_TRAITS (TTF_Font, TTF_CloseFont);
