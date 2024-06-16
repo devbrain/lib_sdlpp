@@ -20,7 +20,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 	std::cout << "\tScreen saver enabled: " << display::screen_saver_enabled() << std::endl;
 	auto vn = display::count_video_drivers();
 	std::cout << "\tVideo Drivers: " << std::endl;
-	for (std::size_t i=0; i<vn; i++) {
+	for (display::driver_index_t i{0}; i < vn; i++) {
 		auto d = display::video_driver (i);
 		std::cout << "\t\t" << i << ") " << (d ? *d : "N/A") << std::endl;
 	}
@@ -29,10 +29,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
 	auto n = display::count();
 	std::cout << "\tDisplays:" << std::endl;
-	for (std::size_t i = 0; i<n; i++) {
+	for (display::index_t i{0}; i<n; i++) {
 		display d(i);
 		std::cout << "\t\t\t" << d << std::endl;
-		for (std::size_t j=0; j<d.get_modes(); j++) {
+		for (display::mode_index_t j{0}; j< d.count_modes (); j++) {
 			auto m = d.get_mode (j);
 			std::cout << "MODE #" << j << std::endl
 			<< m << std::endl;

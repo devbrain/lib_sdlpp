@@ -1,6 +1,10 @@
 include(GenerateExportHeader)
 
 add_library(sdlpp
+        ${PROJECT_INCLUDE}/sdlpp/audio.hh
+        ${PROJECT_INCLUDE}/sdlpp/audio/sound_effect.hh
+        ${PROJECT_INCLUDE}/sdlpp/audio/music.hh
+
         ${PROJECT_INCLUDE}/sdlpp/detail/call.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/iterator.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/object.hh
@@ -15,6 +19,7 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/events/events_dispatcher.hh
         ${PROJECT_INCLUDE}/sdlpp/events/system_events.hh
 
+        ${PROJECT_INCLUDE}/sdlpp/system/audio.hh
         ${PROJECT_INCLUDE}/sdlpp/system/clipboard.hh
         ${PROJECT_INCLUDE}/sdlpp/system/cpu.hh
         ${PROJECT_INCLUDE}/sdlpp/system/display.hh
@@ -64,12 +69,13 @@ add_library(sdlpp
 
         events/event_types.cc
         events/system_events.cc
-
+        audio/music.cc
         io/whence.cc
         system/cpu.cc
         system/joystic.cc
         system/power.cc
         system/sensor.cc
+        system/audio.cc
         video/color.cc
         video/cursor.cc
         video/display.cc
