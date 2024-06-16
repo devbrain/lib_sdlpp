@@ -12,6 +12,7 @@
 #include <sdlpp/detail/call.hh>
 #include <sdlpp/events/event_types.hh>
 #include <sdlpp/video/window.hh>
+#include <sdlpp/video/geometry.hh>
 
 namespace neutrino::sdl {
 	class keyboard;

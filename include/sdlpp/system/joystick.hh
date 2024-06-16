@@ -109,6 +109,13 @@ namespace neutrino::sdl {
 			return SAFE_SDL_CALL(SDL_GameControllerPathForIndex, static_cast<int>(idx.value_of()));
 		}
 
+		static void ignore_game_controllers(bool do_ignore) {
+			SDL_GameControllerEventState (do_ignore ? SDL_IGNORE : SDL_ENABLE);
+		}
+
+		static bool is_game_controllers_ignored() {
+			return SDL_IGNORE == SDL_GameControllerEventState (SDL_QUERY);
+		}
 
 		static void lock() {
 			SDL_LockJoysticks();

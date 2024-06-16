@@ -75,6 +75,7 @@ add_library(sdlpp
         audio/music.cc
         events/event_types.cc
         events/system_events.cc
+        input/game_controller.cc
         input/haptic.cc
         input/joystick.cc
         io/whence.cc
