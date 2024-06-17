@@ -14,19 +14,19 @@
 #include <tuple>
 #include <chrono>
 
+#include <strong_type/strong_type.hpp>
+
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/detail/object.hh>
 #include <sdlpp/detail/call.hh>
 #include <sdlpp/detail/ostreamops.hh>
 
-#include <bsw/mp/primitive.hh>
-
 namespace neutrino::sdl {
+	using sensor_device_t = strong::type<std::size_t, struct _sensor_device_, strong::bicrementable, strong::ordered, strong::ostreamable>;
+	using sensor_device_id_t = strong::type<SDL_SensorID, struct _sensor_device_id_, strong::bicrementable, strong::ordered, strong::ostreamable>;
 	class sensor : public object<SDL_Sensor> {
 	 public:
-		using id_t = primitives::primitive<SDL_SensorID>;
-		enum class type_t {
-			INVALID = SDL_SENSOR_INVALID,    /**< Returned for an invalid sensor */
+		enum class type {
 			UNKNOWN = SDL_SENSOR_UNKNOWN,         /**< Unknown sensor type */
 			ACCEL = SDL_SENSOR_ACCEL,           /**< Accelerometer */
 			GYRO = SDL_SENSOR_GYRO,            /**< Gyroscope */
@@ -36,8 +36,8 @@ namespace neutrino::sdl {
 			GYRO_R = SDL_SENSOR_GYRO_R           /**< Gyroscope for right Joy-Con controller */
 		};
 
-		static std::size_t count() noexcept {
-			return static_cast<std::size_t> (SDL_NumSensors());
+		static sensor_device_t count () noexcept {
+			return sensor_device_t{static_cast<std::size_t> (SDL_NumSensors())};
 		}
 
 		static void lock() noexcept {
@@ -48,30 +48,34 @@ namespace neutrino::sdl {
 			SDL_UnlockSensors();
 		}
 
-		static sensor open(std::size_t idx) {
-			return sensor(static_cast<int>(idx));
+		static sensor open (sensor_device_t idx) {
+			return sensor(static_cast<int>(idx.value_of()));
 		}
 
-		static std::string get_name(std::size_t idx) {
-			return SAFE_SDL_CALL(SDL_SensorGetDeviceName, static_cast<int>(idx));
+		static std::string get_name (sensor_device_t idx) {
+			return SAFE_SDL_CALL(SDL_SensorGetDeviceName, static_cast<int>(idx.value_of()));
 		}
 
-		static int get_platform_dependent_type(std::size_t idx) {
-			return SAFE_SDL_CALL(SDL_SensorGetDeviceNonPortableType, static_cast<int>(idx));
+		static int get_platform_dependent_type (sensor_device_t idx) {
+			return SAFE_SDL_CALL(SDL_SensorGetDeviceNonPortableType, static_cast<int>(idx.value_of()));
 		}
 
-		static type_t get_type(std::size_t idx) {
-			return static_cast<type_t>(SDL_SensorGetDeviceType (static_cast<int>(idx)));
+		static type get_type (sensor_device_t idx) {
+			auto rc = SDL_SensorGetDeviceType (static_cast<int>(idx.value_of()));
+			if (rc == SDL_SENSOR_INVALID) {
+				RAISE_SDL_EX("Bad sensor index", idx);
+			}
+			return static_cast<type>(rc);
 		}
 
-		static id_t get_id(std::size_t idx) {
-			return SAFE_SDL_CALL(SDL_SensorGetDeviceInstanceID, static_cast<int>(idx));
+		static sensor_device_id_t get_id (sensor_device_t idx) {
+			return sensor_device_id_t{SAFE_SDL_CALL(SDL_SensorGetDeviceInstanceID, static_cast<int>(idx.value_of()))};
 		}
 
-		[[nodiscard]] id_t get_id() const;
+		[[nodiscard]] sensor_device_id_t get_id() const;
 		[[nodiscard]] std::string get_name() const;
 		[[nodiscard]] int get_platform_dependent_type() const;
-		[[nodiscard]] type_t get_type() const;
+		[[nodiscard]] type get_type () const;
 
 		using timed_data_t = std::tuple<std::chrono::microseconds, float>;
 
@@ -88,7 +92,7 @@ namespace neutrino::sdl {
 		explicit sensor(int idx);
 	};
 
-	d_SDLPP_OSTREAM(sensor::type_t);
+	d_SDLPP_OSTREAM(sensor::type);
 
 	inline
 	sensor::sensor (int idx)
@@ -97,8 +101,8 @@ namespace neutrino::sdl {
 	}
 
 	inline
-	sensor::id_t sensor::get_id () const {
-		return SAFE_SDL_CALL(SDL_SensorGetInstanceID, const_handle());
+	sensor_device_id_t sensor::get_id () const {
+		return sensor_device_id_t{SAFE_SDL_CALL(SDL_SensorGetInstanceID, const_handle())};
 	}
 
 	inline
@@ -112,8 +116,8 @@ namespace neutrino::sdl {
 	}
 
 	inline
-	sensor::type_t sensor::get_type () const {
-		return static_cast<type_t>(SDL_SensorGetType (const_handle()));
+	sensor::type sensor::get_type () const {
+		return static_cast<type>(SDL_SensorGetType (const_handle()));
 	}
 
 	inline
