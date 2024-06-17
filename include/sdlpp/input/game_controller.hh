@@ -12,6 +12,7 @@
 #include <iterator>
 #include <string>
 #include <vector>
+#include <type_traits>
 #include <variant>
 #include <strong_type/strong_type.hpp>
 
@@ -120,7 +121,7 @@ namespace neutrino::sdl {
 		[[nodiscard]] type get_type () const;
 
 		[[nodiscard]] static bool add_mapping (const std::string& mapping);
-		[[nodiscard]] std::optional<std::string> get_mapping() const;
+		[[nodiscard]] std::optional<std::string> get_mapping () const;
 
 		[[nodiscard]] bool is_connected () const;
 
@@ -136,7 +137,7 @@ namespace neutrino::sdl {
 
 		[[nodiscard]] bool has_sensor (sensor::type st) const;
 		[[nodiscard]] bool is_sensor_enabled (sensor::type st) const;
-		void set_sensor_enabled(sensor::type st, bool enabled);
+		void set_sensor_enabled (sensor::type st, bool enabled);
 		[[nodiscard]] std::vector<sensor::type> get_supported_sensors () const;
 		[[nodiscard]] std::vector<sensor::type> get_enabled_sensors () const;
 
@@ -151,10 +152,10 @@ namespace neutrino::sdl {
 		get_finger_data (game_controller_touchpad_t t, game_controller_finger_t f) const;
 
 		[[nodiscard]] joystick_player_index_t get_player_index () const;
-		void set_player_index(joystick_player_index_t idx);
+		void set_player_index (joystick_player_index_t idx);
 
-		void rumble(uint16_t low_frequency_rumble, uint16_t high_frequency_rumble, std::chrono::milliseconds duration);
-		void rumble_triggers(uint16_t left, uint16_t right, std::chrono::milliseconds duration);
+		void rumble (uint16_t low_frequency_rumble, uint16_t high_frequency_rumble, std::chrono::milliseconds duration);
+		void rumble_triggers (uint16_t left, uint16_t right, std::chrono::milliseconds duration);
 		void set_led (uint8_t r, uint8_t g, uint8_t b);
 		void set_led (const color& c);
 
@@ -173,9 +174,71 @@ namespace neutrino::sdl {
 		std::vector<T> get_data (sensor::type st, std::size_t num_values, typename std::enable_if<std::is_same_v<T,
 																												 timed_data_t>>::type* = nullptr) const;
 
-		object<SDL_Joystick> as_joystick() const;
+		[[nodiscard]] object<SDL_Joystick> as_joystick () const;
 
 	};
+
+	template <typename T>
+	inline constexpr std::array<T, 6>
+	values (typename std::enable_if<std::is_same_v<game_controller::axis, T>>::type* = nullptr) {
+		return {
+			game_controller::axis::LEFTX,
+			game_controller::axis::LEFTY,
+			game_controller::axis::RIGHTX,
+			game_controller::axis::RIGHTY,
+			game_controller::axis::TRIGGERLEFT,
+			game_controller::axis::TRIGGERRIGHT
+		};
+	}
+
+	template <typename T>
+	inline constexpr std::array<T, 21>
+	values (typename std::enable_if<std::is_same_v<game_controller::button, T>>::type* = nullptr) {
+		return {
+			game_controller::button::A,
+			game_controller::button::B,
+			game_controller::button::X,
+			game_controller::button::Y,
+			game_controller::button::BACK,
+			game_controller::button::GUIDE,
+			game_controller::button::START,
+			game_controller::button::LEFTSTICK,
+			game_controller::button::RIGHTSTICK,
+			game_controller::button::LEFTSHOULDER,
+			game_controller::button::RIGHTSHOULDER,
+			game_controller::button::DPAD_UP,
+			game_controller::button::DPAD_DOWN,
+			game_controller::button::DPAD_LEFT,
+			game_controller::button::DPAD_RIGHT,
+			game_controller::button::MISC1,
+			game_controller::button::PADDLE1,
+			game_controller::button::PADDLE2,
+			game_controller::button::PADDLE3,
+			game_controller::button::PADDLE4,
+			game_controller::button::TOUCHPAD
+		};
+	}
+
+	template <typename T>
+	inline constexpr std::array<T, 14>
+	values (typename std::enable_if<std::is_same_v<game_controller::type, T>>::type* = nullptr) {
+		return {
+			game_controller::type::UNKNOWN,
+			game_controller::type::XBOX360,
+			game_controller::type::XBOXONE,
+			game_controller::type::PS3,
+			game_controller::type::PS4,
+			game_controller::type::NINTENDO_SWITCH_PRO,
+			game_controller::type::VIRTUAL,
+			game_controller::type::PS5,
+			game_controller::type::AMAZON_LUNA,
+			game_controller::type::GOOGLE_STADIA,
+			game_controller::type::NVIDIA_SHIELD,
+			game_controller::type::NINTENDO_SWITCH_JOYCON_LEFT,
+			game_controller::type::NINTENDO_SWITCH_JOYCON_RIGHT,
+			game_controller::type::NINTENDO_SWITCH_JOYCON_PAIR
+		};
+	}
 
 	inline
 	game_controller& game_controller::operator= (object<SDL_GameController>&& other) noexcept {
@@ -366,20 +429,9 @@ namespace neutrino::sdl {
 
 	inline
 	std::vector<game_controller::axis> game_controller::get_supported_axes () const {
-		static std::array<axis, 6> names = {
-			axis::LEFTX,
-			axis::LEFTY,
-			axis::RIGHTX,
-			axis::RIGHTY,
-			axis::TRIGGERLEFT,
-			axis::TRIGGERRIGHT
-		};
+		static constexpr auto axes = values<axis> ();
 		std::vector<game_controller::axis> out;
-		for (const auto a : names) {
-			if (has_axis (a)) {
-				out.emplace_back (a);
-			}
-		}
+		std::copy_if(axes.begin(), axes.end(), std::back_inserter (out), [this](auto a) {return has_axis(a);});
 		return out;
 	}
 
@@ -390,35 +442,9 @@ namespace neutrino::sdl {
 
 	inline
 	std::vector<game_controller::button> game_controller::get_supported_buttons () const {
-		static std::array<button, 21> names = {
-			button::A,
-			button::B,
-			button::X,
-			button::Y,
-			button::BACK,
-			button::GUIDE,
-			button::START,
-			button::LEFTSTICK,
-			button::RIGHTSTICK,
-			button::LEFTSHOULDER,
-			button::RIGHTSHOULDER,
-			button::DPAD_UP,
-			button::DPAD_DOWN,
-			button::DPAD_LEFT,
-			button::DPAD_RIGHT,
-			button::MISC1,
-			button::PADDLE1,
-			button::PADDLE2,
-			button::PADDLE3,
-			button::PADDLE4,
-			button::TOUCHPAD
-		};
+		static constexpr auto buttons = values<button> ();
 		std::vector<game_controller::button> out;
-		for (const auto b : names) {
-			if (has_button (b)) {
-				out.emplace_back (b);
-			}
-		}
+		std::copy_if(buttons.begin(), buttons.end(), std::back_inserter (out), [this](auto a) {return has_button(a);});
 		return out;
 	}
 
@@ -444,27 +470,15 @@ namespace neutrino::sdl {
 
 	inline
 	std::vector<sensor::type> game_controller::get_supported_sensors () const {
-		static std::array<sensor::type, 9> names = {
-			sensor::type::UNKNOWN,
-			sensor::type::ACCEL,
-			sensor::type::GYRO,
-			sensor::type::ACCEL_L,
-			sensor::type::GYRO_L,
-			sensor::type::ACCEL_R,
-			sensor::type::GYRO_R
-		};
+		static constexpr auto types =values<sensor::type> ();
 		std::vector<sensor::type> out;
-		for (const auto a : names) {
-			if (has_sensor (a)) {
-				out.emplace_back (a);
-			}
-		}
+		std::copy_if(types.begin(), types.end(), std::back_inserter (out), [this](auto a) {return has_sensor(a);});
 		return out;
 	}
 
 	inline
 	bool game_controller::is_sensor_enabled (sensor::type st) const {
-		return SDL_TRUE == SDL_GameControllerIsSensorEnabled (const_handle(), static_cast<SDL_SensorType>(st));
+		return SDL_TRUE == SDL_GameControllerIsSensorEnabled (const_handle (), static_cast<SDL_SensorType>(st));
 	}
 
 	inline
@@ -480,7 +494,7 @@ namespace neutrino::sdl {
 		};
 		std::vector<sensor::type> out;
 		for (const auto a : names) {
-			if (is_sensor_enabled(a)) {
+			if (is_sensor_enabled (a)) {
 				out.emplace_back (a);
 			}
 		}
@@ -489,7 +503,7 @@ namespace neutrino::sdl {
 
 	inline
 	std::optional<std::string> game_controller::get_mapping () const {
-		auto rc = SDL_GameControllerMapping (const_handle());
+		auto rc = SDL_GameControllerMapping (const_handle ());
 		if (rc) {
 			return rc;
 		}
@@ -498,7 +512,7 @@ namespace neutrino::sdl {
 
 	inline
 	std::optional<std::string> game_controller::get_name () const {
-		auto rc = SDL_GameControllerName(const_handle());
+		auto rc = SDL_GameControllerName (const_handle ());
 		if (rc) {
 			return rc;
 		}
@@ -507,7 +521,7 @@ namespace neutrino::sdl {
 
 	inline
 	std::optional<std::string> game_controller::get_path () const {
-		auto rc = SDL_GameControllerPath(const_handle());
+		auto rc = SDL_GameControllerPath (const_handle ());
 		if (rc) {
 			return rc;
 		}
@@ -517,12 +531,13 @@ namespace neutrino::sdl {
 	inline
 	void
 	game_controller::rumble (uint16_t low_frequency_rumble, uint16_t high_frequency_rumble, std::chrono::milliseconds duration) {
-		SAFE_SDL_CALL(SDL_GameControllerRumble, handle(), low_frequency_rumble, high_frequency_rumble, static_cast<int>(duration.count()));
+		SAFE_SDL_CALL(SDL_GameControllerRumble, handle (), low_frequency_rumble, high_frequency_rumble, static_cast<int>(duration
+			.count ()));
 	}
 
 	inline
 	void game_controller::set_led (uint8_t r, uint8_t g, uint8_t b) {
-		SAFE_SDL_CALL(SDL_GameControllerSetLED, handle(), r, g, b);
+		SAFE_SDL_CALL(SDL_GameControllerSetLED, handle (), r, g, b);
 	}
 
 	inline
@@ -532,22 +547,23 @@ namespace neutrino::sdl {
 
 	inline
 	void game_controller::set_player_index (joystick_player_index_t idx) {
-		SDL_GameControllerSetPlayerIndex (handle(), static_cast<int>(idx.value_of()));
+		SDL_GameControllerSetPlayerIndex (handle (), static_cast<int>(idx.value_of ()));
 	}
 
 	inline
 	void game_controller::set_sensor_enabled (sensor::type st, bool enabled) {
-		SAFE_SDL_CALL(SDL_GameControllerSetSensorEnabled, handle(), static_cast<SDL_SensorType>(st), enabled ? SDL_TRUE : SDL_FALSE);
+		SAFE_SDL_CALL(SDL_GameControllerSetSensorEnabled, handle (), static_cast<SDL_SensorType>(st),
+					  enabled ? SDL_TRUE : SDL_FALSE);
 	}
 
 	inline
 	void game_controller::rumble_triggers (uint16_t left, uint16_t right, std::chrono::milliseconds duration) {
-		SAFE_SDL_CALL(SDL_GameControllerRumbleTriggers, handle(), left, right, static_cast<int>(duration.count()));
+		SAFE_SDL_CALL(SDL_GameControllerRumbleTriggers, handle (), left, right, static_cast<int>(duration.count ()));
 	}
 
 	inline
 	object<SDL_Joystick> game_controller::as_joystick () const {
-		return {SDL_GameControllerGetJoystick (const_handle()), false};
+		return {SDL_GameControllerGetJoystick (const_handle ()), false};
 	}
 
 	template <class T>

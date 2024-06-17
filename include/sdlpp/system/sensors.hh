@@ -92,6 +92,18 @@ namespace neutrino::sdl {
 		explicit sensor(int idx);
 	};
 
+	template <typename T>
+	inline constexpr std::array<T, 9>
+	values (typename std::enable_if<std::is_same_v<sensor::type, T>>::type* = nullptr) {
+		return {sensor::type::UNKNOWN,
+				sensor::type::ACCEL,
+				sensor::type::GYRO,
+				sensor::type::ACCEL_L,
+				sensor::type::GYRO_L,
+				sensor::type::ACCEL_R,
+				sensor::type::GYRO_R};
+	}
+
 	d_SDLPP_OSTREAM(sensor::type);
 
 	inline
