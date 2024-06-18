@@ -6,6 +6,8 @@
 #define NEUTRINO_SDL_TEXTURE_HH
 
 #include <optional>
+#include <array>
+#include <type_traits>
 
 #include <sdlpp/detail/call.hh>
 #include <sdlpp/detail/object.hh>
@@ -209,5 +211,29 @@ namespace neutrino::sdl {
 	void texture::update (const rect& area, const void* pixels, std::size_t pitch) {
 		SAFE_SDL_CALL(SDL_UpdateTexture, handle (), &area, pixels, static_cast<int>(pitch));
 	}
+
+	namespace detail {
+		static inline constexpr std::array<texture::access, 3> s_vals_of_provides_access = {
+			texture::access::STATIC,
+			texture::access::STREAMING,
+			texture::access::TARGET,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_provides_access)&
+	values(typename std::enable_if<std::is_same_v<texture::access, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_access;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<texture::access, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_access.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<texture::access, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_access.end();
+	}
+
 }
 #endif

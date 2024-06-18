@@ -5,12 +5,14 @@
 #ifndef SDLPP_INCLUDE_SDLPP_SYSTEM_TOUCH_HH_
 #define SDLPP_INCLUDE_SDLPP_SYSTEM_TOUCH_HH_
 
+#include <array>
+#include <type_traits>
 #include <string>
 #include <optional>
 #include <strong_type/strong_type.hpp>
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/detail/call.hh>
-
+#include <sdlpp/detail/ostreamops.hh>
 
 
 namespace neutrino::sdl {
@@ -68,6 +70,34 @@ namespace neutrino::sdl {
 			return std::nullopt;
 		}
 	};
+
+
+
+	namespace detail {
+		static inline constexpr std::array<touch_device::type, 3> s_vals_of_touch_device_type = {
+			touch_device::type::DIRECT,
+			touch_device::type::INDIRECT_ABSOLUTE,
+			touch_device::type::INDIRECT_RELATIVE,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_touch_device_type)&
+	values(typename std::enable_if<std::is_same_v<touch_device::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_touch_device_type;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<touch_device::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_touch_device_type.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<touch_device::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_touch_device_type.end();
+	}
+
+	d_SDLPP_OSTREAM(touch_device::type);
+
 }
 
 #endif //SDLPP_INCLUDE_SDLPP_SYSTEM_TOUCH_HH_

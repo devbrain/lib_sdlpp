@@ -7,7 +7,9 @@
 
 #include <cstdint>
 #include <string>
-#include <iosfwd>
+#include <array>
+#include <type_traits>
+
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp//detail/ostreamops.hh>
 
@@ -106,11 +108,9 @@ namespace neutrino::sdl {
 		RENDER_DEVICE_RESET = SDL_RENDER_DEVICE_RESET, /**< The device has been reset and all textures need to be recreated */
 		USEREVENT = SDL_USEREVENT
 	};
-	d_SDLPP_OSTREAM(event_type);
-
 
 	/**
-	 * @brief The event_action class represents actions associated with SDL event operations.
+	 * @brief This represents actions associated with SDL event operations.
 	 *
 	 * The event_action class is an enumerated type that defines the different actions that can be performed
 	 * with SDL event operations. It provides the following actions:
@@ -127,15 +127,11 @@ namespace neutrino::sdl {
 		GET = SDL_GETEVENT
 	};
 
-	d_SDLPP_OSTREAM(event_action);
-
-
-
 	/**
 	 * @enum scancode
 	 * @brief Enumerated type for keyboard scancodes
 	 *
-	 * This enum represents the scancodes for keyboard keys used in SDL. Each scancode value
+	 * This represents the scancodes for keyboard keys used in SDL. Each scancode value
 	 * corresponds to a specific key on the keyboard. The scancodes are based on the SDL_SCANCODE_
 	 * constants provided by the SDL library.
 	 */
@@ -384,12 +380,10 @@ namespace neutrino::sdl {
 		NUM_SCANCODES = SDL_NUM_SCANCODES
 	};
 
-	d_SDLPP_OSTREAM(scancode);
-
 	/**
-	 * @brief Enum class representing key codes.
+	 * @brief Enum representing key codes.
 	 *
-	 * This class defines key codes for different keys on a keyboard.
+	 * This defines key codes for different keys on a keyboard.
 	 */
 	enum class keycode {
 		UNKNOWN = SDLK_UNKNOWN,
@@ -628,7 +622,6 @@ namespace neutrino::sdl {
 		EJECT = SDLK_EJECT,
 		SLEEP = SDLK_SLEEP,
 	};
-	d_SDLPP_OSTREAM(keycode);
 
 	/**
 	 * @enum keymod
@@ -655,6 +648,642 @@ namespace neutrino::sdl {
 		SHIFT = LSHIFT | RSHIFT,
 		GUI = LGUI | RGUI
 	};
+
+	namespace detail {
+		static inline constexpr std::array<event_type, 47> s_vals_of_event_type = {
+			event_type::QUIT,
+			event_type::APP_TERMINATING,
+			event_type::APP_LOWMEMORY,
+			event_type::APP_WILLENTERBACKGROUND,
+			event_type::APP_DIDENTERBACKGROUND,
+			event_type::APP_WILLENTERFOREGROUND,
+			event_type::APP_DIDENTERFOREGROUND,
+			event_type::WINDOWEVENT,
+			event_type::SYSWMEVENT,
+			event_type::KEYDOWN,
+			event_type::KEYUP,
+			event_type::TEXTEDITING,
+			event_type::TEXTINPUT,
+			event_type::KEYMAPCHANGED,
+			event_type::MOUSEMOTION,
+			event_type::MOUSEBUTTONDOWN,
+			event_type::MOUSEBUTTONUP,
+			event_type::MOUSEWHEEL,
+			event_type::JOYAXISMOTION,
+			event_type::JOYBALLMOTION,
+			event_type::JOYHATMOTION,
+			event_type::JOYBUTTONDOWN,
+			event_type::JOYBUTTONUP,
+			event_type::JOYDEVICEADDED,
+			event_type::JOYDEVICEREMOVED,
+			event_type::CONTROLLERAXISMOTION,
+			event_type::CONTROLLERBUTTONDOWN,
+			event_type::CONTROLLERBUTTONUP,
+			event_type::CONTROLLERDEVICEADDED,
+			event_type::CONTROLLERDEVICEREMOVED,
+			event_type::CONTROLLERDEVICEREMAPPED,
+			event_type::FINGERDOWN,
+			event_type::FINGERUP,
+			event_type::FINGERMOTION,
+			event_type::DOLLARGESTURE,
+			event_type::DOLLARRECORD,
+			event_type::MULTIGESTURE,
+			event_type::CLIPBOARDUPDATE,
+			event_type::DROPFILE,
+			event_type::DROPTEXT,
+			event_type::DROPBEGIN,
+			event_type::DROPCOMPLETE,
+			event_type::AUDIODEVICEADDED,
+			event_type::AUDIODEVICEREMOVED,
+			event_type::RENDER_TARGETS_RESET,
+			event_type::RENDER_DEVICE_RESET,
+			event_type::USEREVENT,
+		};
+	}
+
+	template <typename T>
+	static inline constexpr const decltype (detail::s_vals_of_event_type)&
+	values (typename std::enable_if<std::is_same_v<event_type, T>>::type* = nullptr) {
+		return detail::s_vals_of_event_type;
+	}
+
+	template <typename T>
+	static inline constexpr auto
+	begin (typename std::enable_if<std::is_same_v<event_type, T>>::type* = nullptr) {
+		return detail::s_vals_of_event_type.begin ();
+	}
+
+	template <typename T>
+	static inline constexpr auto
+	end (typename std::enable_if<std::is_same_v<event_type, T>>::type* = nullptr) {
+		return detail::s_vals_of_event_type.end ();
+	}
+
+	namespace detail {
+		static inline constexpr std::array<scancode, 242> s_vals_of_scancode = {
+			scancode::UNKNOWN,
+			scancode::A,
+			scancode::B,
+			scancode::C,
+			scancode::D,
+			scancode::E,
+			scancode::F,
+			scancode::G,
+			scancode::H,
+			scancode::I,
+			scancode::J,
+			scancode::K,
+			scancode::L,
+			scancode::M,
+			scancode::N,
+			scancode::O,
+			scancode::P,
+			scancode::Q,
+			scancode::R,
+			scancode::S,
+			scancode::T,
+			scancode::U,
+			scancode::V,
+			scancode::W,
+			scancode::X,
+			scancode::Y,
+			scancode::Z,
+			scancode::_1,
+			scancode::_2,
+			scancode::_3,
+			scancode::_4,
+			scancode::_5,
+			scancode::_6,
+			scancode::_7,
+			scancode::_8,
+			scancode::_9,
+			scancode::_0,
+			scancode::RETURN,
+			scancode::ESCAPE,
+			scancode::BACKSPACE,
+			scancode::TAB,
+			scancode::SPACE,
+			scancode::MINUS,
+			scancode::EQUALS,
+			scancode::LEFTBRACKET,
+			scancode::RIGHTBRACKET,
+			scancode::BACKSLASH,
+			scancode::NONUSHASH,
+			scancode::SEMICOLON,
+			scancode::APOSTROPHE,
+			scancode::GRAVE,
+			scancode::COMMA,
+			scancode::PERIOD,
+			scancode::SLASH,
+			scancode::CAPSLOCK,
+			scancode::F1,
+			scancode::F2,
+			scancode::F3,
+			scancode::F4,
+			scancode::F5,
+			scancode::F6,
+			scancode::F7,
+			scancode::F8,
+			scancode::F9,
+			scancode::F10,
+			scancode::F11,
+			scancode::F12,
+			scancode::PRINTSCREEN,
+			scancode::SCROLLLOCK,
+			scancode::PAUSE,
+			scancode::INSERT,
+			scancode::HOME,
+			scancode::PAGEUP,
+			scancode::DEL,
+			scancode::END,
+			scancode::PAGEDOWN,
+			scancode::RIGHT,
+			scancode::LEFT,
+			scancode::DOWN,
+			scancode::UP,
+			scancode::NUMLOCKCLEAR,
+			scancode::KP_DIVIDE,
+			scancode::KP_MULTIPLY,
+			scancode::KP_MINUS,
+			scancode::KP_PLUS,
+			scancode::KP_ENTER,
+			scancode::KP_1,
+			scancode::KP_2,
+			scancode::KP_3,
+			scancode::KP_4,
+			scancode::KP_5,
+			scancode::KP_6,
+			scancode::KP_7,
+			scancode::KP_8,
+			scancode::KP_9,
+			scancode::KP_0,
+			scancode::KP_PERIOD,
+			scancode::NONUSBACKSLASH,
+			scancode::APPLICATION,
+			scancode::POWER,
+			scancode::KP_EQUALS,
+			scancode::F13,
+			scancode::F14,
+			scancode::F15,
+			scancode::F16,
+			scancode::F17,
+			scancode::F18,
+			scancode::F19,
+			scancode::F20,
+			scancode::F21,
+			scancode::F22,
+			scancode::F23,
+			scancode::F24,
+			scancode::EXECUTE,
+			scancode::HELP,
+			scancode::MENU,
+			scancode::SELECT,
+			scancode::STOP,
+			scancode::AGAIN,
+			scancode::UNDO,
+			scancode::CUT,
+			scancode::COPY,
+			scancode::PASTE,
+			scancode::FIND,
+			scancode::MUTE,
+			scancode::VOLUMEUP,
+			scancode::VOLUMEDOWN,
+			scancode::KP_COMMA,
+			scancode::KP_EQUALSAS400,
+			scancode::INTERNATIONAL1,
+			scancode::INTERNATIONAL2,
+			scancode::INTERNATIONAL3,
+			scancode::INTERNATIONAL4,
+			scancode::INTERNATIONAL5,
+			scancode::INTERNATIONAL6,
+			scancode::INTERNATIONAL7,
+			scancode::INTERNATIONAL8,
+			scancode::INTERNATIONAL9,
+			scancode::LANG1,
+			scancode::LANG2,
+			scancode::LANG3,
+			scancode::LANG4,
+			scancode::LANG5,
+			scancode::LANG6,
+			scancode::LANG7,
+			scancode::LANG8,
+			scancode::LANG9,
+			scancode::ALTERASE,
+			scancode::SYSREQ,
+			scancode::CANCEL,
+			scancode::CLEAR,
+			scancode::PRIOR,
+			scancode::RETURN2,
+			scancode::SEPARATOR,
+			scancode::KBD_OUT,
+			scancode::OPER,
+			scancode::CLEARAGAIN,
+			scancode::CRSEL,
+			scancode::EXSEL,
+			scancode::KP_00,
+			scancode::KP_000,
+			scancode::THOUSANDSSEPARATOR,
+			scancode::DECIMALSEPARATOR,
+			scancode::CURRENCYUNIT,
+			scancode::CURRENCYSUBUNIT,
+			scancode::KP_LEFTPAREN,
+			scancode::KP_RIGHTPAREN,
+			scancode::KP_LEFTBRACE,
+			scancode::KP_RIGHTBRACE,
+			scancode::KP_TAB,
+			scancode::KP_BACKSPACE,
+			scancode::KP_A,
+			scancode::KP_B,
+			scancode::KP_C,
+			scancode::KP_D,
+			scancode::KP_E,
+			scancode::KP_F,
+			scancode::KP_XOR,
+			scancode::KP_POWER,
+			scancode::KP_PERCENT,
+			scancode::KP_LESS,
+			scancode::KP_GREATER,
+			scancode::KP_AMPERSAND,
+			scancode::KP_DBLAMPERSAND,
+			scancode::KP_VERTICALBAR,
+			scancode::KP_DBLVERTICALBAR,
+			scancode::KP_COLON,
+			scancode::KP_HASH,
+			scancode::KP_SPACE,
+			scancode::KP_AT,
+			scancode::KP_EXCLAM,
+			scancode::KP_MEMSTORE,
+			scancode::KP_MEMRECALL,
+			scancode::KP_MEMCLEAR,
+			scancode::KP_MEMADD,
+			scancode::KP_MEMSUBTRACT,
+			scancode::KP_MEMMULTIPLY,
+			scancode::KP_MEMDIVIDE,
+			scancode::KP_PLUSMINUS,
+			scancode::KP_CLEAR,
+			scancode::KP_CLEARENTRY,
+			scancode::KP_BINARY,
+			scancode::KP_OCTAL,
+			scancode::KP_DECIMAL,
+			scancode::KP_HEXADECIMAL,
+			scancode::LCTRL,
+			scancode::LSHIFT,
+			scancode::LALT,
+			scancode::LGUI,
+			scancode::RCTRL,
+			scancode::RSHIFT,
+			scancode::RALT,
+			scancode::RGUI,
+			scancode::MODE,
+			scancode::AUDIONEXT,
+			scancode::AUDIOPREV,
+			scancode::AUDIOSTOP,
+			scancode::AUDIOPLAY,
+			scancode::AUDIOMUTE,
+			scancode::MEDIASELECT,
+			scancode::WWW,
+			scancode::MAIL,
+			scancode::CALCULATOR,
+			scancode::COMPUTER,
+			scancode::AC_SEARCH,
+			scancode::AC_HOME,
+			scancode::AC_BACK,
+			scancode::AC_FORWARD,
+			scancode::AC_STOP,
+			scancode::AC_REFRESH,
+			scancode::AC_BOOKMARKS,
+			scancode::BRIGHTNESSDOWN,
+			scancode::BRIGHTNESSUP,
+			scancode::DISPLAYSWITCH,
+			scancode::KBDILLUMTOGGLE,
+			scancode::KBDILLUMDOWN,
+			scancode::KBDILLUMUP,
+			scancode::EJECT,
+			scancode::SLEEP,
+			scancode::APP1,
+			scancode::APP2,
+			scancode::NUM_SCANCODES,
+		};
+	}
+
+	template <typename T>
+	static inline constexpr const decltype (detail::s_vals_of_scancode)&
+	values (typename std::enable_if<std::is_same_v<scancode, T>>::type* = nullptr) {
+		return detail::s_vals_of_scancode;
+	}
+
+	template <typename T>
+	static inline constexpr auto
+	begin (typename std::enable_if<std::is_same_v<scancode, T>>::type* = nullptr) {
+		return detail::s_vals_of_scancode.begin ();
+	}
+
+	template <typename T>
+	static inline constexpr auto
+	end (typename std::enable_if<std::is_same_v<scancode, T>>::type* = nullptr) {
+		return detail::s_vals_of_scancode.end ();
+	}
+
+	namespace detail {
+		static inline constexpr std::array<keycode, 235> s_vals_of_keycode = {
+			keycode::UNKNOWN,
+			keycode::RETURN,
+			keycode::ESCAPE,
+			keycode::BACKSPACE,
+			keycode::TAB,
+			keycode::SPACE,
+			keycode::EXCLAIM,
+			keycode::QUOTEDBL,
+			keycode::PERCENT,
+			keycode::DOLLAR,
+			keycode::AMPERSAND,
+			keycode::QUOTE,
+			keycode::LEFTPAREN,
+			keycode::RIGHTPAREN,
+			keycode::ASTERISK,
+			keycode::PLUS,
+			keycode::COMMA,
+			keycode::MINUS,
+			keycode::PERIOD,
+			keycode::SLASH,
+			keycode::_0,
+			keycode::_1,
+			keycode::_2,
+			keycode::_3,
+			keycode::_4,
+			keycode::_5,
+			keycode::_6,
+			keycode::_7,
+			keycode::_8,
+			keycode::_9,
+			keycode::COLON,
+			keycode::SEMICOLON,
+			keycode::LESS,
+			keycode::EQUALS,
+			keycode::GREATER,
+			keycode::QUESTION,
+			keycode::AT,
+			keycode::LEFTBRACKET,
+			keycode::BACKSLASH,
+			keycode::RIGHTBRACKET,
+			keycode::CARET,
+			keycode::UNDERSCORE,
+			keycode::BACKQUOTE,
+			keycode::a,
+			keycode::b,
+			keycode::c,
+			keycode::d,
+			keycode::e,
+			keycode::f,
+			keycode::g,
+			keycode::h,
+			keycode::i,
+			keycode::j,
+			keycode::k,
+			keycode::l,
+			keycode::m,
+			keycode::n,
+			keycode::o,
+			keycode::p,
+			keycode::q,
+			keycode::r,
+			keycode::s,
+			keycode::t,
+			keycode::u,
+			keycode::v,
+			keycode::w,
+			keycode::x,
+			keycode::y,
+			keycode::z,
+			keycode::CAPSLOCK,
+			keycode::F1,
+			keycode::F2,
+			keycode::F3,
+			keycode::F4,
+			keycode::F5,
+			keycode::F6,
+			keycode::F7,
+			keycode::F8,
+			keycode::F9,
+			keycode::F10,
+			keycode::F11,
+			keycode::F12,
+			keycode::PRINTSCREEN,
+			keycode::SCROLLLOCK,
+			keycode::PAUSE,
+			keycode::INSERT,
+			keycode::HOME,
+			keycode::PAGEUP,
+			keycode::DEL,
+			keycode::END,
+			keycode::PAGEDOWN,
+			keycode::RIGHT,
+			keycode::LEFT,
+			keycode::DOWN,
+			keycode::UP,
+			keycode::NUMLOCKCLEAR,
+			keycode::KP_DIVIDE,
+			keycode::KP_MULTIPLY,
+			keycode::KP_MINUS,
+			keycode::KP_PLUS,
+			keycode::KP_ENTER,
+			keycode::KP_1,
+			keycode::KP_2,
+			keycode::KP_3,
+			keycode::KP_4,
+			keycode::KP_5,
+			keycode::KP_6,
+			keycode::KP_7,
+			keycode::KP_8,
+			keycode::KP_9,
+			keycode::KP_0,
+			keycode::KP_PERIOD,
+			keycode::APPLICATION,
+			keycode::POWER,
+			keycode::KP_EQUALS,
+			keycode::F13,
+			keycode::F14,
+			keycode::F15,
+			keycode::F16,
+			keycode::F17,
+			keycode::F18,
+			keycode::F19,
+			keycode::F20,
+			keycode::F21,
+			keycode::F22,
+			keycode::F23,
+			keycode::F24,
+			keycode::EXECUTE,
+			keycode::HELP,
+			keycode::MENU,
+			keycode::SELECT,
+			keycode::STOP,
+			keycode::AGAIN,
+			keycode::UNDO,
+			keycode::CUT,
+			keycode::COPY,
+			keycode::PASTE,
+			keycode::FIND,
+			keycode::MUTE,
+			keycode::VOLUMEUP,
+			keycode::VOLUMEDOWN,
+			keycode::KP_COMMA,
+			keycode::KP_EQUALSAS400,
+			keycode::ALTERASE,
+			keycode::SYSREQ,
+			keycode::CANCEL,
+			keycode::CLEAR,
+			keycode::PRIOR,
+			keycode::RETURN2,
+			keycode::SEPARATOR,
+			keycode::KBD_OUT,
+			keycode::OPER,
+			keycode::CLEARAGAIN,
+			keycode::CRSEL,
+			keycode::EXSEL,
+			keycode::KP_00,
+			keycode::KP_000,
+			keycode::THOUSANDSSEPARATOR,
+			keycode::DECIMALSEPARATOR,
+			keycode::CURRENCYUNIT,
+			keycode::CURRENCYSUBUNIT,
+			keycode::KP_LEFTPAREN,
+			keycode::KP_RIGHTPAREN,
+			keycode::KP_LEFTBRACE,
+			keycode::KP_RIGHTBRACE,
+			keycode::KP_TAB,
+			keycode::KP_BACKSPACE,
+			keycode::KP_A,
+			keycode::KP_B,
+			keycode::KP_C,
+			keycode::KP_D,
+			keycode::KP_E,
+			keycode::KP_F,
+			keycode::KP_XOR,
+			keycode::KP_POWER,
+			keycode::KP_PERCENT,
+			keycode::KP_LESS,
+			keycode::KP_GREATER,
+			keycode::KP_AMPERSAND,
+			keycode::KP_DBLAMPERSAND,
+			keycode::KP_VERTICALBAR,
+			keycode::KP_DBLVERTICALBAR,
+			keycode::KP_COLON,
+			keycode::KP_HASH,
+			keycode::KP_SPACE,
+			keycode::KP_AT,
+			keycode::KP_EXCLAM,
+			keycode::KP_MEMSTORE,
+			keycode::KP_MEMRECALL,
+			keycode::KP_MEMCLEAR,
+			keycode::KP_MEMADD,
+			keycode::KP_MEMSUBTRACT,
+			keycode::KP_MEMMULTIPLY,
+			keycode::KP_MEMDIVIDE,
+			keycode::KP_PLUSMINUS,
+			keycode::KP_CLEAR,
+			keycode::KP_CLEARENTRY,
+			keycode::KP_BINARY,
+			keycode::KP_OCTAL,
+			keycode::KP_DECIMAL,
+			keycode::KP_HEXADECIMAL,
+			keycode::LCTRL,
+			keycode::LSHIFT,
+			keycode::LALT,
+			keycode::LGUI,
+			keycode::RCTRL,
+			keycode::RSHIFT,
+			keycode::RALT,
+			keycode::RGUI,
+			keycode::MODE,
+			keycode::AUDIONEXT,
+			keycode::AUDIOPREV,
+			keycode::AUDIOSTOP,
+			keycode::AUDIOPLAY,
+			keycode::AUDIOMUTE,
+			keycode::MEDIASELECT,
+			keycode::WWW,
+			keycode::MAIL,
+			keycode::CALCULATOR,
+			keycode::COMPUTER,
+			keycode::AC_SEARCH,
+			keycode::AC_HOME,
+			keycode::AC_BACK,
+			keycode::AC_FORWARD,
+			keycode::AC_STOP,
+			keycode::AC_REFRESH,
+			keycode::AC_BOOKMARKS,
+			keycode::BRIGHTNESSDOWN,
+			keycode::BRIGHTNESSUP,
+			keycode::DISPLAYSWITCH,
+			keycode::KBDILLUMTOGGLE,
+			keycode::KBDILLUMDOWN,
+			keycode::KBDILLUMUP,
+			keycode::EJECT,
+			keycode::SLEEP,
+		};
+	}
+
+	template <typename T>
+	static inline constexpr const decltype (detail::s_vals_of_keycode)&
+	values (typename std::enable_if<std::is_same_v<keycode, T>>::type* = nullptr) {
+		return detail::s_vals_of_keycode;
+	}
+
+	template <typename T>
+	static inline constexpr auto
+	begin (typename std::enable_if<std::is_same_v<keycode, T>>::type* = nullptr) {
+		return detail::s_vals_of_keycode.begin ();
+	}
+
+	template <typename T>
+	static inline constexpr auto
+	end (typename std::enable_if<std::is_same_v<keycode, T>>::type* = nullptr) {
+		return detail::s_vals_of_keycode.end ();
+	}
+
+	namespace detail {
+		static inline constexpr std::array<keymod, 15> s_vals_of_keymod = {
+			keymod::LSHIFT,
+			keymod::RSHIFT,
+			keymod::LCTRL,
+			keymod::RCTRL,
+			keymod::LALT,
+			keymod::RALT,
+			keymod::LGUI,
+			keymod::RGUI,
+			keymod::NUM,
+			keymod::CAPS,
+			keymod::MODE,
+			keymod::CTRL,
+			keymod::ALT,
+			keymod::SHIFT,
+			keymod::GUI,
+		};
+	}
+
+	template <typename T>
+	static inline constexpr const decltype (detail::s_vals_of_keymod)&
+	values (typename std::enable_if<std::is_same_v<keymod, T>>::type* = nullptr) {
+		return detail::s_vals_of_keymod;
+	}
+
+	template <typename T>
+	static inline constexpr auto
+	begin (typename std::enable_if<std::is_same_v<keymod, T>>::type* = nullptr) {
+		return detail::s_vals_of_keymod.begin ();
+	}
+
+	template <typename T>
+	static inline constexpr auto
+	end (typename std::enable_if<std::is_same_v<keymod, T>>::type* = nullptr) {
+		return detail::s_vals_of_keymod.end ();
+	}
+
+	d_SDLPP_OSTREAM(event_action);
+	d_SDLPP_OSTREAM(event_type);
+	d_SDLPP_OSTREAM(scancode);
+	d_SDLPP_OSTREAM(keycode);
 	d_SDLPP_OSTREAM(keymod);
 }
 

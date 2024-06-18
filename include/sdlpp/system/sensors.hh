@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <algorithm>
+#include <array>
 #include <type_traits>
 #include <vector>
 #include <cstdint>
@@ -92,16 +93,31 @@ namespace neutrino::sdl {
 		explicit sensor(int idx);
 	};
 
+	namespace detail {
+		static inline constexpr std::array<sensor::type, 7> s_vals_of_sensor_type = {
+			sensor::type::UNKNOWN,
+			sensor::type::ACCEL,
+			sensor::type::GYRO,
+			sensor::type::ACCEL_L,
+			sensor::type::GYRO_L,
+			sensor::type::ACCEL_R,
+			sensor::type::GYRO_R,
+		};
+	}
 	template <typename T>
-	inline constexpr std::array<T, 9>
-	values (typename std::enable_if<std::is_same_v<sensor::type, T>>::type* = nullptr) {
-		return {sensor::type::UNKNOWN,
-				sensor::type::ACCEL,
-				sensor::type::GYRO,
-				sensor::type::ACCEL_L,
-				sensor::type::GYRO_L,
-				sensor::type::ACCEL_R,
-				sensor::type::GYRO_R};
+	static inline constexpr const decltype(detail::s_vals_of_sensor_type)&
+	values(typename std::enable_if<std::is_same_v<sensor::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_sensor_type;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<sensor::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_sensor_type.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<sensor::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_sensor_type.end();
 	}
 
 	d_SDLPP_OSTREAM(sensor::type);

@@ -4,6 +4,8 @@
 #include <ostream>
 #include <cstdint>
 #include <tuple>
+#include <array>
+#include <type_traits>
 
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/detail/ostreamops.hh>
@@ -252,14 +254,7 @@ namespace neutrino::sdl {
 		std::uint32_t m_value;
 	};
 
-	d_SDLPP_OSTREAM(pixel_format::format);
-	d_SDLPP_OSTREAM(pixel_format::type);
-	d_SDLPP_OSTREAM(pixel_format::order);
-	d_SDLPP_OSTREAM(pixel_format::component_order);
-	d_SDLPP_OSTREAM(pixel_format::array_order);
-	d_SDLPP_OSTREAM(pixel_format::layout);
 
-	d_SDLPP_OSTREAM(const pixel_format&);
 }
 
 inline
@@ -407,6 +402,224 @@ namespace neutrino::sdl {
 		}
 		RAISE_EX("No pixel format conversion is possible");
 	}
+
+	namespace detail {
+		static inline constexpr std::array<pixel_format::format, 44> s_vals_of_provides_format = {
+			pixel_format::format::INDEX1LSB,
+			pixel_format::format::INDEX1MSB,
+			pixel_format::format::INDEX2LSB,
+			pixel_format::format::INDEX2MSB,
+			pixel_format::format::INDEX4LSB,
+			pixel_format::format::INDEX4MSB,
+			pixel_format::format::INDEX8,
+			pixel_format::format::RGB332,
+			pixel_format::format::RGB444,
+			pixel_format::format::RGB555,
+			pixel_format::format::BGR555,
+			pixel_format::format::ARGB4444,
+			pixel_format::format::RGBA4444,
+			pixel_format::format::ABGR4444,
+			pixel_format::format::BGRA4444,
+			pixel_format::format::ARGB1555,
+			pixel_format::format::RGBA5551,
+			pixel_format::format::ABGR1555,
+			pixel_format::format::BGRA5551,
+			pixel_format::format::RGB565,
+			pixel_format::format::BGR565,
+			pixel_format::format::RGB24,
+			pixel_format::format::BGR24,
+			pixel_format::format::RGB888,
+			pixel_format::format::RGBX8888,
+			pixel_format::format::BGR888,
+			pixel_format::format::BGRX8888,
+			pixel_format::format::ARGB8888,
+			pixel_format::format::RGBA8888,
+			pixel_format::format::ABGR8888,
+			pixel_format::format::BGRA8888,
+			pixel_format::format::ARGB2101010,
+			pixel_format::format::RGBA32,
+			pixel_format::format::ARGB32,
+			pixel_format::format::BGRA32,
+			pixel_format::format::ABGR32,
+			pixel_format::format::YV12,
+			pixel_format::format::IYUV,
+			pixel_format::format::YUY2,
+			pixel_format::format::UYVY,
+			pixel_format::format::YVYU,
+			pixel_format::format::NV12,
+			pixel_format::format::NV21,
+			pixel_format::format::OES,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_provides_format)&
+	values(typename std::enable_if<std::is_same_v<pixel_format::format, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_format;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<pixel_format::format, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_format.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<pixel_format::format, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_format.end();
+	}
+
+
+	namespace detail {
+		static inline constexpr std::array<pixel_format::type, 12> s_vals_of_provides_type = {
+			pixel_format::type::UNKNOWN,
+			pixel_format::type::INDEX1,
+			pixel_format::type::INDEX4,
+			pixel_format::type::INDEX8,
+			pixel_format::type::PACKED8,
+			pixel_format::type::PACKED16,
+			pixel_format::type::PACKED32,
+			pixel_format::type::ARRAYU8,
+			pixel_format::type::ARRAYU16,
+			pixel_format::type::ARRAYU32,
+			pixel_format::type::ARRAYF16,
+			pixel_format::type::ARRAYF32,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_provides_type)&
+	values(typename std::enable_if<std::is_same_v<pixel_format::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_type;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<pixel_format::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_type.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<pixel_format::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_type.end();
+	}
+
+
+	namespace detail {
+		static inline constexpr std::array<pixel_format::order, 3> s_vals_of_provides_order = {
+			pixel_format::order::NONE,
+			pixel_format::order::ORDER_4321,
+			pixel_format::order::ORDER_1234,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_provides_order)&
+	values(typename std::enable_if<std::is_same_v<pixel_format::order, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_order;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<pixel_format::order, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_order.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<pixel_format::order, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_order.end();
+	}
+
+
+	namespace detail {
+		static inline constexpr std::array<pixel_format::component_order, 9> s_vals_of_provides_component_order = {
+			pixel_format::component_order::NONE,
+			pixel_format::component_order::XRGB,
+			pixel_format::component_order::RGBX,
+			pixel_format::component_order::ARGB,
+			pixel_format::component_order::RGBA,
+			pixel_format::component_order::XBGR,
+			pixel_format::component_order::BGRX,
+			pixel_format::component_order::ABGR,
+			pixel_format::component_order::BGRA,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_provides_component_order)&
+	values(typename std::enable_if<std::is_same_v<pixel_format::component_order, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_component_order;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<pixel_format::component_order, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_component_order.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<pixel_format::component_order, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_component_order.end();
+	}
+
+
+	namespace detail {
+		static inline constexpr std::array<pixel_format::array_order, 7> s_vals_of_provides_array_order = {
+			pixel_format::array_order::NONE,
+			pixel_format::array_order::RGB,
+			pixel_format::array_order::RGBA,
+			pixel_format::array_order::ARGB,
+			pixel_format::array_order::BGR,
+			pixel_format::array_order::BGRA,
+			pixel_format::array_order::ABGR,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_provides_array_order)&
+	values(typename std::enable_if<std::is_same_v<pixel_format::array_order, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_array_order;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<pixel_format::array_order, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_array_order.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<pixel_format::array_order, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_array_order.end();
+	}
+
+
+	namespace detail {
+		static inline constexpr std::array<pixel_format::layout, 9> s_vals_of_provides_layout = {
+			pixel_format::layout::NONE,
+			pixel_format::layout::LAYOUT_332,
+			pixel_format::layout::LAYOUT_4444,
+			pixel_format::layout::LAYOUT_1555,
+			pixel_format::layout::LAYOUT_5551,
+			pixel_format::layout::LAYOUT_565,
+			pixel_format::layout::LAYOUT_8888,
+			pixel_format::layout::LAYOUT_2101010,
+			pixel_format::layout::LAYOUT_1010102,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_provides_layout)&
+	values(typename std::enable_if<std::is_same_v<pixel_format::layout, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_layout;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<pixel_format::layout, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_layout.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<pixel_format::layout, T>>::type* = nullptr) {
+		return detail::s_vals_of_provides_layout.end();
+	}
+
+	d_SDLPP_OSTREAM(pixel_format::format);
+	d_SDLPP_OSTREAM(pixel_format::type);
+	d_SDLPP_OSTREAM(pixel_format::order);
+	d_SDLPP_OSTREAM(pixel_format::component_order);
+	d_SDLPP_OSTREAM(pixel_format::array_order);
+	d_SDLPP_OSTREAM(pixel_format::layout);
+
+	d_SDLPP_OSTREAM(const pixel_format&);
 }
 
 #endif

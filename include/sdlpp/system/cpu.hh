@@ -6,6 +6,8 @@
 #define SDLPP_INCLUDE_SDLPP_CPU_HH_
 
 #include <cstddef>
+#include <array>
+#include <type_traits>
 
 #include <bitflags/bitflags.hpp>
 #include <bsw/macros.hh>
@@ -14,8 +16,9 @@
 #include <sdlpp/detail/ostreamops.hh>
 
 namespace neutrino::sdl {
-	struct cpu {
-		BEGIN_BITFLAGS(capability_t)
+	class cpu {
+	 public:
+		BEGIN_BITFLAGS(capability)
 			FLAG(HAS_3DNow)
 			FLAG(HAS_AltiVec)
 			FLAG(HAS_ARMSIMD)
@@ -32,7 +35,7 @@ namespace neutrino::sdl {
 			FLAG(HAS_SSE3)
 			FLAG(HAS_SSE41)
 			FLAG(HAS_SSE42)
-		END_BITFLAGS(capability_t)
+		END_BITFLAGS(capability)
 
 		// in bytes
 		static unsigned int cache_line() {
@@ -42,7 +45,7 @@ namespace neutrino::sdl {
 			return static_cast<unsigned int>(SDL_GetCPUCount());
 		}
 
-		static capability_t capabilities() {
+		static capability capabilities() {
 			static auto c = eval_cap();
 			return c;
 		}
@@ -67,11 +70,11 @@ namespace neutrino::sdl {
 	 private:
 #define d_evalCap(NAME) 									\
 		if (PPCAT(SDL_Has, NAME)()) { 						\
-	 		c |= capability_t::PPCAT(HAS_, NAME);           \
+	 		c |= capability::PPCAT(HAS_, NAME);           	\
 		}
 
-		static capability_t eval_cap() {
-			capability_t c{};
+		static capability eval_cap() {
+			capability c{};
 			d_evalCap(3DNow)
 			d_evalCap(AltiVec)
 			d_evalCap(ARMSIMD)
@@ -94,7 +97,45 @@ namespace neutrino::sdl {
 #undef d_evalCap
 	};
 
-	d_SDLPP_OSTREAM(cpu::capability_t);
+
+
+	namespace detail {
+		static inline constexpr std::array<cpu::capability::flag_type, 16> s_vals_of_cpu_capability = {
+			cpu::capability::HAS_3DNow,
+			cpu::capability::HAS_AltiVec,
+			cpu::capability::HAS_ARMSIMD,
+			cpu::capability::HAS_AVX,
+			cpu::capability::HAS_AVX2,
+			cpu::capability::HAS_AVX512F,
+			cpu::capability::HAS_LASX,
+			cpu::capability::HAS_LSX,
+			cpu::capability::HAS_MMX,
+			cpu::capability::HAS_NEON,
+			cpu::capability::HAS_RDTSC,
+			cpu::capability::HAS_SSE,
+			cpu::capability::HAS_SSE2,
+			cpu::capability::HAS_SSE3,
+			cpu::capability::HAS_SSE41,
+			cpu::capability::HAS_SSE42,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_cpu_capability)&
+	values(typename std::enable_if<std::is_same_v<cpu::capability, T>>::type* = nullptr) {
+		return detail::s_vals_of_cpu_capability;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<cpu::capability, T>>::type* = nullptr) {
+		return detail::s_vals_of_cpu_capability.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<cpu::capability, T>>::type* = nullptr) {
+		return detail::s_vals_of_cpu_capability.end();
+	}
+
+	d_SDLPP_OSTREAM_WITHOT_FROM_STRING(cpu::capability);
 }
 
 #endif //SDLPP_INCLUDE_SDLPP_CPU_HH_

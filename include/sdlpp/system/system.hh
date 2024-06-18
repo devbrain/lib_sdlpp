@@ -6,6 +6,8 @@
 #define NEUTRINO_SDL_SYSTEM_HH
 
 #include <cstdint>
+#include <array>
+#include <type_traits>
 
 #include <bsw/mp/all_same.hh>
 #include <sdlpp/detail/call.hh>
@@ -36,6 +38,36 @@ namespace neutrino::sdl {
 			return static_cast<std::size_t>(SDL_GetSystemRAM());
 		}
 	};
+
+	namespace detail {
+		static inline constexpr std::array<init_flags, 9> s_vals_of_init_flags = {
+			init_flags::TIMER,
+			init_flags::AUDIO,
+			init_flags::VIDEO,
+			init_flags::JOYSTICK,
+			init_flags::HAPTIC,
+			init_flags::GAMECONTROLLER,
+			init_flags::EVENTS,
+			init_flags::SENSOR,
+			init_flags::NOPARACHUTE,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_init_flags)&
+	values(typename std::enable_if<std::is_same_v<init_flags, T>>::type* = nullptr) {
+		return detail::s_vals_of_init_flags;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<init_flags, T>>::type* = nullptr) {
+		return detail::s_vals_of_init_flags.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<init_flags, T>>::type* = nullptr) {
+		return detail::s_vals_of_init_flags.end();
+	}
+
 } // ns sdl
 
 // ====================================================================

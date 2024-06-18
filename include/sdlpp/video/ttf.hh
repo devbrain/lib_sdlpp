@@ -7,6 +7,8 @@
 
 #include <tuple>
 #include <string>
+#include <array>
+#include <type_traits>
 #include <optional>
 
 #include <bitflags/bitflags.hpp>
@@ -25,7 +27,7 @@ namespace neutrino::sdl {
 	 * @class ttf
 	 * @brief Represents a TrueType font object.
 	 *
-	 * This class provides functionality to load and manipulate TrueType fonts.
+	 * This provides functionality to load and manipulate TrueType fonts.
 	 */
 	class ttf : public object<TTF_Font> {
 	 public:
@@ -552,6 +554,81 @@ namespace neutrino::sdl {
 			return TTF_GetFontKerningSizeGlyphs32(f, detail::proxy (a), detail::proxy (b));
 		}
 	}
+
+	namespace detail {
+		static inline constexpr std::array<ttf::hinting_t, 5> s_vals_of_ttf_hinting_t = {
+			ttf::hinting_t::NORMAL,
+			ttf::hinting_t::LIGHT,
+			ttf::hinting_t::MONO,
+			ttf::hinting_t::NONE,
+			ttf::hinting_t::LIGHT_SUBPIXEL,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_ttf_hinting_t)&
+	values(typename std::enable_if<std::is_same_v<ttf::hinting_t, T>>::type* = nullptr) {
+		return detail::s_vals_of_ttf_hinting_t;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<ttf::hinting_t, T>>::type* = nullptr) {
+		return detail::s_vals_of_ttf_hinting_t.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<ttf::hinting_t, T>>::type* = nullptr) {
+		return detail::s_vals_of_ttf_hinting_t.end();
+	}
+
+
+	namespace detail {
+		static inline constexpr std::array<ttf::alignment_t, 3> s_vals_of_ttf_alignment_t = {
+			ttf::alignment_t::LEFT,
+			ttf::alignment_t::CENTER,
+			ttf::alignment_t::RIGHT,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_ttf_alignment_t)&
+	values(typename std::enable_if<std::is_same_v<ttf::alignment_t, T>>::type* = nullptr) {
+		return detail::s_vals_of_ttf_alignment_t;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<ttf::alignment_t, T>>::type* = nullptr) {
+		return detail::s_vals_of_ttf_alignment_t.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<ttf::alignment_t, T>>::type* = nullptr) {
+		return detail::s_vals_of_ttf_alignment_t.end();
+	}
+
+
+	namespace detail {
+		static inline constexpr std::array<ttf::style_t::flag_type, 4> s_vals_of_ttf_style_t = {
+			ttf::style_t::NORMAL,
+			ttf::style_t::BOLD,
+			ttf::style_t::ITALIC,
+			ttf::style_t::UNDERLINE,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_ttf_style_t)&
+	values(typename std::enable_if<std::is_same_v<ttf::style_t, T>>::type* = nullptr) {
+		return detail::s_vals_of_ttf_style_t;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<ttf::style_t, T>>::type* = nullptr) {
+		return detail::s_vals_of_ttf_style_t.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<ttf::style_t, T>>::type* = nullptr) {
+		return detail::s_vals_of_ttf_style_t.end();
+	}
+
 }
 
 #endif //SDLPP_INCLUDE_SDLPP_TTF_HH_

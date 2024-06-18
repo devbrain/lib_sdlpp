@@ -7,6 +7,8 @@
 
 #include <string>
 #include <cstdint>
+#include <array>
+#include <type_traits>
 #include <tuple>
 
 #include <sdlpp/detail/call.hh>
@@ -17,7 +19,7 @@
 namespace neutrino::sdl {
 	/**
 	 * @class window
-	 * @brief The window class represents a graphical window that can be displayed on the screen.
+	 * @brief This represents a graphical window that can be displayed on the screen.
 	 */
 	class window : public object<SDL_Window> {
 	 public:
@@ -99,7 +101,7 @@ namespace neutrino::sdl {
 		void swap_opengl_window () noexcept;
 	};
 
-	d_SDLPP_OSTREAM(window::flags);
+
 }
 // ======================================================================================================
 // Implementation
@@ -311,5 +313,43 @@ namespace neutrino::sdl {
 	void window::swap_opengl_window () noexcept {
 		SDL_GL_SwapWindow (handle ());
 	}
+
+	namespace detail {
+		static inline constexpr std::array<window::flags, 16> s_vals_of_window_flags = {
+			window::flags::FULL_SCREEN,
+			window::flags::FULL_SCREEN_DESKTOP,
+			window::flags::OPENGL,
+			window::flags::VULKAN,
+			window::flags::SHOWN,
+			window::flags::HIDDEN,
+			window::flags::BORDERLESS,
+			window::flags::RESIZABLE,
+			window::flags::MINIMIZED,
+			window::flags::MAXIMIZED,
+			window::flags::INPUT_GRABBED,
+			window::flags::INPUT_FOCUS,
+			window::flags::MOUSE_FOCUS,
+			window::flags::HIGHDPI,
+			window::flags::MOUSE_CAPTURE,
+			window::flags::NONE,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_window_flags)&
+	values(typename std::enable_if<std::is_same_v<window::flags, T>>::type* = nullptr) {
+		return detail::s_vals_of_window_flags;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<window::flags, T>>::type* = nullptr) {
+		return detail::s_vals_of_window_flags.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<window::flags, T>>::type* = nullptr) {
+		return detail::s_vals_of_window_flags.end();
+	}
+
+	d_SDLPP_OSTREAM(window::flags);
 }
 #endif

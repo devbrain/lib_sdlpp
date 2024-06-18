@@ -225,25 +225,26 @@ namespace neutrino::sdl::events {
 
 
 	d_SDLPP_OSTREAM(mousebutton);
-
-	inline mousebutton map_mousebutton_from_bitflags(uint32_t b) {
-		mousebutton out;
-		if ((b & SDL_BUTTON_LMASK) == SDL_BUTTON_LMASK) {
-			out |= mousebutton::LEFT;
+	namespace detail {
+		inline mousebutton map_mousebutton_from_bitflags (uint32_t b) {
+			mousebutton out;
+			if ((b & SDL_BUTTON_LMASK) == SDL_BUTTON_LMASK) {
+				out |= mousebutton::LEFT;
+			}
+			if ((b & SDL_BUTTON_RMASK) == SDL_BUTTON_RMASK) {
+				out |= mousebutton::RIGHT;
+			}
+			if ((b & SDL_BUTTON_MMASK) == SDL_BUTTON_MMASK) {
+				out |= mousebutton::MIDDLE;
+			}
+			if ((b & SDL_BUTTON_X1MASK) == SDL_BUTTON_X1MASK) {
+				out |= mousebutton::X1;
+			}
+			if ((b & SDL_BUTTON_X2MASK) == SDL_BUTTON_X2MASK) {
+				out |= mousebutton::X2;
+			}
+			return out;
 		}
-		if ((b & SDL_BUTTON_RMASK) == SDL_BUTTON_RMASK) {
-			out |= mousebutton::RIGHT;
-		}
-		if ((b & SDL_BUTTON_MMASK) == SDL_BUTTON_MMASK) {
-			out |= mousebutton::MIDDLE;
-		}
-		if ((b & SDL_BUTTON_X1MASK) == SDL_BUTTON_X1MASK) {
-			out |= mousebutton::X1;
-		}
-		if ((b & SDL_BUTTON_X2MASK) == SDL_BUTTON_X2MASK) {
-			out |= mousebutton::X2;
-		}
-		return out;
 	}
 
 	typedef Uint32 mouse_id_t;
@@ -265,7 +266,7 @@ namespace neutrino::sdl::events {
 		explicit mouse_motion (const SDL_MouseMotionEvent& e)
 			: detail::window_event (e.windowID),
 			  mouse_id (static_cast <mouse_id_t> (e.which)),
-			  state (map_mousebutton_from_bitflags (e.state)),
+			  state (detail::map_mousebutton_from_bitflags (e.state)),
 			  x (e.x),
 			  y (e.y),
 			  xrel (e.xrel),
@@ -320,7 +321,7 @@ namespace neutrino::sdl::events {
 		explicit mouse_button (const SDL_MouseButtonEvent& e)
 			: detail::window_event (e.windowID),
 			  mouse_id (static_cast <mouse_id_t> (e.which)),
-			  button (map_mousebutton_from_bitflags (e.button)),
+			  button (detail::map_mousebutton_from_bitflags (e.button)),
 			  x (e.x),
 			  y (e.y),
 			  pressed (e.state == SDL_PRESSED) {

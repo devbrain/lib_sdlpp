@@ -7,6 +7,8 @@
 
 #include <optional>
 #include <chrono>
+#include <array>
+#include <type_traits>
 #include <string>
 
 #include <sdlpp/detail/sdl2.hh>
@@ -56,6 +58,41 @@ namespace neutrino::sdl {
 
 		[[nodiscard]] format get_format() const;
 	};
+
+
+
+	namespace detail {
+		static inline constexpr std::array<music::format, 13> s_vals_of_music_format = {
+			music::format::NONE,
+			music::format::CMD,
+			music::format::WAV,
+			music::format::MOD,
+			music::format::MID,
+			music::format::OGG,
+			music::format::MP3,
+			music::format::MP3_MAD_UNUSED,
+			music::format::FLAC,
+			music::format::MODPLUG_UNUSED,
+			music::format::OPUS,
+			music::format::WAVPACK,
+			music::format::GME,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_music_format)&
+	values(typename std::enable_if<std::is_same_v<music::format, T>>::type* = nullptr) {
+		return detail::s_vals_of_music_format;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<music::format, T>>::type* = nullptr) {
+		return detail::s_vals_of_music_format.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<music::format, T>>::type* = nullptr) {
+		return detail::s_vals_of_music_format.end();
+	}
 
 	d_SDLPP_OSTREAM(music::format);
 

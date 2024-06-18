@@ -178,23 +178,35 @@ namespace neutrino::sdl {
 
 	};
 
-	template <typename T>
-	inline constexpr std::array<T, 6>
-	values (typename std::enable_if<std::is_same_v<game_controller::axis, T>>::type* = nullptr) {
-		return {
+	namespace detail {
+		static inline constexpr std::array<game_controller::axis, 6> s_vals_of_game_controller_axis = {
 			game_controller::axis::LEFTX,
 			game_controller::axis::LEFTY,
 			game_controller::axis::RIGHTX,
 			game_controller::axis::RIGHTY,
 			game_controller::axis::TRIGGERLEFT,
-			game_controller::axis::TRIGGERRIGHT
+			game_controller::axis::TRIGGERRIGHT,
 		};
 	}
-
 	template <typename T>
-	inline constexpr std::array<T, 21>
-	values (typename std::enable_if<std::is_same_v<game_controller::button, T>>::type* = nullptr) {
-		return {
+	static inline constexpr const decltype(detail::s_vals_of_game_controller_axis)&
+	values(typename std::enable_if<std::is_same_v<game_controller::axis, T>>::type* = nullptr) {
+		return detail::s_vals_of_game_controller_axis;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<game_controller::axis, T>>::type* = nullptr) {
+		return detail::s_vals_of_game_controller_axis.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<game_controller::axis, T>>::type* = nullptr) {
+		return detail::s_vals_of_game_controller_axis.end();
+	}
+
+
+	namespace detail {
+		static inline constexpr std::array<game_controller::button, 21> s_vals_of_game_controller_button = {
 			game_controller::button::A,
 			game_controller::button::B,
 			game_controller::button::X,
@@ -215,14 +227,28 @@ namespace neutrino::sdl {
 			game_controller::button::PADDLE2,
 			game_controller::button::PADDLE3,
 			game_controller::button::PADDLE4,
-			game_controller::button::TOUCHPAD
+			game_controller::button::TOUCHPAD,
 		};
 	}
-
 	template <typename T>
-	inline constexpr std::array<T, 14>
-	values (typename std::enable_if<std::is_same_v<game_controller::type, T>>::type* = nullptr) {
-		return {
+	static inline constexpr const decltype(detail::s_vals_of_game_controller_button)&
+	values(typename std::enable_if<std::is_same_v<game_controller::button, T>>::type* = nullptr) {
+		return detail::s_vals_of_game_controller_button;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<game_controller::button, T>>::type* = nullptr) {
+		return detail::s_vals_of_game_controller_button.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<game_controller::button, T>>::type* = nullptr) {
+		return detail::s_vals_of_game_controller_button.end();
+	}
+
+
+	namespace detail {
+		static inline constexpr std::array<game_controller::type, 14> s_vals_of_game_controller_type = {
 			game_controller::type::UNKNOWN,
 			game_controller::type::XBOX360,
 			game_controller::type::XBOXONE,
@@ -236,8 +262,23 @@ namespace neutrino::sdl {
 			game_controller::type::NVIDIA_SHIELD,
 			game_controller::type::NINTENDO_SWITCH_JOYCON_LEFT,
 			game_controller::type::NINTENDO_SWITCH_JOYCON_RIGHT,
-			game_controller::type::NINTENDO_SWITCH_JOYCON_PAIR
+			game_controller::type::NINTENDO_SWITCH_JOYCON_PAIR,
 		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_game_controller_type)&
+	values(typename std::enable_if<std::is_same_v<game_controller::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_game_controller_type;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<game_controller::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_game_controller_type.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<game_controller::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_game_controller_type.end();
 	}
 
 	inline
@@ -429,9 +470,8 @@ namespace neutrino::sdl {
 
 	inline
 	std::vector<game_controller::axis> game_controller::get_supported_axes () const {
-		static constexpr auto axes = values<axis> ();
 		std::vector<game_controller::axis> out;
-		std::copy_if(axes.begin(), axes.end(), std::back_inserter (out), [this](auto a) {return has_axis(a);});
+		std::copy_if(begin<axis>(), end<axis>(), std::back_inserter (out), [this](auto a) {return has_axis(a);});
 		return out;
 	}
 
@@ -442,9 +482,8 @@ namespace neutrino::sdl {
 
 	inline
 	std::vector<game_controller::button> game_controller::get_supported_buttons () const {
-		static constexpr auto buttons = values<button> ();
 		std::vector<game_controller::button> out;
-		std::copy_if(buttons.begin(), buttons.end(), std::back_inserter (out), [this](auto a) {return has_button(a);});
+		std::copy_if(begin<button>(), end<button>(), std::back_inserter (out), [this](auto a) {return has_button(a);});
 		return out;
 	}
 
@@ -470,9 +509,8 @@ namespace neutrino::sdl {
 
 	inline
 	std::vector<sensor::type> game_controller::get_supported_sensors () const {
-		static constexpr auto types =values<sensor::type> ();
 		std::vector<sensor::type> out;
-		std::copy_if(types.begin(), types.end(), std::back_inserter (out), [this](auto a) {return has_sensor(a);});
+		std::copy_if(begin<sensor::type>(), end<sensor::type>(), std::back_inserter (out), [this](auto a) {return has_sensor(a);});
 		return out;
 	}
 
@@ -595,6 +633,10 @@ namespace neutrino::sdl {
 	d_SDLPP_OSTREAM(game_controller::axis);
 	d_SDLPP_OSTREAM(game_controller::type);
 	d_SDLPP_OSTREAM(game_controller::button);
+
+
+
+
 }
 
 #endif //SDLPP_INCLUDE_SDLPP_INPUT_GAME_CONTROLLER_HH_

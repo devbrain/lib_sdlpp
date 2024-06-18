@@ -4,7 +4,8 @@
 
 #ifndef SDLPP_INCLUDE_SDLPP_SYSTEM_POWER_HH_
 #define SDLPP_INCLUDE_SDLPP_SYSTEM_POWER_HH_
-
+#include <array>
+#include <type_traits>
 #include <optional>
 #include <chrono>
 #include <sdlpp/detail/sdl2.hh>
@@ -18,6 +19,32 @@ namespace neutrino::sdl {
 		CHARGING = SDL_POWERSTATE_CHARGING,      ///< Charging the battery.
 		CHARGED = SDL_POWERSTATE_CHARGED         ///< Plugged in and charged.
 	};
+
+	namespace detail {
+		static inline constexpr std::array<power_state, 5> s_vals_of_power_state = {
+			power_state::UNKNOWN,
+			power_state::ON_BATTERY,
+			power_state::NO_BATTERY,
+			power_state::CHARGING,
+			power_state::CHARGED,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_power_state)&
+	values(typename std::enable_if<std::is_same_v<power_state, T>>::type* = nullptr) {
+		return detail::s_vals_of_power_state;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<power_state, T>>::type* = nullptr) {
+		return detail::s_vals_of_power_state.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<power_state, T>>::type* = nullptr) {
+		return detail::s_vals_of_power_state.end();
+	}
+
 
 	d_SDLPP_OSTREAM(power_state);
 

@@ -9,6 +9,8 @@
 #include <string>
 #include <tuple>
 #include <optional>
+#include <array>
+#include <type_traits>
 
 #include <strong_type/strong_type.hpp>
 
@@ -136,6 +138,31 @@ namespace neutrino::sdl {
 		std::size_t m_num_of_modes;
 
 	};
+
+	namespace detail {
+		static inline constexpr std::array<display::orientation, 5> s_vals_of_display_orientation = {
+			display::orientation::UNKNOWN,
+			display::orientation::LANDSCAPE,
+			display::orientation::LANDSCAPE_FLIPPED,
+			display::orientation::PORTRAIT,
+			display::orientation::PORTRAIT_FLIPPED,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_display_orientation)&
+	values(typename std::enable_if<std::is_same_v<display::orientation, T>>::type* = nullptr) {
+		return detail::s_vals_of_display_orientation;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<display::orientation, T>>::type* = nullptr) {
+		return detail::s_vals_of_display_orientation.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<display::orientation, T>>::type* = nullptr) {
+		return detail::s_vals_of_display_orientation.end();
+	}
 
 
 	d_SDLPP_OSTREAM(display::orientation);

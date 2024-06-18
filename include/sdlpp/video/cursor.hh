@@ -6,6 +6,8 @@
 #define SDLPP_INCLUDE_SDLPP_VIDEO_CURSOR_HH_
 
 #include <cstdint>
+#include <array>
+#include <type_traits>
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/detail/call.hh>
 #include <sdlpp/detail/object.hh>
@@ -27,6 +29,39 @@ namespace neutrino::sdl {
 		NO = SDL_SYSTEM_CURSOR_NO,
 		HAND = SDL_SYSTEM_CURSOR_HAND
 	};
+
+
+	namespace detail {
+		static inline constexpr std::array<system_cursor, 12> s_vals_of_system_cursor = {
+			system_cursor::ARROW,
+			system_cursor::IBEAM,
+			system_cursor::WAIT,
+			system_cursor::CROSSHAIR,
+			system_cursor::WAIT_ARROW,
+			system_cursor::SIZE_NW_SE,
+			system_cursor::SIZE_NE_SW,
+			system_cursor::SIZE_WE,
+			system_cursor::SIZE_NS,
+			system_cursor::SIZE_ALL,
+			system_cursor::NO,
+			system_cursor::HAND,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_system_cursor)&
+	values(typename std::enable_if<std::is_same_v<system_cursor, T>>::type* = nullptr) {
+		return detail::s_vals_of_system_cursor;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<system_cursor, T>>::type* = nullptr) {
+		return detail::s_vals_of_system_cursor.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<system_cursor, T>>::type* = nullptr) {
+		return detail::s_vals_of_system_cursor.end();
+	}
 
 	d_SDLPP_OSTREAM(system_cursor);
 

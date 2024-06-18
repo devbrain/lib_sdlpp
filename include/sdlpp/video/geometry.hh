@@ -27,7 +27,7 @@ namespace neutrino::sdl {
 		area_type& operator= (const area_type&) = default;
 	};
 
-	d_SDLPP_OSTREAM(const area_type&);
+	d_SDLPP_OSTREAM_WITHOT_FROM_STRING(const area_type&);
 
 	struct point : public SDL_Point {
 		point () noexcept;
@@ -70,7 +70,7 @@ namespace neutrino::sdl {
 		return !(a == b);
 	}
 
-	d_SDLPP_OSTREAM(const point&);
+	d_SDLPP_OSTREAM_WITHOT_FROM_STRING(const point&);
 
 
 	struct rect : public SDL_Rect {
@@ -111,7 +111,7 @@ namespace neutrino::sdl {
 		[[nodiscard]] point center () const noexcept;
 	};
 
-	d_SDLPP_OSTREAM(const rect&);
+	d_SDLPP_OSTREAM_WITHOT_FROM_STRING(const rect&);
 
 	[[nodiscard]] inline bool inside (const rect& r, const point& p) noexcept {
 		return SDL_TRUE == SDL_PointInRect (&p, &r);

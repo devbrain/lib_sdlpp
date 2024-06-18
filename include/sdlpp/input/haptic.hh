@@ -75,54 +75,44 @@ namespace neutrino::sdl {
 
 		void play (haptic_effect_t effect, uint32_t iterations);
 		void play_inf (haptic_effect_t effect);
-
 	};
 
-	template<typename T>
-	inline
-	constexpr std::array<haptic::features::flag_type, 16> values(typename std::enable_if<std::is_same_v<haptic::features, T>>::type* = nullptr) {
-		return {
-			haptic::features ::CONSTANT_EFFECT,
-			haptic::features ::SINE,
-			haptic::features ::LEFT_RIGHT,
-			haptic::features ::TRIANGLE,
-			haptic::features ::SAWTOOTHUP,
-			haptic::features ::SAWTOOTHDOWN,
-			haptic::features ::RAMP,
-			haptic::features ::SPRING,
-			haptic::features ::DUMPER,
-			haptic::features ::INERTIA,
-			haptic::features ::FRICTION,
-			haptic::features ::CUSTOM,
-			haptic::features ::GAIN,
-			haptic::features ::AUTOCENTER,
-			haptic::features ::STATUS,
-			haptic::features ::PAUSE
+	namespace detail {
+		static inline constexpr std::array<haptic::features::flag_type, 16> s_vals_of_haptic_features = {
+			haptic::features::CONSTANT_EFFECT,
+			haptic::features::SINE,
+			haptic::features::LEFT_RIGHT,
+			haptic::features::TRIANGLE,
+			haptic::features::SAWTOOTHUP,
+			haptic::features::SAWTOOTHDOWN,
+			haptic::features::RAMP,
+			haptic::features::SPRING,
+			haptic::features::DUMPER,
+			haptic::features::INERTIA,
+			haptic::features::FRICTION,
+			haptic::features::CUSTOM,
+			haptic::features::GAIN,
+			haptic::features::AUTOCENTER,
+			haptic::features::STATUS,
+			haptic::features::PAUSE,
 		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_haptic_features)&
+	values(typename std::enable_if<std::is_same_v<haptic::features, T>>::type* = nullptr) {
+		return detail::s_vals_of_haptic_features;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<haptic::features, T>>::type* = nullptr) {
+		return detail::s_vals_of_haptic_features.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<haptic::features, T>>::type* = nullptr) {
+		return detail::s_vals_of_haptic_features.end();
 	}
 
-	template<typename T>
-	inline
-	constexpr std::array<std::string_view, 16> names(typename std::enable_if<std::is_same_v<haptic::features, T>>::type* = nullptr) {
-		return {
-			haptic::features ::CONSTANT_EFFECT.name,
-			haptic::features ::SINE.name,
-			haptic::features ::LEFT_RIGHT.name,
-			haptic::features ::TRIANGLE.name,
-			haptic::features ::SAWTOOTHUP.name,
-			haptic::features ::SAWTOOTHDOWN.name,
-			haptic::features ::RAMP.name,
-			haptic::features ::SPRING.name,
-			haptic::features ::DUMPER.name,
-			haptic::features ::INERTIA.name,
-			haptic::features ::FRICTION.name,
-			haptic::features ::CUSTOM.name,
-			haptic::features ::GAIN.name,
-			haptic::features ::AUTOCENTER.name,
-			haptic::features ::STATUS.name,
-			haptic::features ::PAUSE.name
-		};
-	}
 
 	d_SDLPP_OSTREAM(haptic::features);
 

@@ -5,6 +5,8 @@
 #ifndef SDLPP_INCLUDE_SDLPP_VIDEO_BLEND_MODE_HH_
 #define SDLPP_INCLUDE_SDLPP_VIDEO_BLEND_MODE_HH_
 
+#include <array>
+#include <type_traits>
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/detail/ostreamops.hh>
 
@@ -15,6 +17,31 @@ namespace neutrino::sdl {
 		ADD = SDL_BLENDMODE_ADD,
 		MOD = SDL_BLENDMODE_MOD
 	};
+
+
+	namespace detail {
+		static inline constexpr std::array<blend_mode, 4> s_vals_of_blend_mode = {
+			blend_mode::NONE,
+			blend_mode::BLEND,
+			blend_mode::ADD,
+			blend_mode::MOD,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_blend_mode)&
+	values(typename std::enable_if<std::is_same_v<blend_mode, T>>::type* = nullptr) {
+		return detail::s_vals_of_blend_mode;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<blend_mode, T>>::type* = nullptr) {
+		return detail::s_vals_of_blend_mode.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<blend_mode, T>>::type* = nullptr) {
+		return detail::s_vals_of_blend_mode.end();
+	}
 
 	d_SDLPP_OSTREAM(blend_mode);
 }

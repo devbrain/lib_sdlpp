@@ -121,6 +121,65 @@ namespace neutrino::sdl {
 
 	};
 
+	namespace detail {
+		static inline constexpr std::array<joystick::power_level, 7> s_vals_of_joystick_power_level = {
+			joystick::power_level::UNKNOWN,
+			joystick::power_level::EMPTY,
+			joystick::power_level::LOW,
+			joystick::power_level::MEDIUM,
+			joystick::power_level::FULL,
+			joystick::power_level::WIRED,
+			joystick::power_level::MAX,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_joystick_power_level)&
+	values(typename std::enable_if<std::is_same_v<joystick::power_level, T>>::type* = nullptr) {
+		return detail::s_vals_of_joystick_power_level;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<joystick::power_level, T>>::type* = nullptr) {
+		return detail::s_vals_of_joystick_power_level.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<joystick::power_level, T>>::type* = nullptr) {
+		return detail::s_vals_of_joystick_power_level.end();
+	}
+
+
+	namespace detail {
+		static inline constexpr std::array<joystick::type, 10> s_vals_of_joystick_type = {
+			joystick::type::UNKNOWN,
+			joystick::type::GAMECONTROLLER,
+			joystick::type::WHEEL,
+			joystick::type::ARCADE_STICK,
+			joystick::type::FLIGHT_STICK,
+			joystick::type::DANCE_PAD,
+			joystick::type::GUITAR,
+			joystick::type::DRUM_KIT,
+			joystick::type::ARCADE_PAD,
+			joystick::type::THROTTLE,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_joystick_type)&
+	values(typename std::enable_if<std::is_same_v<joystick::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_joystick_type;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<joystick::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_joystick_type.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<joystick::type, T>>::type* = nullptr) {
+		return detail::s_vals_of_joystick_type.end();
+	}
+
+
 	d_SDLPP_OSTREAM(joystick::power_level);
 	d_SDLPP_OSTREAM(joystick::type);
 

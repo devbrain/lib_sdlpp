@@ -4,7 +4,8 @@
 
 #ifndef SDLPP_INCLUDE_SDLPP_IO_WHENCE_HH_
 #define SDLPP_INCLUDE_SDLPP_IO_WHENCE_HH_
-
+#include <array>
+#include <type_traits>
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/detail/ostreamops.hh>
 
@@ -24,6 +25,31 @@ namespace neutrino::sdl {
 		CUR = RW_SEEK_CUR, /**< Seek relative to current read point */
 		END = RW_SEEK_END  /**< Seek relative to the end of data */
 	};
+
+
+
+	namespace detail {
+		static inline constexpr std::array<whence, 3> s_vals_of_whence = {
+			whence::SET,
+			whence::CUR,
+			whence::END,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_whence)&
+	values(typename std::enable_if<std::is_same_v<whence, T>>::type* = nullptr) {
+		return detail::s_vals_of_whence;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<whence, T>>::type* = nullptr) {
+		return detail::s_vals_of_whence.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<whence, T>>::type* = nullptr) {
+		return detail::s_vals_of_whence.end();
+	}
 
 	d_SDLPP_OSTREAM(whence);
 }

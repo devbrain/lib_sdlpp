@@ -6,6 +6,9 @@
 #define NEUTRINO_SDL_RENDER_HH
 
 #include <string>
+#include <array>
+#include <type_traits>
+
 #include <sdlpp/video/surface.hh>
 #include <sdlpp/video/texture.hh>
 #include <sdlpp/detail/ostreamops.hh>
@@ -1269,6 +1272,55 @@ namespace neutrino::sdl {
 	inline
 	void renderer::draw_latin1_string (const point& p, const std::string& s) {
 		draw_latin1_string (p.x, p.y, s);
+	}
+
+	namespace detail {
+		static inline constexpr std::array<renderer::flags, 5> s_vals_of_renderer_flags = {
+			renderer::flags::NONE,
+			renderer::flags::SOFTWARE,
+			renderer::flags::ACCELERATED,
+			renderer::flags::PRESENTVSYNC,
+			renderer::flags::TARGETTEXTURE,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_renderer_flags)&
+	values(typename std::enable_if<std::is_same_v<renderer::flags, T>>::type* = nullptr) {
+		return detail::s_vals_of_renderer_flags;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<renderer::flags, T>>::type* = nullptr) {
+		return detail::s_vals_of_renderer_flags.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<renderer::flags, T>>::type* = nullptr) {
+		return detail::s_vals_of_renderer_flags.end();
+	}
+
+
+	namespace detail {
+		static inline constexpr std::array<renderer::flip, 3> s_vals_of_renderer_flip = {
+			renderer::flip::NONE,
+			renderer::flip::HORIZONTAL,
+			renderer::flip::VERTICAL,
+		};
+	}
+	template <typename T>
+	static inline constexpr const decltype(detail::s_vals_of_renderer_flip)&
+	values(typename std::enable_if<std::is_same_v<renderer::flip, T>>::type* = nullptr) {
+		return detail::s_vals_of_renderer_flip;
+	}
+	template <typename T>
+	static inline constexpr auto
+	begin(typename std::enable_if<std::is_same_v<renderer::flip, T>>::type* = nullptr) {
+		return detail::s_vals_of_renderer_flip.begin();
+	}
+	template <typename T>
+	static inline constexpr auto
+	end(typename std::enable_if<std::is_same_v<renderer::flip, T>>::type* = nullptr) {
+		return detail::s_vals_of_renderer_flip.end();
 	}
 
 }

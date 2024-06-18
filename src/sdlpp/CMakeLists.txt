@@ -83,6 +83,7 @@ add_library(sdlpp
         system/cpu.cc
         system/power.cc
         system/sensor.cc
+        system/touch_device.cc
         video/blend_mode.cc
         video/color.cc
         video/cursor.cc

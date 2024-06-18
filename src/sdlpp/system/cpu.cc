@@ -7,23 +7,23 @@
 
 namespace neutrino::sdl {
 
-	std::string to_string(cpu::capability_t t) {
+	std::string to_string(cpu::capability t) {
 		std::ostringstream s;
 		s << t;
 		return s.str();
 	}
 
-	std::ostream & operator << (std::ostream &os, cpu::capability_t t) {
+	std::ostream & operator << (std::ostream &os, cpu::capability t) {
 		bool first = true;
 
 #define d_evalCap(NAME) 														\
-		if (t & cpu::capability_t::PPCAT(HAS_, NAME)) { 						\
+		if (t & cpu::capability::PPCAT(HAS_, NAME)) { 							\
             if (first) {              											\
             	first = false;                          						\
 			} else {                           									\
             	os << "|";                          							\
 			}                          											\
-	 		os << cpu::capability_t::PPCAT(HAS_, NAME).name;      				\
+	 		os << cpu::capability::PPCAT(HAS_, NAME).name;      				\
 		}
 		d_evalCap(3DNow)
 		d_evalCap(AltiVec)

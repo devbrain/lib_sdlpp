@@ -88,7 +88,7 @@ namespace neutrino::sdl {
 		return !(a == b);
 	}
 
-	d_SDLPP_OSTREAM(const color&);
+	d_SDLPP_OSTREAM_WITHOT_FROM_STRING(const color&);
 
 	inline constexpr color::color (uint8_t r, uint8_t g, uint8_t b)
 		: SDL_Color{r, g, b, 0xFF} {
