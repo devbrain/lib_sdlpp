@@ -5,9 +5,7 @@ set(SDL2_MIXER_VERSION "release-2.8.0")
 
 fetchcontent_declare(
         SDL2
-        #GIT_REPOSITORY "https://github.com/libsdl-org/SDL.git"
         URL https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.zip
-        #GIT_TAG "main"
         UPDATE_COMMAND ""
         OVERRIDE_FIND_PACKAGE
 )
@@ -53,20 +51,17 @@ fetchcontent_declare(
 
 fetchcontent_makeavailable(SDL_MIXER)
 add_library(thirdparty::sdl2_mixer ALIAS SDL2_mixer)
-set_target_properties(SDL2_mixer PROPERTIES FOLDER "ThirdParty")
-set_target_properties(opus PROPERTIES FOLDER "ThirdParty")
-set_target_properties(opusfile PROPERTIES FOLDER "ThirdParty")
-set_target_properties(ogg PROPERTIES FOLDER "ThirdParty")
-set_target_properties(wavpack PROPERTIES FOLDER "ThirdParty")
 
-if (TARGET xmp_shared)
-	set_target_properties(xmp_shared PROPERTIES FOLDER "ThirdParty")
-endif()
-
-set_target_properties(SDL2_test PROPERTIES FOLDER "ThirdParty")
-set_target_properties(sdl_headers_copy PROPERTIES FOLDER "ThirdParty")
-set_target_properties(freetype PROPERTIES FOLDER "ThirdParty")
-set_target_properties(uninstall PROPERTIES FOLDER "ThirdParty")
+ADD_TO_FOLDER(SDL2_mixer "Thirdparty")
+ADD_TO_FOLDER(opus "Thirdparty")
+ADD_TO_FOLDER(opusfile "Thirdparty")
+ADD_TO_FOLDER(ogg "Thirdparty")
+ADD_TO_FOLDER(wavpack "Thirdparty")
+ADD_TO_FOLDER(xmp_shared "Thirdparty")
+ADD_TO_FOLDER(SDL2_test "Thirdparty")
+ADD_TO_FOLDER(sdl_headers_copy "Thirdparty")
+ADD_TO_FOLDER(freetype "Thirdparty")
+ADD_TO_FOLDER(unisntall "Thirdparty")
 
 
 
