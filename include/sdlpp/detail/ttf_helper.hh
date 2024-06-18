@@ -118,7 +118,7 @@ namespace neutrino::sdl {
 		}
 
 		template <typename T>
-		const Uint16* proxy (T arg,
+		const Uint16* proxy (const T& arg,
 							 conv_buffer& buff,
 							 typename std::enable_if<string_traits<T>::is_ucs>::type* = nullptr) {
 			buff.init (arg);
@@ -129,7 +129,7 @@ namespace neutrino::sdl {
 		}
 
 		template <typename T>
-		const char* proxy (T arg,
+		const char* proxy (const T& arg,
 						   [[maybe_unused]] conv_buffer& buff,
 						   typename std::enable_if<string_traits<T>::is_utf8>::type* = nullptr) {
 			if constexpr (std::is_same_v<std::decay_t<T>, std::string>) {

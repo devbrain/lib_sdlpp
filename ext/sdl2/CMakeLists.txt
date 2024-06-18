@@ -54,5 +54,26 @@ fetchcontent_declare(
 fetchcontent_makeavailable(SDL_MIXER)
 add_library(thirdparty::sdl2_mixer ALIAS SDL2_mixer)
 set_target_properties(SDL2_mixer PROPERTIES FOLDER "ThirdParty")
+set_target_properties(opus PROPERTIES FOLDER "ThirdParty")
+set_target_properties(opusfile PROPERTIES FOLDER "ThirdParty")
+set_target_properties(ogg PROPERTIES FOLDER "ThirdParty")
+set_target_properties(wavpack PROPERTIES FOLDER "ThirdParty")
+
+if (TARGET xmp_shared)
+	set_target_properties(xmp_shared PROPERTIES FOLDER "ThirdParty")
+endif()
+
+set_target_properties(SDL2_test PROPERTIES FOLDER "ThirdParty")
+set_target_properties(sdl_headers_copy PROPERTIES FOLDER "ThirdParty")
+set_target_properties(freetype PROPERTIES FOLDER "ThirdParty")
+set_target_properties(uninstall PROPERTIES FOLDER "ThirdParty")
+
+
+
+
+
+
+
+
 
 

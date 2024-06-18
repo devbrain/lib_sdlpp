@@ -16,3 +16,9 @@ fetchcontent_declare(
 
 fetchcontent_makeavailable(BSW_EXT)
 
+if (TARGET cpptrace-lib)
+	set_target_properties(cpptrace-lib PROPERTIES FOLDER "Libs")
+endif()
+
+set_target_properties(bsw PROPERTIES FOLDER "Libs")
+

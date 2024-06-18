@@ -7,10 +7,14 @@
 #include <iostream>
 
 static int utf8_func(const char* x, int n) {
-	return (int)(x[0]*n + x[1]);
+	int a = (int)(x[0] & 0xFF);
+	int b = (int)(x[1] & 0xFF);
+	return (int)(a*n + b);
 }
 static int ucs_func(const Uint16* x, int n) {
-	return (int)(x[0]*n + x[1]);
+	int a = (int)(x[0] & 0xFF);
+	int b = (int)(x[1] & 0xFF);
+	return (int)(a*n + b);
 }
 
 namespace neutrino::sdl::detail {
