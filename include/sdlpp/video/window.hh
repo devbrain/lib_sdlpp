@@ -14,6 +14,7 @@
 #include <sdlpp/detail/call.hh>
 #include <sdlpp/detail/object.hh>
 #include <sdlpp/detail/sdl2.hh>
+#include <sdlpp/detail/window_id.hh>
 #include <sdlpp/detail/ostreamops.hh>
 
 namespace neutrino::sdl {
@@ -43,8 +44,8 @@ namespace neutrino::sdl {
 			NONE = 0
 		};
 	 public:
-		static window by_id (uint32_t window_id) {
-			return window (object<SDL_Window> (SAFE_SDL_CALL(SDL_GetWindowFromID, window_id), false));
+		static window by_id (window_id_t window_id) {
+			return window (object<SDL_Window> (SAFE_SDL_CALL(SDL_GetWindowFromID, window_id.value_of()), false));
 		}
 
 		window () = default;
@@ -68,7 +69,7 @@ namespace neutrino::sdl {
 		explicit window (object<SDL_Window>&& other);
 		window& operator= (object<SDL_Window>&& other) noexcept;
 
-		[[nodiscard]] uint32_t id () const;
+		[[nodiscard]] window_id_t id () const;
 
 		// w, h
 		[[nodiscard]] std::tuple<int, int> size () const noexcept;
@@ -182,12 +183,12 @@ namespace neutrino::sdl {
 
 	// --------------------------------------------------------------------------------------------
 	inline
-	uint32_t window::id () const {
+	window_id_t window::id () const {
 		auto ret = SDL_GetWindowID (const_handle ());
 		if (ret == 0) {
 			RAISE_SDL_EX("SDL_GetWindowID() == 0");
 		}
-		return ret;
+		return window_id_t {ret};
 	}
 
 	// --------------------------------------------------------------------------------------------

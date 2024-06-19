@@ -11,6 +11,8 @@
 #include <bitflags/bitflags.hpp>
 #include <sdlpp/events/event_types.hh>
 #include <sdlpp/detail/ostreamops.hh>
+#include <sdlpp/detail/window_id.hh>
+#include <sdlpp/detail/joystick_id.hh>
 
 namespace neutrino::sdl::events {
 	using system_event = SDL_Event;
@@ -18,7 +20,7 @@ namespace neutrino::sdl::events {
 	namespace detail {
 		class window_event {
 		 public:
-			const uint32_t window_id;
+			const window_id_t window_id;
 		 protected:
 			explicit window_event (uint32_t wid)
 				: window_id (wid) {

@@ -23,15 +23,21 @@
 #include <sdlpp/detail/ostreamops.hh>
 
 namespace neutrino::sdl {
+	namespace detail {
+		struct _channel_index_t_;
+		struct _audio_group_t_;
+	}
 	using audio_channel_id_t = strong::type<std::size_t,
-											struct _channel_index_t_,
+											detail::_channel_index_t_,
 											strong::bicrementable,
 											strong::ordered,
+											strong::equality,
 											strong::ostreamable>;
 	using audio_group_id_t = strong::type<unsigned,
-										  struct _channel_index_t_,
+										  detail::_audio_group_t_,
 										  strong::bicrementable,
 										  strong::ordered,
+										  strong::equality,
 										  strong::ostreamable>;
 
 	using music_hook_function_t = std::function<void (uint8_t* stream, std::size_t len)>;

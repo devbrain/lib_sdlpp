@@ -22,11 +22,31 @@
 #include <sdlpp/detail/ostreamops.hh>
 
 namespace neutrino::sdl {
+	namespace detail {
+		struct _display_index_t_;
+		struct _mode_index_t_;
+		struct _display_index_t_;
+	}
 	class display {
 	 public:
-		using index_t = strong::type<std::size_t, struct _display_index_t_, strong::bicrementable, strong::ordered, strong::ostreamable>;
-		using mode_index_t = strong::type<std::size_t, struct _mode_index_t_, strong::bicrementable, strong::ordered, strong::ostreamable>;
-		using driver_index_t = strong::type<std::size_t, struct _display_index_t_, strong::bicrementable, strong::ordered, strong::ostreamable>;
+		using index_t = strong::type<std::size_t,
+									 detail::_display_index_t_,
+									 strong::bicrementable,
+									 strong::ordered,
+									 strong::equality,
+									 strong::ostreamable>;
+		using mode_index_t = strong::type<std::size_t,
+										  detail::_mode_index_t_,
+										  strong::bicrementable,
+										  strong::ordered,
+										  strong::equality,
+										  strong::ostreamable>;
+		using driver_index_t = strong::type<std::size_t,
+											detail::_display_index_t_,
+											strong::bicrementable,
+											strong::ordered,
+											strong::equality,
+											strong::ostreamable>;
 		/**
 		 * @enum orientation
 		 * @brief Represents the possible orientations of a display.
@@ -95,11 +115,11 @@ namespace neutrino::sdl {
 		}
 
 		static driver_index_t count_video_drivers () {
-			return driver_index_t(SAFE_SDL_CALL(SDL_GetNumVideoDrivers));
+			return driver_index_t (SAFE_SDL_CALL(SDL_GetNumVideoDrivers));
 		}
 
 		static std::optional<std::string> video_driver (driver_index_t index) {
-			const char* drv = SDL_GetVideoDriver (static_cast<int>(index.value_of()));
+			const char* drv = SDL_GetVideoDriver (static_cast<int>(index.value_of ()));
 			if (drv) {
 				return drv;
 			}
@@ -148,22 +168,24 @@ namespace neutrino::sdl {
 			display::orientation::PORTRAIT_FLIPPED,
 		};
 	}
+
 	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_display_orientation)&
-	values(typename std::enable_if<std::is_same_v<display::orientation, T>>::type* = nullptr) {
+	static inline constexpr const decltype (detail::s_vals_of_display_orientation)&
+	values (typename std::enable_if<std::is_same_v<display::orientation, T>>::type* = nullptr) {
 		return detail::s_vals_of_display_orientation;
 	}
+
 	template <typename T>
 	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<display::orientation, T>>::type* = nullptr) {
-		return detail::s_vals_of_display_orientation.begin();
-	}
-	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<display::orientation, T>>::type* = nullptr) {
-		return detail::s_vals_of_display_orientation.end();
+	begin (typename std::enable_if<std::is_same_v<display::orientation, T>>::type* = nullptr) {
+		return detail::s_vals_of_display_orientation.begin ();
 	}
 
+	template <typename T>
+	static inline constexpr auto
+	end (typename std::enable_if<std::is_same_v<display::orientation, T>>::type* = nullptr) {
+		return detail::s_vals_of_display_orientation.end ();
+	}
 
 	d_SDLPP_OSTREAM(display::orientation);
 	d_SDLPP_OSTREAM(const display::mode&);
@@ -172,7 +194,8 @@ namespace neutrino::sdl {
 	inline
 	display::mode::mode (const display& d, std::size_t mode_index) {
 		SDL_DisplayMode dm;
-		SAFE_SDL_CALL(SDL_GetDisplayMode, static_cast<int>(d.get_index ().value_of()), static_cast<int>(mode_index), &dm);
+		SAFE_SDL_CALL(SDL_GetDisplayMode, static_cast<int>(d.get_index ()
+															.value_of ()), static_cast<int>(mode_index), &dm);
 		m_format = dm.format;
 		if (dm.refresh_rate > 0) {
 			m_refresh_rate = dm.refresh_rate;
@@ -209,29 +232,29 @@ namespace neutrino::sdl {
 	display::display (index_t index)
 		: m_index (index) {
 		rect r;
-		SAFE_SDL_CALL(SDL_GetDisplayBounds, static_cast<int>(index.value_of()), &r);
+		SAFE_SDL_CALL(SDL_GetDisplayBounds, static_cast<int>(index.value_of ()), &r);
 		m_area = r.area ();
 
-		auto display_modes = SAFE_SDL_CALL(SDL_GetNumDisplayModes, static_cast<int>(index.value_of()));
+		auto display_modes = SAFE_SDL_CALL(SDL_GetNumDisplayModes, static_cast<int>(index.value_of ()));
 		m_num_of_modes = static_cast<std::size_t > (display_modes);
 	}
 
 	inline
 	std::string display::get_name () const {
-		return SAFE_SDL_CALL(SDL_GetDisplayName, static_cast<int>(m_index.value_of()));
+		return SAFE_SDL_CALL(SDL_GetDisplayName, static_cast<int>(m_index.value_of ()));
 	}
 
 	// ddpi, hdpi, vdpi>
 	inline
 	std::tuple<float, float, float> display::get_dpi () const {
 		float ddpi = 0, hdpi = 0, vdpi = 0;
-		SAFE_SDL_CALL(SDL_GetDisplayDPI, static_cast<int>(m_index.value_of()), &ddpi, &hdpi, &vdpi);
+		SAFE_SDL_CALL(SDL_GetDisplayDPI, static_cast<int>(m_index.value_of ()), &ddpi, &hdpi, &vdpi);
 		return {ddpi, hdpi, vdpi};
 	}
 
 	inline
 	display::orientation display::get_orientation () const noexcept {
-		return static_cast<orientation>(SDL_GetDisplayOrientation (static_cast<int>(m_index.value_of())));
+		return static_cast<orientation>(SDL_GetDisplayOrientation (static_cast<int>(m_index.value_of ())));
 	}
 
 	inline
@@ -247,32 +270,32 @@ namespace neutrino::sdl {
 	inline
 	area_type display::get_desktop_bounds () const noexcept {
 		rect r;
-		SAFE_SDL_CALL(SDL_GetDisplayUsableBounds, static_cast<int>(m_index.value_of()), &r);
+		SAFE_SDL_CALL(SDL_GetDisplayUsableBounds, static_cast<int>(m_index.value_of ()), &r);
 		return r.area ();
 	}
 
 	inline
 	display::mode_index_t display::count_modes () const noexcept {
-		return mode_index_t {m_num_of_modes};
+		return mode_index_t{m_num_of_modes};
 	}
 
 	inline
 	display::mode display::get_mode () const {
 		SDL_DisplayMode dm;
-		SAFE_SDL_CALL(SDL_GetCurrentDisplayMode, static_cast<int>(m_index.value_of()), &dm);
+		SAFE_SDL_CALL(SDL_GetCurrentDisplayMode, static_cast<int>(m_index.value_of ()), &dm);
 		return mode (dm);
 	}
 
 	inline
 	display::mode display::get_desktop_mode () const {
 		SDL_DisplayMode dm;
-		SAFE_SDL_CALL(SDL_GetDesktopDisplayMode, static_cast<int>(m_index.value_of()), &dm);
+		SAFE_SDL_CALL(SDL_GetDesktopDisplayMode, static_cast<int>(m_index.value_of ()), &dm);
 		return mode (dm);
 	}
 
 	inline
 	display::mode display::get_mode (mode_index_t idx) const {
-		return {*this, idx.value_of()};
+		return {*this, idx.value_of ()};
 	}
 
 	inline
@@ -282,7 +305,7 @@ namespace neutrino::sdl {
 		desired.w = static_cast<int>(area.w);
 		desired.h = static_cast<int>(area.h);
 		SDL_DisplayMode closest{};
-		if (SDL_GetClosestDisplayMode (static_cast<int>(m_index.value_of()), &desired, &closest)) {
+		if (SDL_GetClosestDisplayMode (static_cast<int>(m_index.value_of ()), &desired, &closest)) {
 			return mode (closest);
 		}
 		return std::nullopt;

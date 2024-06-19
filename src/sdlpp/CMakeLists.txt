@@ -16,6 +16,7 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/detail/sdl2.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/sdl_string.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/ttf_helper.hh
+        ${PROJECT_INCLUDE}/sdlpp/detail/window_id.hh
 
         ${PROJECT_INCLUDE}/sdlpp/events/event_types.hh
         ${PROJECT_INCLUDE}/sdlpp/events/events.hh
@@ -74,6 +75,7 @@ add_library(sdlpp
         thirdparty/gfx/SDL2_rotozoom.h
 
         audio/music.cc
+        events/events.cc
         events/event_types.cc
         events/system_events.cc
         input/game_controller.cc
