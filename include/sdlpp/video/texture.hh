@@ -50,14 +50,14 @@ namespace neutrino::sdl {
 		// returns: pixel format, texture_access, w, h
 		[[nodiscard]] std::tuple<pixel_format, access, unsigned, unsigned> query () const;
 
-		[[nodiscard]] uint8_t alpha () const;
-		void alpha (uint8_t a);
+		[[nodiscard]] uint8_t get_alpha () const;
+		void set_alpha (uint8_t a);
 
-		[[nodiscard]] blend_mode blend () const;
-		void blend (blend_mode bm);
+		[[nodiscard]] blend_mode get_blend_mode () const;
+		void set_blend_mode (blend_mode bm);
 
-		[[nodiscard]] std::optional<color> color_mod () const;
-		void color_mod (const color& c);
+		[[nodiscard]] std::optional<color> get_color_mod () const;
+		void set_color_mod (const color& c);
 
 		/*
 		Use this function to lock whole texture for write-only pixel access.
@@ -78,6 +78,8 @@ namespace neutrino::sdl {
 	};
 
 	d_SDLPP_OSTREAM(texture::access);
+
+
 } // ns sdl
 // =================================================================================================================
 // Implementation
@@ -134,7 +136,7 @@ namespace neutrino::sdl {
 
 	// ---------------------------------------------------------------------------------------------------------------
 	inline
-	uint8_t texture::alpha () const {
+	uint8_t texture::get_alpha () const {
 		uint8_t a;
 		SAFE_SDL_CALL(SDL_GetTextureAlphaMod, const_handle (), &a);
 		return a;
@@ -142,13 +144,13 @@ namespace neutrino::sdl {
 
 	// ---------------------------------------------------------------------------------------------------------------
 	inline
-	void texture::alpha (uint8_t a) {
+	void texture::set_alpha (uint8_t a) {
 		SAFE_SDL_CALL(SDL_SetTextureAlphaMod, handle (), a);
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
 	inline
-	blend_mode texture::blend () const {
+	blend_mode texture::get_blend_mode () const {
 		SDL_BlendMode x;
 		SAFE_SDL_CALL(SDL_GetTextureBlendMode, const_handle (), &x);
 		return static_cast<blend_mode>(x);
@@ -156,13 +158,13 @@ namespace neutrino::sdl {
 
 	// ---------------------------------------------------------------------------------------------------------------
 	inline
-	void texture::blend (blend_mode bm) {
+	void texture::set_blend_mode (blend_mode bm) {
 		SAFE_SDL_CALL(SDL_SetTextureBlendMode, handle (), static_cast<SDL_BlendMode>(bm));
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
 	inline
-	std::optional<color> texture::color_mod () const {
+	std::optional<color> texture::get_color_mod () const {
 		color c{0, 0, 0, 0};
 		if (0 == SDL_GetTextureColorMod (const_handle (), &c.r, &c.g, &c.b)) {
 			return c;
@@ -172,7 +174,7 @@ namespace neutrino::sdl {
 
 	// ---------------------------------------------------------------------------------------------------------------
 	inline
-	void texture::color_mod (const color& c) {
+	void texture::set_color_mod (const color& c) {
 		SAFE_SDL_CALL(SDL_SetTextureColorMod, handle (), c.r, c.g, c.b);
 	}
 

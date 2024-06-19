@@ -24,7 +24,7 @@ namespace neutrino::sdl {
 	END_IMPL_OUTPUT(renderer::flip)
 
 	void renderer::draw_hline (int x1, int x2, int y) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		hlineRGBA (handle (),
 				   static_cast<Sint16>(x1),
 				   static_cast<Sint16>(x2),
@@ -33,7 +33,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_vline (int y1, int y2, int x) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		vlineRGBA (handle (),
 				   static_cast<Sint16>(y1),
 				   static_cast<Sint16>(y2),
@@ -42,7 +42,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_line_aa (int x1, int y1, int x2, int y2) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		aalineRGBA (handle (),
 					static_cast<Sint16>(x1),
 					static_cast<Sint16>(y1),
@@ -52,7 +52,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_rounded_rect (const rect& rec, unsigned radius) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		const auto x1 = rec.x;
 		const auto y1 = rec.y;
 		const auto x2 = rec.x + rec.w;
@@ -68,7 +68,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_rounded_rect_filled (const rect& rec, unsigned radius) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		const auto x1 = rec.x;
 		const auto y1 = rec.y;
 		const auto x2 = rec.x + rec.w;
@@ -84,7 +84,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_thick_line (int x1, int y1, int x2, int y2, unsigned width) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		thickLineRGBA (handle (),
 					   static_cast<Sint16>(x1),
 					   static_cast<Sint16>(y1),
@@ -95,7 +95,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_circle (int x, int y, unsigned radius) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		circleRGBA (handle (),
 					static_cast<Sint16>(x),
 					static_cast<Sint16>(y),
@@ -104,7 +104,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_circle_aa (int x, int y, unsigned radius) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		aacircleRGBA (handle (),
 					  static_cast<Sint16>(x),
 					  static_cast<Sint16>(y),
@@ -113,7 +113,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_circle_filled (int x, int y, unsigned radius) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		filledCircleRGBA (handle (),
 						  static_cast<Sint16>(x),
 						  static_cast<Sint16>(y),
@@ -122,7 +122,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_arc (int x, int y, int start, int end, unsigned radius) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		arcRGBA (handle (),
 				 static_cast<Sint16>(x),
 				 static_cast<Sint16>(y),
@@ -134,7 +134,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_arc_filled (int x, int y, int start, int end, unsigned radius) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		pieRGBA (handle (),
 				 static_cast<Sint16>(x),
 				 static_cast<Sint16>(y),
@@ -146,7 +146,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_ellipse (int x, int y, unsigned rx, unsigned ry) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		ellipseRGBA (handle (),
 					 static_cast<Sint16>(x),
 					 static_cast<Sint16>(y),
@@ -157,7 +157,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_ellipse_aa (int x, int y, unsigned rx, unsigned ry) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		aaellipseRGBA (handle (),
 					   static_cast<Sint16>(x),
 					   static_cast<Sint16>(y),
@@ -168,7 +168,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_ellipse_filled (int x, int y, unsigned rx, unsigned ry) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		filledEllipseRGBA (handle (),
 						   static_cast<Sint16>(x),
 						   static_cast<Sint16>(y),
@@ -179,7 +179,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_triangle (int x1, int y1, int x2, int y2, int x3, int y3) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		trigonRGBA (handle (),
 					static_cast<Sint16>(x1),
 					static_cast<Sint16>(y1),
@@ -192,7 +192,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_triangle_aa (int x1, int y1, int x2, int y2, int x3, int y3) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		aatrigonRGBA (handle (),
 					  static_cast<Sint16>(x1),
 					  static_cast<Sint16>(y1),
@@ -205,7 +205,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_triangle_filled (int x1, int y1, int x2, int y2, int x3, int y3) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		filledTrigonRGBA (handle (),
 						  static_cast<Sint16>(x1),
 						  static_cast<Sint16>(y1),
@@ -224,7 +224,7 @@ namespace neutrino::sdl {
 			vx.emplace_back (static_cast<Sint16>(p.x));
 			vy.emplace_back (static_cast<Sint16>(p.x));
 		}
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		polygonRGBA (handle (),
 					 vx.data (),
 					 vy.data (),
@@ -239,7 +239,7 @@ namespace neutrino::sdl {
 			vx.emplace_back (static_cast<Sint16>(p.x));
 			vy.emplace_back (static_cast<Sint16>(p.x));
 		}
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		aapolygonRGBA (handle (),
 					   vx.data (),
 					   vy.data (),
@@ -272,7 +272,7 @@ namespace neutrino::sdl {
 			vx.emplace_back (static_cast<Sint16>(p.x));
 			vy.emplace_back (static_cast<Sint16>(p.x));
 		}
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		filledPolygonRGBA (handle (),
 						   vx.data (),
 						   vy.data (),
@@ -281,7 +281,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_polygon (const int16_t* vx, const int16_t* vy, std::size_t n) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		polygonRGBA (handle (),
 					 vx,
 					 vy,
@@ -290,7 +290,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_polygon_aa (const int16_t* vx, const int16_t* vy, std::size_t n) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		aapolygonRGBA (handle (),
 					   vx,
 					   vy,
@@ -299,7 +299,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_polygon_filled (const int16_t* vx, const int16_t* vy, std::size_t n) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		filledPolygonRGBA (handle (),
 						   vx,
 						   vy,
@@ -326,7 +326,7 @@ namespace neutrino::sdl {
 			vx.emplace_back (static_cast<Sint16>(p.x));
 			vy.emplace_back (static_cast<Sint16>(p.x));
 		}
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		bezierRGBA (handle (),
 					vx.data (),
 					vy.data (),
@@ -336,7 +336,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_bezier (const int16_t* vx, const int16_t* vy, std::size_t n, unsigned steps) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		bezierRGBA (handle (),
 					vx,
 					vy,
@@ -346,7 +346,7 @@ namespace neutrino::sdl {
 	}
 
 	void renderer::draw_latin1_string (int x, int y, const std::string& s) {
-		const auto c = active_color ();
+		const auto c = get_active_color ();
 		stringRGBA (handle (),
 					static_cast<Sint16>(x),
 					static_cast<Sint16>(y),

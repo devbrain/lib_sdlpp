@@ -7,6 +7,7 @@ add_library(sdlpp
 
         ${PROJECT_INCLUDE}/sdlpp/detail/call.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/clamp.hh
+        ${PROJECT_INCLUDE}/sdlpp/detail/lock.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/joystick_id.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/iterator.hh
         ${PROJECT_INCLUDE}/sdlpp/detail/object.hh

@@ -12,6 +12,7 @@
 #include <bsw/macros.hh>
 #include <sdlpp/detail/call.hh>
 #include <sdlpp/detail/object.hh>
+#include <sdlpp/detail/lock.hh>
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/io/io.hh>
 #include <sdlpp/video/geometry.hh>
@@ -59,29 +60,29 @@ namespace neutrino::sdl {
 		void unlock () noexcept;
 		[[nodiscard]] bool must_lock () const noexcept;
 
-		[[nodiscard]] rect clip () const;
+		[[nodiscard]] rect get_clip () const;
 		/**
 		 * @brief set clip rectangle
 		 * @param r
 		 * @return Returns true if the rectangle intersects the surface, otherwise false and blits will be completely clipped.
 		 */
-		bool clip (const rect& r);
+		[[nodiscard]] bool set_clip (const rect& r);
 
 		void color_key (uint32_t c);
 		void color_key (const color& c);
 		void disable_color_key ();
 		[[nodiscard]] std::optional<uint32_t> color_key () const;
 
-		[[nodiscard]] blend_mode blend () const;
-		void blend (blend_mode v);
+		[[nodiscard]] blend_mode get_blend_mode () const;
+		void set_blend_mode (blend_mode v);
 
-		[[nodiscard]] uint8_t alpha_mod () const;
-		void alpha_mod (uint8_t v);
+		[[nodiscard]] uint8_t get_alpha_mod () const;
+		void set_alpha_mod (uint8_t v);
 
-		void rle_acceleration (bool enabled);
+		void set_rle_acceleration (bool enabled);
 
-		void color_mod (uint8_t r, uint8_t g, uint8_t b);
-		[[nodiscard]] std::optional<color> color_mod () const;
+		void set_color_mod (uint8_t r, uint8_t g, uint8_t b);
+		[[nodiscard]] std::optional<color> get_color_mod () const;
 
 		/**
 		 * @brief Blit this surface to @c dst surface
@@ -172,41 +173,21 @@ namespace neutrino::sdl {
 	};
 
 	namespace detail {
-		template <bool LOCK_IF_NEEDED>
-		class lock_surface {
-		 public:
-			explicit lock_surface (surface& s)
-				: srf (s),
-				  locked (true) {
-				if constexpr (LOCK_IF_NEEDED) {
-					if (srf.must_lock ()) {
-						srf.lock ();
-					}
-				} else {
-					srf.lock ();
-				}
+		template <>
+		struct locker_traits<surface> {
+			static bool must_lock(const surface& s) {
+				return s.must_lock();
 			}
-
-			~lock_surface () noexcept {
-				srf.unlock ();
+			static void lock(surface& s) {
+				s.lock();
 			}
-
-			void release () {
-				locked = false;
+			static void unlock(surface& s) {
+				s.unlock();
 			}
-
-			explicit operator bool () const {
-				return locked;
-			}
-
-		 private:
-			surface& srf;
-			bool locked;
 		};
 	}
 }
-#define LOCKED_SURFACE(S)  for(::sdl::detail::lock_surface<true> ANONYMOUS_VAR(lock_) = S; ANONYMOUS_VAR(lock_); ANONYMOUS_VAR(lock_).release())
-#define LOCKED_SURFACE_ALWAYS(S)  for(::sdl::detail::lock_surface<false> ANONYMOUS_VAR(lock_) = S; ANONYMOUS_VAR(lock_); ANONYMOUS_VAR(lock_).release())
+
 // ===================================================================================================
 // Implementation
 // ===================================================================================================
@@ -331,7 +312,7 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------
 	inline
-	rect surface::clip () const {
+	rect surface::get_clip () const {
 		SDL_Rect r;
 		SDL_GetClipRect (const_handle (), &r);
 		return rect{r};
@@ -339,7 +320,7 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------
 	inline
-	bool surface::clip (const rect& r) {
+	bool surface::set_clip (const rect& r) {
 		return SDL_TRUE == SDL_SetClipRect (handle (), &r);
 	}
 
@@ -374,7 +355,7 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------
 	inline
-	blend_mode surface::blend () const {
+	blend_mode surface::get_blend_mode () const {
 		SDL_BlendMode x;
 		SAFE_SDL_CALL(SDL_GetSurfaceBlendMode, const_handle (), &x);
 		return static_cast<blend_mode>(x);
@@ -382,13 +363,13 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------
 	inline
-	void surface::blend (blend_mode v) {
+	void surface::set_blend_mode (blend_mode v) {
 		SAFE_SDL_CALL(SDL_SetSurfaceBlendMode, handle (), static_cast<SDL_BlendMode>(v));
 	}
 
 	// ----------------------------------------------------------------------------------------------
 	inline
-	uint8_t surface::alpha_mod () const {
+	uint8_t surface::get_alpha_mod () const {
 		uint8_t x;
 		SAFE_SDL_CALL(SDL_GetSurfaceAlphaMod, const_handle (), &x);
 		return x;
@@ -396,25 +377,25 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------
 	inline
-	void surface::alpha_mod (uint8_t v) {
+	void surface::set_alpha_mod (uint8_t v) {
 		SAFE_SDL_CALL(SDL_SetSurfaceAlphaMod, handle (), v);
 	}
 
 	// ----------------------------------------------------------------------------------------------
 	inline
-	void surface::rle_acceleration (bool enabled) {
+	void surface::set_rle_acceleration (bool enabled) {
 		SAFE_SDL_CALL(SDL_SetSurfaceRLE, handle (), enabled ? 1 : 0);
 	}
 
 	// ----------------------------------------------------------------------------------------------
 	inline
-	void surface::color_mod (uint8_t r, uint8_t g, uint8_t b) {
+	void surface::set_color_mod (uint8_t r, uint8_t g, uint8_t b) {
 		SAFE_SDL_CALL(SDL_SetSurfaceColorMod, handle (), r, g, b);
 	}
 
 	// ----------------------------------------------------------------------------------------------
 	inline
-	std::optional<color> surface::color_mod () const {
+	std::optional<color> surface::get_color_mod () const {
 		color c{0, 0, 0, 0};
 		if (0 == SDL_GetSurfaceColorMod (const_handle (), &c.r, &c.g, &c.b)) {
 			return c;

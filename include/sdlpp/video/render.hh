@@ -70,23 +70,23 @@ namespace neutrino::sdl {
 		renderer& operator= (object<SDL_Renderer>&& other) noexcept;
 
 		/**
-		 * @brief Returns the blend mode used by the renderer.
+		 * @brief Returns the get_blend mode used by the renderer.
 		 *
-		 * This function returns the current blend mode used by the renderer.
-		 * The blend mode determines how colors are blended when drawing on the renderer.
+		 * This function returns the current get_blend mode used by the renderer.
+		 * The get_blend mode determines how colors are blended when drawing on the renderer.
 		 *
-		 * @return The blend mode used by the renderer.
+		 * @return The get_blend mode used by the renderer.
 		 */
-		[[nodiscard]] blend_mode blend () const;
+		[[nodiscard]] blend_mode get_blend_mode () const;
 		/**
-		 * @brief Sets the blend mode used by the renderer.
+		 * @brief Sets the get_blend mode used by the renderer.
 		 *
-		 * This function sets the blend mode used by the renderer.
-		 * The blend mode determines how colors are blended when drawing on the renderer.
+		 * This function sets the get_blend mode used by the renderer.
+		 * The get_blend mode determines how colors are blended when drawing on the renderer.
 		 *
-		 * @param bm The blend mode to be set.
+		 * @param bm The get_blend mode to be set.
 		 */
-		void blend (blend_mode bm);
+		void set_blend_mode (blend_mode bm);
 
 		/**
 		 * @brief Returns the active color used by the renderer.
@@ -96,7 +96,7 @@ namespace neutrino::sdl {
 		 *
 		 * @return The active color used by the renderer.
 		 */
-		[[nodiscard]] color active_color () const;
+		[[nodiscard]] color get_active_color () const;
 		/**
 		 * @brief Sets the active color for rendering.
 		 *
@@ -106,7 +106,7 @@ namespace neutrino::sdl {
 		 * @param c The color to set as the active color.
 		 * @see color
 		 */
-		void active_color (const color& c);
+		void set_active_color (const color& c);
 
 		/**
 		 * @brief Get the clipping rectangle.
@@ -117,7 +117,7 @@ namespace neutrino::sdl {
 		 *
 		 * @return The clipping rectangle as an instance of the rect class.
 		 */
-		[[nodiscard]] rect clip () const;
+		[[nodiscard]] rect get_clip () const;
 		/**
 		 * @brief Clips the rendering area to the given rectangle.
 		 *
@@ -126,7 +126,7 @@ namespace neutrino::sdl {
 		 *
 		 * @param area The rectangle to clip the rendering area to.
 		 */
-		void clip (const rect& area);
+		void set_clip (const rect& area);
 
 		/**
 		 * @brief Disables clipping for the renderer.
@@ -150,7 +150,7 @@ namespace neutrino::sdl {
 		 *
 		 * @return True if clipping is enabled, false otherwise.
 		 */
-		[[nodiscard]] bool clipping_enabled () const;
+		[[nodiscard]] bool is_clipping_enabled () const;
 
 		/**
 		 * @brief Check if integer scaling is enabled.
@@ -159,7 +159,7 @@ namespace neutrino::sdl {
 		 *
 		 * @return true if integer scaling is enabled, false otherwise.
 		 */
-		[[nodiscard]] bool integer_scaling () const;
+		[[nodiscard]] bool has_integer_scaling () const;
 		/**
 		* @brief Enable or disable integer scaling for the renderer.
 		*
@@ -170,7 +170,7 @@ namespace neutrino::sdl {
 		* @sa renderer::handle()
 		* @sa SDL_RenderSetIntegerScale()
 		*/
-		void integer_scaling (bool enabled);
+		void set_integer_scaling (bool enabled);
 
 		/**
 		 * @brief Retrieves the logical size in pixels.
@@ -181,7 +181,7 @@ namespace neutrino::sdl {
 		 *
 		 * @return A std::pair<w, h> representing the width and height of the logical size in pixels.
 		 */
-		[[nodiscard]] std::pair<unsigned, unsigned> logical_size () const;
+		[[nodiscard]] std::pair<unsigned, unsigned> get_logical_size () const;
 		/**
 		 * @brief Set the logical size of the renderer.
 		 *
@@ -194,7 +194,7 @@ namespace neutrino::sdl {
 		 *
 		 * @see renderer::get_logical_size()
 		 */
-		void logical_size (unsigned x, unsigned y);
+		void set_logical_size (unsigned x, unsigned y);
 
 		/**
 		 * @brief Get the current scaling factors of the renderer.
@@ -214,7 +214,7 @@ namespace neutrino::sdl {
 		 *
 		 * Note: This function returns a pair of floats, so the caller should ensure to assign it to a std::pair<float, float> variable.
 		 */
-		[[nodiscard]] std::pair<float, float> scaling () const;
+		[[nodiscard]] std::pair<float, float> get_scaling () const;
 		/**
 		 * @brief Scales the renderer.
 		 *
@@ -231,7 +231,7 @@ namespace neutrino::sdl {
 		 * @attention The scaling factors should be positive values. A scaling factor of 1.0 means no scaling, while a scaling factor of 2.0 doubles the size of the renderer in the given direction.
 		 * @attention The scaling operation affects all subsequent rendering operations performed by the renderer until the scaling is changed or disabled.
 		 */
-		void scaling (float x, float y);
+		void set_scaling (float x, float y);
 
 		/**
 		 * \brief Get the viewport of the renderer.
@@ -240,7 +240,7 @@ namespace neutrino::sdl {
 		 *
 		 * \return The viewport as a rect object.
 		 */
-		[[nodiscard]] rect viewport () const;
+		[[nodiscard]] rect get_viewport () const;
 		/**
 		 * @brief Sets the viewport of the renderer to the specified area.
 		 *
@@ -251,7 +251,7 @@ namespace neutrino::sdl {
 		 *             (area.x, area.y) and the width and height will be area.w and
 		 *             area.h, respectively.
 		 */
-		void viewport (const rect& area);
+		void set_viewport (const rect& area);
 		/**
 		 * \brief Disable the current viewport of the renderer.
 		 *
@@ -311,7 +311,7 @@ namespace neutrino::sdl {
 		 * @returns An optional object of type texture. If a render target is set, it returns the target texture,
 		 *          otherwise it returns std::nullopt.
 		 */
-		[[nodiscard]] std::optional<texture> target () const;
+		[[nodiscard]] std::optional<texture> get_target () const;
 		/**
 		 * @brief Set the render target to the specified texture.
 		 *
@@ -322,7 +322,7 @@ namespace neutrino::sdl {
 		 * @param t The texture to set as the render target.
 		 *
 		 */
-		void target (texture& t);
+		void set_target (texture& t);
 		/**
 		 * @brief Restores the default render target.
 		 *
@@ -346,7 +346,7 @@ namespace neutrino::sdl {
 		 * @note The result can be used to query the size of the renderer's output,
 		 * for example, to adjust the size of the window that displays the renderer's output.
 		 */
-		[[nodiscard]] std::pair<unsigned, unsigned> output_size () const;
+		[[nodiscard]] std::pair<unsigned, unsigned> get_output_size () const;
 
 		/**
 		 * @brief Clears the renderer.
@@ -864,7 +864,7 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	blend_mode renderer::blend () const {
+	blend_mode renderer::get_blend_mode () const {
 		SDL_BlendMode m;
 		SAFE_SDL_CALL(SDL_GetRenderDrawBlendMode, const_handle (), &m);
 		return static_cast<blend_mode>(m);
@@ -872,13 +872,13 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::blend (blend_mode bm) {
+	void renderer::set_blend_mode (blend_mode bm) {
 		SAFE_SDL_CALL(SDL_SetRenderDrawBlendMode, handle (), static_cast<SDL_BlendMode>(bm));
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	color renderer::active_color () const {
+	color renderer::get_active_color () const {
 		color c;
 		SAFE_SDL_CALL(SDL_GetRenderDrawColor, const_handle (), &c.r, &c.g, &c.b, &c.a);
 		return c;
@@ -886,13 +886,13 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::active_color (const color& c) {
+	void renderer::set_active_color (const color& c) {
 		SAFE_SDL_CALL(SDL_SetRenderDrawColor, handle (), c.r, c.g, c.b, c.a);
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	rect renderer::clip () const {
+	rect renderer::get_clip () const {
 		rect r;
 		SDL_RenderGetClipRect (const_handle (), &r);
 		return r;
@@ -900,7 +900,7 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::clip (const rect& area) {
+	void renderer::set_clip (const rect& area) {
 		SAFE_SDL_CALL(SDL_RenderSetClipRect, handle (), &area);
 	}
 
@@ -912,25 +912,25 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	bool renderer::clipping_enabled () const {
+	bool renderer::is_clipping_enabled () const {
 		return SDL_RenderIsClipEnabled (const_handle ()) == SDL_TRUE;
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	bool renderer::integer_scaling () const {
+	bool renderer::has_integer_scaling () const {
 		return SDL_TRUE == SDL_RenderGetIntegerScale (const_handle ());
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::integer_scaling (bool enabled) {
+	void renderer::set_integer_scaling (bool enabled) {
 		SAFE_SDL_CALL(SDL_RenderSetIntegerScale, handle (), enabled ? SDL_TRUE : SDL_FALSE);
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	std::pair<unsigned, unsigned> renderer::logical_size () const {
+	std::pair<unsigned, unsigned> renderer::get_logical_size () const {
 		int w, h;
 		SDL_RenderGetLogicalSize (const_handle (), &w, &h);
 		return {static_cast<unsigned >(w), static_cast<unsigned >(h)};
@@ -938,13 +938,13 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::logical_size (unsigned x, unsigned y) {
+	void renderer::set_logical_size (unsigned x, unsigned y) {
 		SAFE_SDL_CALL(SDL_RenderSetLogicalSize, handle (), static_cast<int>(x), static_cast<int>(y));
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	std::pair<float, float> renderer::scaling () const {
+	std::pair<float, float> renderer::get_scaling () const {
 		float x, y;
 		SDL_RenderGetScale (const_handle (), &x, &y);
 		return {x, y};
@@ -952,13 +952,13 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::scaling (float x, float y) {
+	void renderer::set_scaling (float x, float y) {
 		SAFE_SDL_CALL(SDL_RenderSetScale, handle (), x, y);
 	}
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	rect renderer::viewport () const {
+	rect renderer::get_viewport () const {
 		rect r;
 		SDL_RenderGetViewport (const_handle (), &r);
 		return r;
@@ -966,7 +966,7 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::viewport (const rect& area) {
+	void renderer::set_viewport (const rect& area) {
 		SAFE_SDL_CALL(SDL_RenderSetViewport, handle (), &area);
 	}
 
@@ -996,7 +996,7 @@ namespace neutrino::sdl {
 			return pixel_format (SDL_GetWindowPixelFormat (window));
 		} else {
 			uint32_t format;
-			auto t = target ();
+			auto t = get_target ();
 			if (t) {
 				SAFE_SDL_CALL(SDL_QueryTexture, t->const_handle (), &format, nullptr, nullptr, nullptr);
 				return pixel_format (format);
@@ -1019,7 +1019,7 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	std::optional<texture> renderer::target () const {
+	std::optional<texture> renderer::get_target () const {
 		SDL_Texture* t = SDL_GetRenderTarget (const_handle ());
 		if (t) {
 			return texture (object<SDL_Texture> (t, false));
@@ -1029,7 +1029,7 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::target (texture& t) {
+	void renderer::set_target (texture& t) {
 		SAFE_SDL_CALL(SDL_SetRenderTarget, handle (), t.handle ());
 	}
 
@@ -1041,7 +1041,7 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	std::pair<unsigned, unsigned> renderer::output_size () const {
+	std::pair<unsigned, unsigned> renderer::get_output_size () const {
 		int w, h;
 		SAFE_SDL_CALL(SDL_GetRendererOutputSize, const_handle (), &w, &h);
 		return {static_cast<unsigned>(w), static_cast<unsigned>(h)};
