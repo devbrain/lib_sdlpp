@@ -13,90 +13,74 @@
 namespace neutrino::sdl {
   inline
   events::event_t map_event (const SDL_Event& e) {
-#define d_EV_RUN(EVTYPE, MEMBER)                                                                     \
-                return {EVTYPE(e.MEMBER)}
-
-#define d_EV_RUN0(EVTYPE)                                                                            \
-                return EVTYPE{}
-
-#define d_DEFINE_EV_MAPPER(EVTYPE, MEMBER, MEMBERID)                                                \
-    case MEMBERID:                                                                                  \
-            return {EVTYPE(e.MEMBER)}                                                               \
-
-#define d_DEFINE_EV_MAPPER2(EVTYPE, MEMBER, MEMBERID, MEMBERID2)                                    \
-    case MEMBERID2:                                                                                 \
-            d_EV_RUN(EVTYPE, MEMBER);                                                               \
-            break;                                                                                  \
-    case MEMBERID:                                                                                  \
-            d_EV_RUN(EVTYPE, MEMBER)                                                                \
-
-#define d_DEFINE_EV_MAPPER0(EVTYPE, MEMBERID)                                                      \
-    case MEMBERID:                                                                                  \
-            d_EV_RUN0(EVTYPE)                                                                       \
-
     switch (e.type) {
-      d_DEFINE_EV_MAPPER2(events::keyboard, key, SDL_KEYDOWN, SDL_KEYUP);
+	  case SDL_KEYDOWN:
+	  case SDL_KEYUP:
+		  return events::keyboard(e);
 
       case SDL_WINDOWEVENT:
         switch (e.window.event) {
-          d_DEFINE_EV_MAPPER(events::window_shown, window, SDL_WINDOWEVENT_SHOWN);
-          d_DEFINE_EV_MAPPER(events::window_hidden, window, SDL_WINDOWEVENT_HIDDEN);
-          d_DEFINE_EV_MAPPER(events::window_exposed, window, SDL_WINDOWEVENT_EXPOSED);
-          d_DEFINE_EV_MAPPER(events::window_moved, window, SDL_WINDOWEVENT_MOVED);
-          d_DEFINE_EV_MAPPER(events::window_resized, window, SDL_WINDOWEVENT_RESIZED);
-          d_DEFINE_EV_MAPPER(events::window_minimized, window, SDL_WINDOWEVENT_MINIMIZED);
-          d_DEFINE_EV_MAPPER(events::window_maximized, window, SDL_WINDOWEVENT_MAXIMIZED);
-          d_DEFINE_EV_MAPPER(events::window_restored, window, SDL_WINDOWEVENT_RESTORED);
-          d_DEFINE_EV_MAPPER(events::window_mouse_entered, window, SDL_WINDOWEVENT_ENTER);
-          d_DEFINE_EV_MAPPER(events::window_mouse_leaved, window, SDL_WINDOWEVENT_LEAVE);
-          d_DEFINE_EV_MAPPER(events::window_focus_gained, window, SDL_WINDOWEVENT_FOCUS_GAINED);
-          d_DEFINE_EV_MAPPER(events::window_focus_lost, window, SDL_WINDOWEVENT_FOCUS_LOST);
-          d_DEFINE_EV_MAPPER(events::window_close, window, SDL_WINDOWEVENT_CLOSE);
-          default:
+			case SDL_WINDOWEVENT_SHOWN : return events::window_shown(e);
+			case SDL_WINDOWEVENT_HIDDEN : return events::window_hidden(e);
+			case SDL_WINDOWEVENT_EXPOSED : return events::window_exposed(e);
+			case SDL_WINDOWEVENT_MOVED : return events::window_moved(e);
+			case SDL_WINDOWEVENT_RESIZED : return events::window_resized(e);
+			case SDL_WINDOWEVENT_MINIMIZED : return events::window_minimized(e);
+			case SDL_WINDOWEVENT_MAXIMIZED : return events::window_maximized(e);
+			case SDL_WINDOWEVENT_RESTORED : return events::window_restored(e);
+			case SDL_WINDOWEVENT_ENTER : return events::window_mouse_entered(e);
+			case SDL_WINDOWEVENT_LEAVE : return events::window_mouse_leaved(e);
+			case SDL_WINDOWEVENT_FOCUS_GAINED : return events::window_focus_gained(e);
+			case SDL_WINDOWEVENT_FOCUS_LOST : return events::window_focus_lost(e);
+			case SDL_WINDOWEVENT_CLOSE : return events::window_close(e);
+        default:
             return {};
         }
-      d_DEFINE_EV_MAPPER(events::text_editing, edit, SDL_TEXTEDITING);
-      d_DEFINE_EV_MAPPER(events::text_input, text, SDL_TEXTINPUT);
+		case SDL_TEXTEDITING : return events::text_editing(e);
+		case SDL_TEXTINPUT : return events::text_input(e);
 
       case SDL_MOUSEMOTION:
         if (e.motion.which != SDL_TOUCH_MOUSEID) {
-          d_EV_RUN(events::mouse_motion, motion);
+			return events::mouse_motion(e);
         }
         else {
-          d_EV_RUN(events::touch_device_motion, motion);
+			return events::touch_device_motion(e);
         }
 
       case SDL_MOUSEBUTTONDOWN:
       case SDL_MOUSEBUTTONUP:
         if (e.button.which != SDL_TOUCH_MOUSEID) {
-          d_EV_RUN(events::mouse_button, button);
+			return events::mouse_button(e);
         }
         else {
-          d_EV_RUN(events::touch_device_button, button);
+			return events::touch_device_button(e);
         }
 
       case SDL_MOUSEWHEEL:
         if (e.wheel.which != SDL_TOUCH_MOUSEID) {
-          d_EV_RUN(events::mouse_wheel, wheel);
+		  return events::mouse_wheel(e);
         }
         else {
-          d_EV_RUN(events::touch_device_wheel, wheel);
+			return events::touch_device_wheel(e);
         }
 
-      d_DEFINE_EV_MAPPER(events::joystick_axis, jaxis, SDL_JOYAXISMOTION);
-      d_DEFINE_EV_MAPPER(events::joystick_ball, jball, SDL_JOYBALLMOTION);
 
-      d_DEFINE_EV_MAPPER2(events::joystick_button, jbutton, SDL_JOYBUTTONUP, SDL_JOYBUTTONDOWN);
-      d_DEFINE_EV_MAPPER(events::joystick_hat, jhat, SDL_JOYHATMOTION);
-      d_DEFINE_EV_MAPPER(events::user, user, SDL_USEREVENT);
+		case SDL_JOYAXISMOTION : return events::joystick_axis(e);
+		case SDL_JOYBALLMOTION : return events::joystick_ball(e);
+		case SDL_JOYHATMOTION : return events::joystick_hat(e);
+		case SDL_USEREVENT : return events::user(e);
 
-      d_DEFINE_EV_MAPPER0(events::terminating, SDL_APP_TERMINATING);
-      d_DEFINE_EV_MAPPER0(events::low_memory, SDL_APP_LOWMEMORY);
-      d_DEFINE_EV_MAPPER0(events::will_enter_background, SDL_APP_WILLENTERBACKGROUND);
-      d_DEFINE_EV_MAPPER0(events::in_background, SDL_APP_DIDENTERBACKGROUND);
-      d_DEFINE_EV_MAPPER0(events::will_enter_foreground, SDL_APP_WILLENTERFOREGROUND);
-      d_DEFINE_EV_MAPPER0(events::in_foreground, SDL_APP_DIDENTERFOREGROUND);
-      d_DEFINE_EV_MAPPER0(events::quit, SDL_QUIT);
+		case SDL_JOYBUTTONUP:
+		case SDL_JOYBUTTONDOWN:
+			return events::joystick_button(e);
+
+		case SDL_APP_TERMINATING : return events::terminating(e);
+		case SDL_APP_LOWMEMORY : return events::low_memory(e);
+		case SDL_APP_WILLENTERBACKGROUND : return events::will_enter_background(e);
+		case SDL_APP_DIDENTERBACKGROUND : return events::in_background(e);
+		case SDL_APP_WILLENTERFOREGROUND : return events::will_enter_foreground(e);
+		case SDL_APP_DIDENTERFOREGROUND : return events::in_foreground(e);
+		case SDL_QUIT : return events::quit(e);
     }
 
     return {};

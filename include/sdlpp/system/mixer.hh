@@ -2,8 +2,8 @@
 // Created by igor on 6/14/24.
 //
 
-#ifndef SDLPP_INCLUDE_SDLPP_SYSTEM_AUDIO_HH_
-#define SDLPP_INCLUDE_SDLPP_SYSTEM_AUDIO_HH_
+#ifndef SDLPP_INCLUDE_SDLPP_SYSTEM_MIXER_HH_
+#define SDLPP_INCLUDE_SDLPP_SYSTEM_MIXER_HH_
 
 #include <set>
 #include <string>
@@ -50,7 +50,7 @@ namespace neutrino::sdl {
 		virtual void after_sound (audio_channel_id_t chan) = 0;
 	};
 
-	class SDLPP_EXPORT audio {
+	class SDLPP_EXPORT mixer {
 	 public:
 		enum class format : int {
 			U8 = AUDIO_U8,
@@ -219,66 +219,66 @@ namespace neutrino::sdl {
 	};
 
 	namespace detail {
-		static inline constexpr std::array<audio::format, 10> s_vals_of_audio_format = {
-			audio::format::U8,
-			audio::format::S8,
-			audio::format::U16_LSB,
-			audio::format::S16_LSB,
-			audio::format::U16_MSB,
-			audio::format::S16_MSB,
-			audio::format::S32_LSB,
-			audio::format::S32_MSB,
-			audio::format::F32_LSB,
-			audio::format::F32_MSB,
+		static inline constexpr std::array<mixer::format, 10> s_vals_of_audio_format = {
+			mixer::format::U8,
+			mixer::format::S8,
+			mixer::format::U16_LSB,
+			mixer::format::S16_LSB,
+			mixer::format::U16_MSB,
+			mixer::format::S16_MSB,
+			mixer::format::S32_LSB,
+			mixer::format::S32_MSB,
+			mixer::format::F32_LSB,
+			mixer::format::F32_MSB,
 		};
 	}
 
 	template <typename T>
 	static inline constexpr const decltype (detail::s_vals_of_audio_format)&
-	values (typename std::enable_if<std::is_same_v<audio::format, T>>::type* = nullptr) {
+	values (typename std::enable_if<std::is_same_v<mixer::format, T>>::type* = nullptr) {
 		return detail::s_vals_of_audio_format;
 	}
 
 	template <typename T>
 	static inline constexpr auto
-	begin (typename std::enable_if<std::is_same_v<audio::format, T>>::type* = nullptr) {
+	begin (typename std::enable_if<std::is_same_v<mixer::format, T>>::type* = nullptr) {
 		return detail::s_vals_of_audio_format.begin ();
 	}
 
 	template <typename T>
 	static inline constexpr auto
-	end (typename std::enable_if<std::is_same_v<audio::format, T>>::type* = nullptr) {
+	end (typename std::enable_if<std::is_same_v<mixer::format, T>>::type* = nullptr) {
 		return detail::s_vals_of_audio_format.end ();
 	}
 
 	namespace detail {
-		static inline constexpr std::array<audio::fading_status, 3> s_vals_of_audio_fading_status = {
-			audio::fading_status::NONE,
-			audio::fading_status::OUT,
-			audio::fading_status::IN,
+		static inline constexpr std::array<mixer::fading_status, 3> s_vals_of_audio_fading_status = {
+			mixer::fading_status::NONE,
+			mixer::fading_status::OUT,
+			mixer::fading_status::IN,
 		};
 	}
 
 	template <typename T>
 	static inline constexpr const decltype (detail::s_vals_of_audio_fading_status)&
-	values (typename std::enable_if<std::is_same_v<audio::fading_status, T>>::type* = nullptr) {
+	values (typename std::enable_if<std::is_same_v<mixer::fading_status, T>>::type* = nullptr) {
 		return detail::s_vals_of_audio_fading_status;
 	}
 
 	template <typename T>
 	static inline constexpr auto
-	begin (typename std::enable_if<std::is_same_v<audio::fading_status, T>>::type* = nullptr) {
+	begin (typename std::enable_if<std::is_same_v<mixer::fading_status, T>>::type* = nullptr) {
 		return detail::s_vals_of_audio_fading_status.begin ();
 	}
 
 	template <typename T>
 	static inline constexpr auto
-	end (typename std::enable_if<std::is_same_v<audio::fading_status, T>>::type* = nullptr) {
+	end (typename std::enable_if<std::is_same_v<mixer::fading_status, T>>::type* = nullptr) {
 		return detail::s_vals_of_audio_fading_status.end ();
 	}
 
-	d_SDLPP_OSTREAM(audio::format);
-	d_SDLPP_OSTREAM(audio::fading_status);
+	d_SDLPP_OSTREAM(mixer::format);
+	d_SDLPP_OSTREAM(mixer::fading_status);
 }
 
-#endif //SDLPP_INCLUDE_SDLPP_SYSTEM_AUDIO_HH_
+#endif //SDLPP_INCLUDE_SDLPP_SYSTEM_MIXER_HH_

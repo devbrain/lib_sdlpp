@@ -5,7 +5,7 @@
 #ifndef SDLPP_INCLUDE_SDLPP_SYSTEM_HH_
 #define SDLPP_INCLUDE_SDLPP_SYSTEM_HH_
 
-#include <sdlpp/system/audio.hh>
+#include <sdlpp/system/mixer.hh>
 #include <sdlpp/system/clipboard.hh>
 #include <sdlpp/system/cpu.hh>
 #include <sdlpp/system/display.hh>

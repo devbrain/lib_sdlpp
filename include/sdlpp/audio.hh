@@ -7,6 +7,6 @@
 
 #include <sdlpp/audio/music.hh>
 #include <sdlpp/audio/sound_effect.hh>
-#include <sdlpp/system/audio.hh>
+#include <sdlpp/system/mixer.hh>
 
 #endif //SDLPP_INCLUDE_SDLPP_AUDIO_HH_

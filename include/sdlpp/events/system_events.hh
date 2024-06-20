@@ -7,7 +7,8 @@
 
 #include <string>
 #include <iosfwd>
-#include <bsw/mp/typelist.hh>
+#include <chrono>
+
 #include <bitflags/bitflags.hpp>
 #include <sdlpp/events/event_types.hh>
 #include <sdlpp/detail/ostreamops.hh>
@@ -18,12 +19,31 @@ namespace neutrino::sdl::events {
 	using system_event = SDL_Event;
 
 	namespace detail {
-		class window_event {
+		class common_event {
+		 public:
+			const std::chrono::milliseconds timestamp;
+		 public:
+			common_event()
+			: timestamp(SDL_GetTicks()) {
+
+			}
+
+			explicit common_event(uint32_t ms)
+			: timestamp(ms) {}
+
+			explicit common_event(std::chrono::milliseconds timestamp_)
+			: timestamp(timestamp_) {}
+
+			explicit common_event(const SDL_Event& ev)
+			: timestamp(ev.common.timestamp) {}
+
+		};
+		class window_event : public common_event {
 		 public:
 			const window_id_t window_id;
 		 protected:
-			explicit window_event (uint32_t wid)
-				: window_id (wid) {
+			explicit window_event (uint32_t wid, const SDL_Event ev)
+				: common_event(ev), window_id (wid) {
 			}
 		};
 	} // ns detail
@@ -44,25 +64,25 @@ namespace neutrino::sdl::events {
 		const keycode key_code;
 		const uint16_t key_mod;
 
-		explicit keyboard (const SDL_KeyboardEvent& e)
-			: detail::window_event (e.windowID),
-			  pressed (e.state == SDL_PRESSED),
-			  repeat (e.repeat > 0),
-			  scan_code (static_cast <scancode> (e.keysym.scancode)),
-			  key_code (static_cast <keycode> (e.keysym.sym)),
-			  key_mod (e.keysym.mod) {
+		explicit keyboard (const SDL_Event& e)
+			: detail::window_event (e.key.windowID, e),
+			  pressed (e.key.state == SDL_PRESSED),
+			  repeat (e.key.repeat > 0),
+			  scan_code (static_cast <scancode> (e.key.keysym.scancode)),
+			  key_code (static_cast <keycode> (e.key.keysym.sym)),
+			  key_mod (e.key.keysym.mod) {
 		}
 	};
 
 	d_SDLPP_OSTREAM(const keyboard&);
 
 
-#define d_DEFINE_NO_MEMBERS_EVENT_WIN(NAME)                         		\
-  class NAME : public detail::window_event                          		\
-  {                                                                 		\
-    public: explicit NAME (const SDL_WindowEvent& e)                		\
-      : detail::window_event (e.windowID) {}                        		\
-  };                                                                  		\
+#define d_DEFINE_NO_MEMBERS_EVENT_WIN(NAME)                         \
+  class NAME : public detail::window_event                          \
+  {                                                                 \
+    public: explicit NAME (const SDL_Event& e)                		\
+      : detail::window_event (e.window.windowID, e) {}             	\
+  };                                                               	\
   d_SDLPP_OSTREAM(const NAME&)
 
 
@@ -80,9 +100,10 @@ namespace neutrino::sdl::events {
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_close);
 
 #define d_DEFINE_NO_MEMBERS_EVENT(NAME)         							\
-  class NAME                                    							\
+  class NAME : public detail::common_event        							\
   {                                             							\
-    public: NAME () {}                          							\
+    public: explicit NAME (const SDL_Event &e)         						\
+	: detail::common_event(e) {}          									\
   };                          						                        \
   d_SDLPP_OSTREAM(const NAME&)
 
@@ -124,10 +145,10 @@ namespace neutrino::sdl::events {
 		unsigned x;
 		unsigned y;
 
-		explicit window_moved (const SDL_WindowEvent& e)
-			: detail::window_event (e.windowID),
-			  x (static_cast <unsigned> (e.data1)),
-			  y (static_cast <unsigned> (e.data2)) {
+		explicit window_moved (const SDL_Event& e)
+			: detail::window_event (e.window.windowID, e),
+			  x (static_cast <unsigned> (e.window.data1)),
+			  y (static_cast <unsigned> (e.window.data2)) {
 		}
 	};
 
@@ -145,10 +166,10 @@ namespace neutrino::sdl::events {
 		unsigned w;
 		unsigned h;
 
-		explicit window_resized (const SDL_WindowEvent& e)
-			: detail::window_event (e.windowID),
-			  w (static_cast <unsigned> (e.data1)),
-			  h (static_cast <unsigned> (e.data2)) {
+		explicit window_resized (const SDL_Event& e)
+			: detail::window_event (e.window.windowID, e),
+			  w (static_cast <unsigned> (e.window.data1)),
+			  h (static_cast <unsigned> (e.window.data2)) {
 		}
 	};
 
@@ -175,11 +196,11 @@ namespace neutrino::sdl::events {
 		unsigned start;
 		unsigned length;
 
-		explicit text_editing (const SDL_TextEditingEvent& e)
-			: detail::window_event (e.windowID),
-			  text (e.text),
-			  start (static_cast<unsigned>(e.start)),
-			  length (static_cast<unsigned>(e.length)) {
+		explicit text_editing (const SDL_Event& e)
+			: detail::window_event (e.edit.windowID, e),
+			  text (e.edit.text),
+			  start (static_cast<unsigned>(e.edit.start)),
+			  length (static_cast<unsigned>(e.edit.length)) {
 		}
 	};
 
@@ -205,9 +226,9 @@ namespace neutrino::sdl::events {
 
 		const char* text;
 
-		explicit text_input (const SDL_TextInputEvent& e)
-			: detail::window_event (e.windowID),
-			  text (e.text) {
+		explicit text_input (const SDL_Event& e)
+			: detail::window_event (e.text.windowID, e),
+			  text (e.text.text) {
 		}
 	};
 
@@ -265,14 +286,14 @@ namespace neutrino::sdl::events {
 		int xrel;
 		int yrel;
 
-		explicit mouse_motion (const SDL_MouseMotionEvent& e)
-			: detail::window_event (e.windowID),
-			  mouse_id (static_cast <mouse_id_t> (e.which)),
-			  state (detail::map_mousebutton_from_bitflags (e.state)),
-			  x (e.x),
-			  y (e.y),
-			  xrel (e.xrel),
-			  yrel (e.yrel) {
+		explicit mouse_motion (const SDL_Event& e)
+			: detail::window_event (e.motion.windowID, e),
+			  mouse_id (static_cast <mouse_id_t> (e.motion.which)),
+			  state (detail::map_mousebutton_from_bitflags (e.motion.state)),
+			  x (e.motion.x),
+			  y (e.motion.y),
+			  xrel (e.motion.xrel),
+			  yrel (e.motion.yrel) {
 		}
 	};
 
@@ -293,13 +314,13 @@ namespace neutrino::sdl::events {
 		int xrel;
 		int yrel;
 
-		explicit touch_device_motion (const SDL_MouseMotionEvent& e)
-			: detail::window_event (e.windowID),
-			  button (static_cast <uint32_t> (e.state)),
-			  x (e.x),
-			  y (e.y),
-			  xrel (e.xrel),
-			  yrel (e.yrel) {
+		explicit touch_device_motion (const SDL_Event& e)
+			: detail::window_event (e.motion.windowID, e),
+			  button (static_cast <uint32_t> (e.motion.state)),
+			  x (e.motion.x),
+			  y (e.motion.y),
+			  xrel (e.motion.xrel),
+			  yrel (e.motion.yrel) {
 		}
 	};
 
@@ -320,13 +341,13 @@ namespace neutrino::sdl::events {
 		int y;
 		bool pressed;
 
-		explicit mouse_button (const SDL_MouseButtonEvent& e)
-			: detail::window_event (e.windowID),
-			  mouse_id (static_cast <mouse_id_t> (e.which)),
-			  button (detail::map_mousebutton_from_bitflags (e.button)),
-			  x (e.x),
-			  y (e.y),
-			  pressed (e.state == SDL_PRESSED) {
+		explicit mouse_button (const SDL_Event& e)
+			: detail::window_event (e.button.windowID, e),
+			  mouse_id (static_cast <mouse_id_t> (e.button.which)),
+			  button (detail::map_mousebutton_from_bitflags (e.button.button)),
+			  x (e.button.x),
+			  y (e.button.y),
+			  pressed (e.button.state == SDL_PRESSED) {
 		}
 
 	};
@@ -349,12 +370,12 @@ namespace neutrino::sdl::events {
 		int y;
 		bool pressed;
 
-		explicit touch_device_button (const SDL_MouseButtonEvent& e)
-			: detail::window_event (e.windowID),
-			  button (static_cast <uint32_t> (e.button)),
-			  x (e.x),
-			  y (e.y),
-			  pressed (e.state == SDL_PRESSED) {
+		explicit touch_device_button (const SDL_Event& e)
+			: detail::window_event (e.button.windowID, e),
+			  button (static_cast <uint32_t> (e.button.button)),
+			  x (e.button.x),
+			  y (e.button.y),
+			  pressed (e.button.state == SDL_PRESSED) {
 		}
 	};
 
@@ -373,11 +394,11 @@ namespace neutrino::sdl::events {
 		int x;
 		int y;
 
-		explicit mouse_wheel (const SDL_MouseWheelEvent& e)
-			: detail::window_event (e.windowID),
-			  mouse_id (static_cast <mouse_id_t> (e.which)),
-			  x (e.x),
-			  y (e.y) {
+		explicit mouse_wheel (const SDL_Event& e)
+			: detail::window_event (e.wheel.windowID, e),
+			  mouse_id (static_cast <mouse_id_t> (e.wheel.which)),
+			  x (e.wheel.x),
+			  y (e.wheel.y) {
 		}
 	};
 
@@ -400,10 +421,10 @@ namespace neutrino::sdl::events {
 		int x;
 		int y;
 
-		explicit touch_device_wheel (const SDL_MouseWheelEvent& e)
-			: detail::window_event (e.windowID),
-			  x (e.x),
-			  y (e.y) {
+		explicit touch_device_wheel (const SDL_Event& e)
+			: detail::window_event (e.wheel.windowID, e),
+			  x (e.wheel.x),
+			  y (e.wheel.y) {
 		}
 	};
 	d_SDLPP_OSTREAM(const touch_device_wheel&);
@@ -424,10 +445,10 @@ namespace neutrino::sdl::events {
 		uint8_t axis;
 		signed short value;
 
-		explicit joystick_axis (const SDL_JoyAxisEvent& e)
-			: joystick (e.which),
-			  axis (e.axis),
-			  value (e.value) {
+		explicit joystick_axis (const SDL_Event& e)
+			: joystick (e.jaxis.which),
+			  axis (e.jaxis.axis),
+			  value (e.jaxis.value) {
 		}
 	};
 
@@ -444,11 +465,11 @@ namespace neutrino::sdl::events {
 		signed short xrel;
 		signed short yrel;
 
-		explicit joystick_ball (const SDL_JoyBallEvent& e)
-			: joystick (e.which),
-			  ball (e.ball),
-			  xrel (e.xrel),
-			  yrel (e.yrel) {
+		explicit joystick_ball (const SDL_Event& e)
+			: joystick (e.jball.which),
+			  ball (e.jball.ball),
+			  xrel (e.jball.xrel),
+			  yrel (e.jball.yrel) {
 		}
 	};
 
@@ -465,10 +486,10 @@ namespace neutrino::sdl::events {
 		Uint8 button;
 		bool pressed;
 
-		explicit joystick_button (const SDL_JoyButtonEvent& e)
-			: joystick (e.which),
-			  button (e.button),
-			  pressed (e.state == SDL_PRESSED) {
+		explicit joystick_button (const SDL_Event& e)
+			: joystick (e.jbutton.which),
+			  button (e.jbutton.button),
+			  pressed (e.jbutton.state == SDL_PRESSED) {
 		}
 	};
 
@@ -513,10 +534,10 @@ namespace neutrino::sdl::events {
 		Uint8 value;
 		joystick_hat_state state;
 
-		explicit joystick_hat (const SDL_JoyHatEvent& e)
-			: joystick (e.which),
-			  value (e.value),
-			  state (static_cast <joystick_hat_state>(e.value)) {
+		explicit joystick_hat (const SDL_Event& e)
+			: joystick (e.jhat.which),
+			  value (e.jhat.value),
+			  state (static_cast <joystick_hat_state>(e.jhat.value)) {
 		}
 	};
 
@@ -534,11 +555,10 @@ namespace neutrino::sdl::events {
 	 */
 	struct user {
 	 public:
-
-		explicit user (const SDL_UserEvent& u)
-			: code (u.code),
-			  data1 (u.data1),
-			  data2 (u.data2) {
+		explicit user (const SDL_Event& u)
+			: code (u.user.code),
+			  data1 (u.user.data1),
+			  data2 (u.user.data2) {
 
 		}
 
@@ -562,7 +582,8 @@ namespace neutrino::sdl::events {
 	d_SDLPP_OSTREAM(const user&);
 
 
-	using all_events_t = bsw::mp::type_list<
+	using event_t = std::variant<
+		std::monostate,
 		keyboard,
 		window_shown,
 		window_hidden,
@@ -597,11 +618,6 @@ namespace neutrino::sdl::events {
 		joystick_button,
 		joystick_hat,
 		user>;
-
-
-
-	using event_t = bsw::mp::type_list_to_variant_t<bsw::mp::type_list_prepend_t<std::monostate, all_events_t>>;
-
 	d_SDLPP_OSTREAM(const event_t&);
 }
 #endif //SDLPP_SYSTEM_EVENTS_HH

@@ -23,7 +23,7 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/events/events_dispatcher.hh
         ${PROJECT_INCLUDE}/sdlpp/events/system_events.hh
 
-        ${PROJECT_INCLUDE}/sdlpp/system/audio.hh
+        ${PROJECT_INCLUDE}/sdlpp/system/mixer.hh
         ${PROJECT_INCLUDE}/sdlpp/system/clipboard.hh
         ${PROJECT_INCLUDE}/sdlpp/system/cpu.hh
         ${PROJECT_INCLUDE}/sdlpp/system/display.hh
