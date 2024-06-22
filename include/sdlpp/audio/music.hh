@@ -59,8 +59,6 @@ namespace neutrino::sdl {
 		[[nodiscard]] format get_format() const;
 	};
 
-
-
 	namespace detail {
 		static inline constexpr std::array<music::format, 13> s_vals_of_music_format = {
 			music::format::NONE,

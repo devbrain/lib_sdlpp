@@ -8,7 +8,7 @@
 #include <chrono>
 #include <cstdint>
 
-#include <bsw/exception.hh>
+
 #include <sdlpp/detail/sdl2.hh>
 
 namespace neutrino::sdl {

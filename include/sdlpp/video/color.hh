@@ -21,11 +21,11 @@ namespace neutrino::sdl {
 	 * and accessing the individual color component values.
 	 */
 	struct color : public SDL_Color {
-		color ();
-		constexpr color (uint8_t r, uint8_t g, uint8_t b);
-		constexpr color (uint8_t r, uint8_t g, uint8_t b, uint8_t a);
-		explicit color (const SDL_Color& c);
-		color& operator= (const SDL_Color& c);
+		color();
+		constexpr color(uint8_t r, uint8_t g, uint8_t b);
+		constexpr color(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+		explicit color(const SDL_Color& c);
+		color& operator=(const SDL_Color& c);
 
 		/**
 		 * @brief Creates a color object from the given HSL values.
@@ -40,7 +40,7 @@ namespace neutrino::sdl {
 		 *
 		 * @see color
 		 */
-		static color from_hsl (uint8_t h, uint8_t s, uint8_t l);
+		static color from_hsl(uint8_t h, uint8_t s, uint8_t l);
 		/**
 		 * @brief Creates a color object from the given HSV values.
 		 *
@@ -52,7 +52,7 @@ namespace neutrino::sdl {
 		 * @param v The Value (brightness) value of the color (0-255).
 		 * @return The color object created from the given HSV values.
 		 */
-		static color from_hsv (uint8_t h, uint8_t s, uint8_t v);
+		static color from_hsv(uint8_t h, uint8_t s, uint8_t v);
 
 		/**
 		 * @brief Converts the color from RGB to HSL color space.
@@ -64,7 +64,7 @@ namespace neutrino::sdl {
 		 *
 		 * @see color
 		 */
-		[[nodiscard]] std::tuple<uint8_t, uint8_t, uint8_t> to_hsl () const;
+		[[nodiscard]] std::tuple <uint8_t, uint8_t, uint8_t> to_hsl() const;
 		/**
 		 * @brief Converts the color from RGB to HSV color space.
 		 *
@@ -75,26 +75,26 @@ namespace neutrino::sdl {
 		 *
 		 * @see color
 		 */
-		[[nodiscard]] std::tuple<uint8_t, uint8_t, uint8_t> to_hsv () const;
+		[[nodiscard]] std::tuple <uint8_t, uint8_t, uint8_t> to_hsv() const;
 	};
 
 	inline
-	bool operator== (const color& a, const color& b) {
+	bool operator==(const color& a, const color& b) {
 		return (a.r == b.r) && (a.g == b.g) && (a.b && b.b) && (a.a == b.a);
 	}
 
 	inline
-	bool operator!= (const color& a, const color& b) {
+	bool operator!=(const color& a, const color& b) {
 		return !(a == b);
 	}
 
 	d_SDLPP_OSTREAM_WITHOT_FROM_STRING(const color&);
 
-	inline constexpr color::color (uint8_t r, uint8_t g, uint8_t b)
+	inline constexpr color::color(uint8_t r, uint8_t g, uint8_t b)
 		: SDL_Color{r, g, b, 0xFF} {
 	}
 
-	inline constexpr color::color (uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+	inline constexpr color::color(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 		: SDL_Color{r, g, b, a} {
 	}
 } // ns sdl
@@ -104,17 +104,15 @@ namespace neutrino::sdl {
 // =========================================================================
 
 namespace neutrino::sdl {
-	inline color::color ()
+	inline color::color()
 		: SDL_Color{0, 0, 0, 0} {
-
 	}
 
-	inline color::color (const SDL_Color& c)
+	inline color::color(const SDL_Color& c)
 		: SDL_Color{c.r, c.g, c.b, c.a} {
-
 	}
 
-	inline color& color::operator= (const SDL_Color& c) {
+	inline color& color::operator=(const SDL_Color& c) {
 		r = c.r;
 		g = c.g;
 		b = c.b;
@@ -127,7 +125,7 @@ namespace neutrino::sdl {
 	}
 
 	inline
-	color color::from_hsl (uint8_t h_, uint8_t s_, uint8_t l_) {
+	color color::from_hsl(uint8_t h_, uint8_t s_, uint8_t l_) {
 		double r, g, b, h, s, l; //this function works with floats between 0 and 1
 		double temp1, temp2, tempr, tempg, tempb;
 		h = h_ / 256.0;
@@ -135,10 +133,10 @@ namespace neutrino::sdl {
 		l = l_ / 256.0;
 
 		//If saturation is 0, the color is a shade of gray
-		if (std::abs (s) < detail::EPSILON) {
+		if (std::abs(s) < detail::EPSILON) {
 			r = g = b = l;
 		}
-			//If saturation > 0, more complex calculations are needed
+		//If saturation > 0, more complex calculations are needed
 		else {
 			//Set the temporary values
 			if (l < 0.5) {
@@ -172,7 +170,7 @@ namespace neutrino::sdl {
 				}
 			}
 
-//Green
+			//Green
 			if (tempg < 1.0 / 6.0) {
 				g = temp1 + (temp2 - temp1) * 6.0 * tempg;
 			} else {
@@ -187,7 +185,7 @@ namespace neutrino::sdl {
 				}
 			}
 
-//Blue
+			//Blue
 			if (tempb < 1.0 / 6.0) {
 				b = temp1 + (temp2 - temp1) * 6.0 * tempb;
 			} else {
@@ -202,53 +200,57 @@ namespace neutrino::sdl {
 				}
 			}
 		}
-		return {static_cast
-					<uint8_t>(r
-							  * 256), static_cast
-					<uint8_t>(g
-							  * 256), static_cast
-					<uint8_t>(b
-							  * 256)};
+		return {
+			static_cast
+			<uint8_t>(r
+			          * 256),
+			static_cast
+			<uint8_t>(g
+			          * 256),
+			static_cast
+			<uint8_t>(b
+			          * 256)
+		};
 	}
 
-	inline color color::from_hsv (uint8_t h_, uint8_t s_, uint8_t v_) {
+	inline color color::from_hsv(uint8_t h_, uint8_t s_, uint8_t v_) {
 		double r, g, b, h, s, v; //this function works with floats between 0 and 1
 		h = h_ / 256.0;
 		s = s_ / 256.0;
 		v = v_ / 256.0;
 
 		//If saturation is 0, the color is a shade of gray
-		if (std::abs (s) < detail::EPSILON) {
+		if (std::abs(s) < detail::EPSILON) {
 			r = g = b = v;
 		}
-			//If saturation > 0, more complex calculations are needed
+		//If saturation > 0, more complex calculations are needed
 		else {
 			double f, p, q, t;
 			int i;
 			h *= 6; //to bring hue to a number between 0 and 6, better for the calculations
-			i = int (floor (h));  //e.g. 2.7 becomes 2 and 3.01 becomes 3 or 4.9999 becomes 4
-			f = h - i;  //the fractional part of h
+			i = int(floor(h)); //e.g. 2.7 becomes 2 and 3.01 becomes 3 or 4.9999 becomes 4
+			f = h - i; //the fractional part of h
 			p = v * (1 - s);
 			q = v * (1 - (s * f));
 			t = v * (1 - (s * (1 - f)));
 			switch (i) {
-				case 0:r = v;
+				case 0: r = v;
 					g = t;
 					b = p;
 					break;
-				case 1:r = q;
+				case 1: r = q;
 					g = v;
 					b = p;
 					break;
-				case 2:r = p;
+				case 2: r = p;
 					g = v;
 					b = t;
 					break;
-				case 3:r = p;
+				case 3: r = p;
 					g = q;
 					b = v;
 					break;
-				case 4:r = t;
+				case 4: r = t;
 					g = p;
 					b = v;
 					break;
@@ -257,22 +259,21 @@ namespace neutrino::sdl {
 					g = p;
 					b = q;
 					break;
-
 			}
 		}
-		return {static_cast<uint8_t >(r * 256), static_cast<uint8_t >(g * 256), static_cast<uint8_t >(b * 256)};
+		return {static_cast <uint8_t>(r * 256), static_cast <uint8_t>(g * 256), static_cast <uint8_t>(b * 256)};
 	}
 
 	inline
-	std::tuple<uint8_t, uint8_t, uint8_t> color::to_hsl () const {
+	std::tuple <uint8_t, uint8_t, uint8_t> color::to_hsl() const {
 		double fr, fg, fb, h, s, l; //this function works with floats between 0 and 1
 		fr = r / 256.0;
 		fg = g / 256.0;
 		fb = b / 256.0;
-		auto maxColor = std::max (fr, std::max (fg, fb));
-		auto minColor = std::min (fr, std::min (fg, fb));
+		auto maxColor = std::max(fr, std::max(fg, fb));
+		auto minColor = std::min(fr, std::min(fg, fb));
 		//R == G == B, so it's a shade of gray
-		if (std::abs (minColor - maxColor) < detail::EPSILON) {
+		if (std::abs(minColor - maxColor) < detail::EPSILON) {
 			h = 0.0; //it doesn't matter what value it has
 			s = 0.0;
 			l = fr; //doesn't matter if you pick r, g, or b
@@ -285,10 +286,10 @@ namespace neutrino::sdl {
 				s = (maxColor - minColor) / (2.0 - maxColor - minColor);
 			}
 
-			if (std::abs (fr - maxColor) < detail::EPSILON) {
+			if (std::abs(fr - maxColor) < detail::EPSILON) {
 				h = (fg - fb) / (maxColor - minColor);
 			} else {
-				if (std::abs (fg - maxColor) < detail::EPSILON) {
+				if (std::abs(fg - maxColor) < detail::EPSILON) {
 					h = 2.0 + (fb - fr) / (maxColor - minColor);
 				} else {
 					h = 4.0 + (fr - fg) / (maxColor - minColor);
@@ -300,31 +301,31 @@ namespace neutrino::sdl {
 				h++;
 			}
 		}
-		return {static_cast<uint8_t>(256 * h), static_cast<uint8_t>(256 * s), static_cast<uint8_t>(256 * l)};
+		return {static_cast <uint8_t>(256 * h), static_cast <uint8_t>(256 * s), static_cast <uint8_t>(256 * l)};
 	}
 
 	inline
-	std::tuple<uint8_t, uint8_t, uint8_t> color::to_hsv () const {
+	std::tuple <uint8_t, uint8_t, uint8_t> color::to_hsv() const {
 		double fr, fg, fb, h, s, v; //this function works with floats between 0 and 1
 		fr = r / 256.0;
 		fg = g / 256.0;
 		fb = b / 256.0;
-		auto maxColor = std::max (fr, std::max (fg, fb));
-		auto minColor = std::min (fr, std::min (fg, fb));
+		auto maxColor = std::max(fr, std::max(fg, fb));
+		auto minColor = std::min(fr, std::min(fg, fb));
 		v = maxColor;
-		if (std::abs (maxColor) < detail::EPSILON) //avoid division by zero when the color is black
+		if (std::abs(maxColor) < detail::EPSILON) //avoid division by zero when the color is black
 		{
 			s = 0;
 		} else {
 			s = (maxColor - minColor) / maxColor;
 		}
-		if (std::abs (s) < detail::EPSILON) {
+		if (std::abs(s) < detail::EPSILON) {
 			h = 0; //it doesn't matter what value it has
 		} else {
-			if (std::abs (r - maxColor) < detail::EPSILON) {
+			if (std::abs(r - maxColor) < detail::EPSILON) {
 				h = (fg - fb) / (maxColor - minColor);
 			} else {
-				if (std::abs (fg - maxColor) < detail::EPSILON) {
+				if (std::abs(fg - maxColor) < detail::EPSILON) {
 					h = 2.0 + (fb - fr) / (maxColor - minColor);
 				} else {
 					h = 4.0 + (fr - fg) / (maxColor - minColor);
@@ -335,9 +336,8 @@ namespace neutrino::sdl {
 				h++;
 			}
 		}
-		return {static_cast<uint8_t>(256 * h), static_cast<uint8_t>(256 * s), static_cast<uint8_t>(256 * v)};
+		return {static_cast <uint8_t>(256 * h), static_cast <uint8_t>(256 * s), static_cast <uint8_t>(256 * v)};
 	}
-
 }
 
 #endif

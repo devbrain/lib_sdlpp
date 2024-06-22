@@ -9,7 +9,6 @@
 #include <array>
 #include <type_traits>
 
-#include <bsw/mp/all_same.hh>
 #include <sdlpp/detail/call.hh>
 #include <sdlpp/detail/sdl2.hh>
 
@@ -29,7 +28,7 @@ namespace neutrino::sdl {
 	class system {
 	 public:
 		template <typename ... Args,
-			typename std::enable_if_t<std::conjunction_v<std::is_same<Args, init_flags>...>, void*> = nullptr>
+		          std::enable_if_t<std::conjunction_v<std::is_same<Args, init_flags>...>, void*> = nullptr>
 		explicit system (Args... flags);
 
 		~system () noexcept;
@@ -53,18 +52,18 @@ namespace neutrino::sdl {
 		};
 	}
 	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_init_flags)&
-	values(typename std::enable_if<std::is_same_v<init_flags, T>>::type* = nullptr) {
+	static constexpr const decltype(detail::s_vals_of_init_flags)&
+	values(std::enable_if_t<std::is_same_v<init_flags, T>>* = nullptr) {
 		return detail::s_vals_of_init_flags;
 	}
 	template <typename T>
-	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<init_flags, T>>::type* = nullptr) {
+	static constexpr auto
+	begin(std::enable_if_t<std::is_same_v<init_flags, T>>* = nullptr) {
 		return detail::s_vals_of_init_flags.begin();
 	}
 	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<init_flags, T>>::type* = nullptr) {
+	static constexpr auto
+	end(std::enable_if_t<std::is_same_v<init_flags, T>>* = nullptr) {
 		return detail::s_vals_of_init_flags.end();
 	}
 

@@ -19,66 +19,68 @@
 
 #include <bitflags/bitflags.hpp>
 
-
 namespace neutrino::sdl {
-	using haptic_axis_t   = strong::type<std::size_t, struct _haptic_axis_, strong::bicrementable, strong::ordered, strong::ostreamable>;
-	using haptic_effect_t = strong::type<std::size_t, struct _haptic_effect_, strong::bicrementable, strong::ordered, strong::ostreamable>;
+	using haptic_axis_t = strong::type <std::size_t, struct _haptic_axis_, strong::bicrementable, strong::ordered,
+	                                    strong::ostreamable>;
+	using haptic_effect_t = strong::type <std::size_t, struct _haptic_effect_, strong::bicrementable, strong::ordered,
+	                                      strong::ostreamable>;
 
-	class haptic : public object<SDL_Haptic> {
-	 public:
-		BEGIN_BITFLAGS(features)
-			FLAG(CONSTANT_EFFECT)
-			FLAG(SINE)
-			FLAG(LEFT_RIGHT)
-			FLAG(TRIANGLE)
-			FLAG(SAWTOOTHUP)
-			FLAG(SAWTOOTHDOWN)
-			FLAG(RAMP)
-			FLAG(SPRING)
-			FLAG(DUMPER)
-			FLAG(INERTIA)
-			FLAG(FRICTION)
-			FLAG(CUSTOM)
-			FLAG(GAIN)
-			FLAG(AUTOCENTER)
-			FLAG(STATUS)
-			FLAG(PAUSE)
-		END_BITFLAGS(features)
-	 public:
-		haptic() = default;
-		haptic& operator= (object<SDL_Haptic>&& other) noexcept;
-		haptic& operator= (haptic&& other) noexcept;
+	class haptic : public object <SDL_Haptic> {
+		public:
+			BEGIN_BITFLAGS(features)
+				FLAG(CONSTANT_EFFECT)
+				FLAG(SINE)
+				FLAG(LEFT_RIGHT)
+				FLAG(TRIANGLE)
+				FLAG(SAWTOOTHUP)
+				FLAG(SAWTOOTHDOWN)
+				FLAG(RAMP)
+				FLAG(SPRING)
+				FLAG(DUMPER)
+				FLAG(INERTIA)
+				FLAG(FRICTION)
+				FLAG(CUSTOM)
+				FLAG(GAIN)
+				FLAG(AUTOCENTER)
+				FLAG(STATUS)
+				FLAG(PAUSE)
+			END_BITFLAGS(features)
 
-		haptic& operator= (const haptic& other) = delete;
-		haptic (const haptic& other) = delete;
+		public:
+			haptic() = default;
+			haptic& operator=(object <SDL_Haptic>&& other) noexcept;
+			haptic& operator=(haptic&& other) noexcept;
 
-		[[nodiscard]] bool has_rumble() const;
-		void rumble_init();
-		void rumble_play(float strength, std::chrono::milliseconds duration);
-		void rumble_stop();
+			haptic& operator=(const haptic& other) = delete;
+			haptic(const haptic& other) = delete;
 
-		void stop();
-		void stop(haptic_effect_t effect);
-		[[nodiscard]] bool can_pause() const;
-		void pause(bool enabled);
-		[[nodiscard]] bool can_set_gain() const;
-		void set_gain(unsigned value);
-		[[nodiscard]] bool can_set_autocenter() const;
-		void set_autocenter(unsigned value);
+			[[nodiscard]] bool has_rumble() const;
+			void rumble_init();
+			void rumble_play(float strength, std::chrono::milliseconds duration);
+			void rumble_stop();
 
-		[[nodiscard]] features get_features() const;
+			void stop();
+			void stop(haptic_effect_t effect);
+			[[nodiscard]] bool can_pause() const;
+			void pause(bool enabled);
+			[[nodiscard]] bool can_set_gain() const;
+			void set_gain(unsigned value);
+			[[nodiscard]] bool can_set_autocenter() const;
+			void set_autocenter(unsigned value);
 
-		[[nodiscard]] haptic_axis_t cout_axes() const;
+			[[nodiscard]] features get_features() const;
 
-		haptic_effect_t register_effect(SDL_HapticEffect& effect);
-		void unregister_effect(haptic_effect_t effect);
+			[[nodiscard]] haptic_axis_t cout_axes() const;
 
-		void play (haptic_effect_t effect, uint32_t iterations);
-		void play_inf (haptic_effect_t effect);
+			haptic_effect_t register_effect(SDL_HapticEffect& effect);
+			void unregister_effect(haptic_effect_t effect);
+
+			void play(haptic_effect_t effect, uint32_t iterations);
+			void play_inf(haptic_effect_t effect);
 	};
 
 	namespace detail {
-		static inline constexpr std::array<haptic::features::flag_type, 16> s_vals_of_haptic_features = {
+		static inline constexpr std::array <haptic::features::flag_type, 16> s_vals_of_haptic_features = {
 			haptic::features::CONSTANT_EFFECT,
 			haptic::features::SINE,
 			haptic::features::LEFT_RIGHT,
@@ -97,101 +99,101 @@ namespace neutrino::sdl {
 			haptic::features::PAUSE,
 		};
 	}
-	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_haptic_features)&
-	values(typename std::enable_if<std::is_same_v<haptic::features, T>>::type* = nullptr) {
+
+	template<typename T>
+	static constexpr const decltype(detail::s_vals_of_haptic_features)&
+	values(std::enable_if_t <std::is_same_v <haptic::features, T>>* = nullptr) {
 		return detail::s_vals_of_haptic_features;
 	}
-	template <typename T>
-	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<haptic::features, T>>::type* = nullptr) {
+
+	template<typename T>
+	static constexpr auto
+	begin(std::enable_if_t <std::is_same_v <haptic::features, T>>* = nullptr) {
 		return detail::s_vals_of_haptic_features.begin();
 	}
-	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<haptic::features, T>>::type* = nullptr) {
+
+	template<typename T>
+	static constexpr auto
+	end(std::enable_if_t <std::is_same_v <haptic::features, T>>* = nullptr) {
 		return detail::s_vals_of_haptic_features.end();
 	}
-
 
 	d_SDLPP_OSTREAM(haptic::features);
 
 	inline
-	haptic& haptic::operator= (object<SDL_Haptic>&& other) noexcept {
-		object<SDL_Haptic>::operator= (std::move (other));
+	haptic& haptic::operator=(object <SDL_Haptic>&& other) noexcept {
+		object <SDL_Haptic>::operator=(std::move(other));
 		return *this;;
 	}
 
 	inline
-	haptic& haptic::operator= (haptic&& other) noexcept {
-		object<SDL_Haptic>::operator= (std::move (other));
+	haptic& haptic::operator=(haptic&& other) noexcept {
+		object <SDL_Haptic>::operator=(std::move(other));
 		return *this;
 	}
 
-
-
 	inline
-	bool haptic::has_rumble () const {
-		return SDL_HapticRumbleSupported (const_handle()) == SDL_TRUE;
+	bool haptic::has_rumble() const {
+		return SDL_HapticRumbleSupported(const_handle()) == SDL_TRUE;
 	}
 
 	inline
-	void haptic::rumble_init () {
+	void haptic::rumble_init() {
 		SAFE_SDL_CALL(SDL_HapticRumbleInit, handle());
 	}
 
 	inline
-	void haptic::rumble_play (float strength, std::chrono::milliseconds duration) {
+	void haptic::rumble_play(float strength, std::chrono::milliseconds duration) {
 		SAFE_SDL_CALL(SDL_HapticRumblePlay, handle(), strength, static_cast<uint32_t>(duration.count()));
 	}
 
 	inline
-	void haptic::rumble_stop () {
-		SDL_HapticRumbleStop (handle());
+	void haptic::rumble_stop() {
+		SDL_HapticRumbleStop(handle());
 	}
 
 	inline
-	void haptic::stop () {
-		SDL_HapticStopAll (handle());
+	void haptic::stop() {
+		SDL_HapticStopAll(handle());
 	}
 
 	inline
-	void haptic::pause (bool enabled) {
+	void haptic::pause(bool enabled) {
 		if (enabled) {
-			SDL_HapticPause (handle());
+			SDL_HapticPause(handle());
 		} else {
-			SDL_HapticUnpause (handle());
+			SDL_HapticUnpause(handle());
 		}
 	}
 
 	inline
-	void haptic::set_gain (unsigned int value) {
-		SDL_HapticSetGain (handle(), clamp(static_cast<int>(value), 0, 100));
+	void haptic::set_gain(unsigned int value) {
+		SDL_HapticSetGain(handle(), clamp(static_cast <int>(value), 0, 100));
 	}
 
 	inline
-	void haptic::set_autocenter (unsigned int value) {
-		SDL_HapticSetAutocenter (handle(), clamp(static_cast<int>(value), 0, 100));
+	void haptic::set_autocenter(unsigned int value) {
+		SDL_HapticSetAutocenter(handle(), clamp(static_cast <int>(value), 0, 100));
 	}
 
 	inline
-	bool haptic::can_pause () const {
-		return (SDL_HapticQuery (const_handle()) & SDL_HAPTIC_PAUSE) == SDL_HAPTIC_PAUSE;
+	bool haptic::can_pause() const {
+		return (SDL_HapticQuery(const_handle()) & SDL_HAPTIC_PAUSE) == SDL_HAPTIC_PAUSE;
 	}
 
 	inline
-	bool haptic::can_set_gain () const {
-		return (SDL_HapticQuery (const_handle()) & SDL_HAPTIC_GAIN) == SDL_HAPTIC_GAIN;
+	bool haptic::can_set_gain() const {
+		return (SDL_HapticQuery(const_handle()) & SDL_HAPTIC_GAIN) == SDL_HAPTIC_GAIN;
 	}
 
 	inline
-	bool haptic::can_set_autocenter () const {
-		return (SDL_HapticQuery (const_handle()) & SDL_HAPTIC_AUTOCENTER) == SDL_HAPTIC_AUTOCENTER;
+	bool haptic::can_set_autocenter() const {
+		return (SDL_HapticQuery(const_handle()) & SDL_HAPTIC_AUTOCENTER) == SDL_HAPTIC_AUTOCENTER;
 	}
 
 	inline
-	haptic::features haptic::get_features () const {
-		static std::array<uint16_t, 16> sdl_features {
+	haptic::features haptic::get_features() const {
+		static std::array <uint16_t, 16> sdl_features{
 			SDL_HAPTIC_CONSTANT,
 			SDL_HAPTIC_SINE,
 			SDL_HAPTIC_LEFTRIGHT,
@@ -209,51 +211,51 @@ namespace neutrino::sdl {
 			SDL_HAPTIC_STATUS,
 			SDL_HAPTIC_PAUSE
 		};
-		static auto my_features = values<features>();
+		static auto my_features = values <features>();
 
-		auto f = SDL_HapticQuery (const_handle());
-		static_assert (sdl_features.size() == my_features.size());
+		auto f = SDL_HapticQuery(const_handle());
+		static_assert(sdl_features.size() == my_features.size());
 		features out{};
-		for (int i=0u; i<sdl_features.size(); i++) {
+		for (int i = 0u; i < sdl_features.size(); i++) {
 			if ((f & sdl_features[i]) == sdl_features[i]) {
-				out.set (my_features[i]);
+				out.set(my_features[i]);
 			}
 		}
 		return out;
 	}
 
 	inline
-	haptic_axis_t haptic::cout_axes () const {
+	haptic_axis_t haptic::cout_axes() const {
 		auto rc = SDL_HapticNumAxes(const_handle());
 		if (rc >= 0) {
-			return haptic_axis_t {static_cast<std::size_t>(rc)};
+			return haptic_axis_t{static_cast <std::size_t>(rc)};
 		}
-		return haptic_axis_t {0};
+		return haptic_axis_t{0};
 	}
 
 	inline
-	void haptic::play (haptic_effect_t effect, uint32_t iterations) {
+	void haptic::play(haptic_effect_t effect, uint32_t iterations) {
 		SAFE_SDL_CALL(SDL_HapticRunEffect, handle(), static_cast<int>(effect.value_of()), iterations);
 	}
 
 	inline
-	void haptic::play_inf (haptic_effect_t effect) {
+	void haptic::play_inf(haptic_effect_t effect) {
 		SAFE_SDL_CALL(SDL_HapticRunEffect, handle(), static_cast<int>(effect.value_of()), SDL_HAPTIC_INFINITY);
 	}
 
 	inline
-	haptic_effect_t haptic::register_effect (SDL_HapticEffect& effect) {
-		return haptic_effect_t {static_cast<std::size_t>(SAFE_SDL_CALL(SDL_HapticNewEffect, handle(), &effect))};
+	haptic_effect_t haptic::register_effect(SDL_HapticEffect& effect) {
+		return haptic_effect_t{static_cast <std::size_t>(SAFE_SDL_CALL(SDL_HapticNewEffect, handle(), &effect))};
 	}
 
 	inline
-	void haptic::unregister_effect (haptic_effect_t effect) {
-		SDL_HapticDestroyEffect (handle(), static_cast<int>(effect.value_of()));
+	void haptic::unregister_effect(haptic_effect_t effect) {
+		SDL_HapticDestroyEffect(handle(), static_cast <int>(effect.value_of()));
 	}
 
 	inline
-	void haptic::stop (haptic_effect_t effect) {
-		SDL_HapticStopEffect (handle(), static_cast<int>(effect.value_of()));
+	void haptic::stop(haptic_effect_t effect) {
+		SDL_HapticStopEffect(handle(), static_cast <int>(effect.value_of()));
 	}
 }
 

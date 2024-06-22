@@ -48,18 +48,18 @@ namespace neutrino::sdl {
 		};
 	}
 	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_system_cursor)&
-	values(typename std::enable_if<std::is_same_v<system_cursor, T>>::type* = nullptr) {
+	static constexpr const decltype(detail::s_vals_of_system_cursor)&
+	values(std::enable_if_t<std::is_same_v<system_cursor, T>>* = nullptr) {
 		return detail::s_vals_of_system_cursor;
 	}
 	template <typename T>
-	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<system_cursor, T>>::type* = nullptr) {
+	static constexpr auto
+	begin(std::enable_if_t<std::is_same_v<system_cursor, T>>* = nullptr) {
 		return detail::s_vals_of_system_cursor.begin();
 	}
 	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<system_cursor, T>>::type* = nullptr) {
+	static constexpr auto
+	end(std::enable_if_t<std::is_same_v<system_cursor, T>>* = nullptr) {
 		return detail::s_vals_of_system_cursor.end();
 	}
 

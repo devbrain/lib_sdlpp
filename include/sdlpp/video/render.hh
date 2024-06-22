@@ -816,7 +816,7 @@ namespace neutrino::sdl {
 		void draw_latin1_string (int x, int y, const std::string& s);
 		void draw_latin1_string (const point& p, const std::string& s);
 
-		void present () noexcept;
+		void present () const noexcept;
 
 	};
 
@@ -1210,7 +1210,7 @@ namespace neutrino::sdl {
 
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
-	void renderer::present () noexcept {
+	void renderer::present () const noexcept {
 		SDL_RenderPresent (const_handle ());
 	}
 
@@ -1284,18 +1284,18 @@ namespace neutrino::sdl {
 		};
 	}
 	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_renderer_flags)&
-	values(typename std::enable_if<std::is_same_v<renderer::flags, T>>::type* = nullptr) {
+	static constexpr const decltype(detail::s_vals_of_renderer_flags)&
+	values(std::enable_if_t<std::is_same_v<renderer::flags, T>>* = nullptr) {
 		return detail::s_vals_of_renderer_flags;
 	}
 	template <typename T>
-	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<renderer::flags, T>>::type* = nullptr) {
+	static constexpr auto
+	begin(std::enable_if_t<std::is_same_v<renderer::flags, T>>* = nullptr) {
 		return detail::s_vals_of_renderer_flags.begin();
 	}
 	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<renderer::flags, T>>::type* = nullptr) {
+	static constexpr auto
+	end(std::enable_if_t<std::is_same_v<renderer::flags, T>>* = nullptr) {
 		return detail::s_vals_of_renderer_flags.end();
 	}
 
@@ -1308,18 +1308,18 @@ namespace neutrino::sdl {
 		};
 	}
 	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_renderer_flip)&
-	values(typename std::enable_if<std::is_same_v<renderer::flip, T>>::type* = nullptr) {
+	static constexpr const decltype(detail::s_vals_of_renderer_flip)&
+	values(std::enable_if_t<std::is_same_v<renderer::flip, T>>* = nullptr) {
 		return detail::s_vals_of_renderer_flip;
 	}
 	template <typename T>
-	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<renderer::flip, T>>::type* = nullptr) {
+	static constexpr auto
+	begin(std::enable_if_t<std::is_same_v<renderer::flip, T>>* = nullptr) {
 		return detail::s_vals_of_renderer_flip.begin();
 	}
 	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<renderer::flip, T>>::type* = nullptr) {
+	static constexpr auto
+	end(std::enable_if_t<std::is_same_v<renderer::flip, T>>* = nullptr) {
 		return detail::s_vals_of_renderer_flip.end();
 	}
 

@@ -10,7 +10,6 @@
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/detail/call.hh>
 #include <sdlpp/detail/sdl_string.hh>
-#include <bsw/errors.hh>
 
 namespace neutrino::sdl {
 	inline
@@ -33,7 +32,7 @@ namespace neutrino::sdl {
 	std::string get_clipboard() {
 		const char* text = SDL_GetClipboardText();
 		ENFORCE(text);
-		detail::sdl_string s = std::move(text);
+		const detail::sdl_string s(std::move(text));
 		return s.copy();
 	}
 }

@@ -28,18 +28,18 @@ namespace neutrino::sdl {
 		};
 	}
 	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_blend_mode)&
-	values(typename std::enable_if<std::is_same_v<blend_mode, T>>::type* = nullptr) {
+	static constexpr const decltype(detail::s_vals_of_blend_mode)&
+	values(std::enable_if_t<std::is_same_v<blend_mode, T>>* = nullptr) {
 		return detail::s_vals_of_blend_mode;
 	}
 	template <typename T>
-	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<blend_mode, T>>::type* = nullptr) {
+	static constexpr auto
+	begin(std::enable_if_t<std::is_same_v<blend_mode, T>>* = nullptr) {
 		return detail::s_vals_of_blend_mode.begin();
 	}
 	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<blend_mode, T>>::type* = nullptr) {
+	static constexpr auto
+	end(std::enable_if_t<std::is_same_v<blend_mode, T>>* = nullptr) {
 		return detail::s_vals_of_blend_mode.end();
 	}
 

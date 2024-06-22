@@ -21,33 +21,34 @@ namespace neutrino::sdl {
 	 * relative to the current read point, or relative to the end of the data.
 	 */
 	enum class whence : int {
-		SET = RW_SEEK_SET,  /**< Seek from the beginning of data */
+		SET = RW_SEEK_SET, /**< Seek from the beginning of data */
 		CUR = RW_SEEK_CUR, /**< Seek relative to current read point */
-		END = RW_SEEK_END  /**< Seek relative to the end of data */
+		END = RW_SEEK_END /**< Seek relative to the end of data */
 	};
 
-
-
 	namespace detail {
-		static inline constexpr std::array<whence, 3> s_vals_of_whence = {
+		static inline constexpr std::array <whence, 3> s_vals_of_whence = {
 			whence::SET,
 			whence::CUR,
 			whence::END,
 		};
 	}
-	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_whence)&
-	values(typename std::enable_if<std::is_same_v<whence, T>>::type* = nullptr) {
+
+	template<typename T>
+	static constexpr const decltype(detail::s_vals_of_whence)&
+	values(std::enable_if_t <std::is_same_v <whence, T>>* = nullptr) {
 		return detail::s_vals_of_whence;
 	}
-	template <typename T>
-	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<whence, T>>::type* = nullptr) {
+
+	template<typename T>
+	static constexpr auto
+	begin(std::enable_if_t <std::is_same_v <whence, T>>* = nullptr) {
 		return detail::s_vals_of_whence.begin();
 	}
-	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<whence, T>>::type* = nullptr) {
+
+	template<typename T>
+	static constexpr auto
+	end(std::enable_if_t <std::is_same_v <whence, T>>* = nullptr) {
 		return detail::s_vals_of_whence.end();
 	}
 

@@ -20,31 +20,35 @@ namespace neutrino::sdl::events {
 
 	namespace detail {
 		class common_event {
-		 public:
-			const std::chrono::milliseconds timestamp;
-		 public:
-			common_event()
-			: timestamp(SDL_GetTicks()) {
+			public:
+				const std::chrono::milliseconds timestamp;
 
-			}
+			public:
+				common_event()
+					: timestamp(SDL_GetTicks()) {
+				}
 
-			explicit common_event(uint32_t ms)
-			: timestamp(ms) {}
+				explicit common_event(uint32_t ms)
+					: timestamp(ms) {
+				}
 
-			explicit common_event(std::chrono::milliseconds timestamp_)
-			: timestamp(timestamp_) {}
+				explicit common_event(std::chrono::milliseconds timestamp_)
+					: timestamp(timestamp_) {
+				}
 
-			explicit common_event(const SDL_Event& ev)
-			: timestamp(ev.common.timestamp) {}
-
+				explicit common_event(const SDL_Event& ev)
+					: timestamp(ev.common.timestamp) {
+				}
 		};
+
 		class window_event : public common_event {
-		 public:
-			const window_id_t window_id;
-		 protected:
-			explicit window_event (uint32_t wid, const SDL_Event ev)
-				: common_event(ev), window_id (wid) {
-			}
+			public:
+				const window_id_t window_id;
+
+			protected:
+				explicit window_event(const SDL_Event& ev)
+					: common_event(ev), window_id(ev.window.windowID) {
+				}
 		};
 	} // ns detail
 
@@ -57,35 +61,32 @@ namespace neutrino::sdl::events {
 	 * were pressed along with the key.
 	 */
 	class keyboard : public detail::window_event {
-	 public:
-		const bool pressed;
-		const bool repeat;
-		const scancode scan_code;
-		const keycode key_code;
-		const uint16_t key_mod;
+		public:
+			const bool pressed;
+			const bool repeat;
+			const scancode scan_code;
+			const keycode key_code;
+			const uint16_t key_mod;
 
-		explicit keyboard (const SDL_Event& e)
-			: detail::window_event (e.key.windowID, e),
-			  pressed (e.key.state == SDL_PRESSED),
-			  repeat (e.key.repeat > 0),
-			  scan_code (static_cast <scancode> (e.key.keysym.scancode)),
-			  key_code (static_cast <keycode> (e.key.keysym.sym)),
-			  key_mod (e.key.keysym.mod) {
-		}
+			explicit keyboard(const SDL_Event& e)
+				: window_event(e),
+				  pressed(e.key.state == SDL_PRESSED),
+				  repeat(e.key.repeat > 0),
+				  scan_code(static_cast <scancode>(e.key.keysym.scancode)),
+				  key_code(static_cast <keycode>(e.key.keysym.sym)),
+				  key_mod(e.key.keysym.mod) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const keyboard&);
-
 
 #define d_DEFINE_NO_MEMBERS_EVENT_WIN(NAME)                         \
   class NAME : public detail::window_event                          \
   {                                                                 \
     public: explicit NAME (const SDL_Event& e)                		\
-      : detail::window_event (e.window.windowID, e) {}             	\
+      : window_event (e) {}             							\
   };                                                               	\
   d_SDLPP_OSTREAM(const NAME&)
-
-
 
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_shown);
 	d_DEFINE_NO_MEMBERS_EVENT_WIN(window_hidden);
@@ -103,11 +104,11 @@ namespace neutrino::sdl::events {
   class NAME : public detail::common_event        							\
   {                                             							\
     public: explicit NAME (const SDL_Event &e)         						\
-	: detail::common_event(e) {}          									\
+	: common_event(e) {}          											\
   };                          						                        \
   d_SDLPP_OSTREAM(const NAME&)
 
-// urgent events
+	// urgent events
 	d_DEFINE_NO_MEMBERS_EVENT(terminating);
 	d_DEFINE_NO_MEMBERS_EVENT(low_memory);
 	d_DEFINE_NO_MEMBERS_EVENT(will_enter_background);
@@ -141,15 +142,15 @@ namespace neutrino::sdl::events {
 	 * \endcode
 	 */
 	class window_moved : public detail::window_event {
-	 public:
-		unsigned x;
-		unsigned y;
+		public:
+			unsigned x;
+			unsigned y;
 
-		explicit window_moved (const SDL_Event& e)
-			: detail::window_event (e.window.windowID, e),
-			  x (static_cast <unsigned> (e.window.data1)),
-			  y (static_cast <unsigned> (e.window.data2)) {
-		}
+			explicit window_moved(const SDL_Event& e)
+				: window_event(e),
+				  x(static_cast <unsigned>(e.window.data1)),
+				  y(static_cast <unsigned>(e.window.data2)) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const window_moved&);
@@ -162,19 +163,18 @@ namespace neutrino::sdl::events {
 	 * of the resized window.
 	 */
 	class window_resized : public detail::window_event {
-	 public:
-		unsigned w;
-		unsigned h;
+		public:
+			unsigned w;
+			unsigned h;
 
-		explicit window_resized (const SDL_Event& e)
-			: detail::window_event (e.window.windowID, e),
-			  w (static_cast <unsigned> (e.window.data1)),
-			  h (static_cast <unsigned> (e.window.data2)) {
-		}
+			explicit window_resized(const SDL_Event& e)
+				: window_event(e),
+				  w(static_cast <unsigned>(e.window.data1)),
+				  h(static_cast <unsigned>(e.window.data2)) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const window_resized&);
-
 
 	/**
 	 *  \class text_editing
@@ -188,20 +188,19 @@ namespace neutrino::sdl::events {
 	 *  \see window_event
 	 */
 	class text_editing : public detail::window_event {
+		public:
+			static constexpr size_t MAX_TEXT_LENGTH = SDL_TEXTEDITINGEVENT_TEXT_SIZE;
 
-	 public:
-		static constexpr size_t MAX_TEXT_LENGTH = SDL_TEXTEDITINGEVENT_TEXT_SIZE;
+			const char* text;
+			unsigned start;
+			unsigned length;
 
-		const char* text;
-		unsigned start;
-		unsigned length;
-
-		explicit text_editing (const SDL_Event& e)
-			: detail::window_event (e.edit.windowID, e),
-			  text (e.edit.text),
-			  start (static_cast<unsigned>(e.edit.start)),
-			  length (static_cast<unsigned>(e.edit.length)) {
-		}
+			explicit text_editing(const SDL_Event& e)
+				: detail::window_event(e),
+				  text(e.edit.text),
+				  start(static_cast <unsigned>(e.edit.start)),
+				  length(static_cast <unsigned>(e.edit.length)) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const text_editing&);
@@ -221,15 +220,15 @@ namespace neutrino::sdl::events {
 	 * a structure that holds text input event information.
 	 */
 	class text_input : public detail::window_event {
-	 public:
-		static constexpr size_t MAX_TEXT_LENGTH = SDL_TEXTEDITINGEVENT_TEXT_SIZE;
+		public:
+			static constexpr size_t MAX_TEXT_LENGTH = SDL_TEXTEDITINGEVENT_TEXT_SIZE;
 
-		const char* text;
+			const char* text;
 
-		explicit text_input (const SDL_Event& e)
-			: detail::window_event (e.text.windowID, e),
-			  text (e.text.text) {
-		}
+			explicit text_input(const SDL_Event& e)
+				: window_event(e),
+				  text(e.text.text) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const text_input&);
@@ -246,10 +245,10 @@ namespace neutrino::sdl::events {
 		FLAG(X2)
 	END_BITFLAGS(mousebutton)
 
-
 	d_SDLPP_OSTREAM(mousebutton);
+
 	namespace detail {
-		inline mousebutton map_mousebutton_from_bitflags (uint32_t b) {
+		inline mousebutton map_mousebutton_from_bitflags(uint32_t b) {
 			mousebutton out;
 			if ((b & SDL_BUTTON_LMASK) == SDL_BUTTON_LMASK) {
 				out |= mousebutton::LEFT;
@@ -277,28 +276,27 @@ namespace neutrino::sdl::events {
 	 *
 	 * It inherits from the window_event class and contains information about the mouse motion event, such as the mouse ID, button state, coordinates, and relative motion.
 	 */
-	struct mouse_motion : public detail::window_event {
-	 public:
-		mouse_id_t mouse_id;
-		mousebutton state;
-		int x;
-		int y;
-		int xrel;
-		int yrel;
+	class mouse_motion : public detail::window_event {
+		public:
+			mouse_id_t mouse_id;
+			mousebutton state;
+			int x;
+			int y;
+			int xrel;
+			int yrel;
 
-		explicit mouse_motion (const SDL_Event& e)
-			: detail::window_event (e.motion.windowID, e),
-			  mouse_id (static_cast <mouse_id_t> (e.motion.which)),
-			  state (detail::map_mousebutton_from_bitflags (e.motion.state)),
-			  x (e.motion.x),
-			  y (e.motion.y),
-			  xrel (e.motion.xrel),
-			  yrel (e.motion.yrel) {
-		}
+			explicit mouse_motion(const SDL_Event& e)
+				: window_event(e),
+				  mouse_id(static_cast <mouse_id_t>(e.motion.which)),
+				  state(detail::map_mousebutton_from_bitflags(e.motion.state)),
+				  x(e.motion.x),
+				  y(e.motion.y),
+				  xrel(e.motion.xrel),
+				  yrel(e.motion.yrel) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const mouse_motion&);
-
 
 	/**
 	 * @brief A struct representing a touch device motion event.
@@ -306,22 +304,22 @@ namespace neutrino::sdl::events {
 	 * touch_device_motion is a struct that inherits from the window_event struct.
 	 * It provides information about a touch device motion event, such as the button state, coordinates, and motion deltas.
 	 */
-	struct touch_device_motion : public detail::window_event {
-	 public:
-		uint32_t button;
-		int x;
-		int y;
-		int xrel;
-		int yrel;
+	class touch_device_motion : public detail::window_event {
+		public:
+			uint32_t button;
+			int x;
+			int y;
+			int xrel;
+			int yrel;
 
-		explicit touch_device_motion (const SDL_Event& e)
-			: detail::window_event (e.motion.windowID, e),
-			  button (static_cast <uint32_t> (e.motion.state)),
-			  x (e.motion.x),
-			  y (e.motion.y),
-			  xrel (e.motion.xrel),
-			  yrel (e.motion.yrel) {
-		}
+			explicit touch_device_motion(const SDL_Event& e)
+				: window_event(e),
+				  button(static_cast <uint32_t>(e.motion.state)),
+				  x(e.motion.x),
+				  y(e.motion.y),
+				  xrel(e.motion.xrel),
+				  yrel(e.motion.yrel) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const touch_device_motion&);
@@ -334,26 +332,24 @@ namespace neutrino::sdl::events {
 	 * such as the ID of the mouse, button index, coordinates and whether the button was pressed or released.
 	 */
 	class mouse_button : public detail::window_event {
-	 public:
-		mouse_id_t mouse_id;
-		mousebutton button;
-		int x;
-		int y;
-		bool pressed;
+		public:
+			mouse_id_t mouse_id;
+			mousebutton button;
+			int x;
+			int y;
+			bool pressed;
 
-		explicit mouse_button (const SDL_Event& e)
-			: detail::window_event (e.button.windowID, e),
-			  mouse_id (static_cast <mouse_id_t> (e.button.which)),
-			  button (detail::map_mousebutton_from_bitflags (e.button.button)),
-			  x (e.button.x),
-			  y (e.button.y),
-			  pressed (e.button.state == SDL_PRESSED) {
-		}
-
+			explicit mouse_button(const SDL_Event& e)
+				: window_event(e),
+				  mouse_id(static_cast <mouse_id_t>(e.button.which)),
+				  button(detail::map_mousebutton_from_bitflags(e.button.button)),
+				  x(e.button.x),
+				  y(e.button.y),
+				  pressed(e.button.state == SDL_PRESSED) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const mouse_button&);
-
 
 	/**
 	 *  @class touch_device_button
@@ -364,19 +360,19 @@ namespace neutrino::sdl::events {
 	 *  pressed or released.
 	 */
 	class touch_device_button : public detail::window_event {
-	 public:
-		uint32_t button;
-		int x;
-		int y;
-		bool pressed;
+		public:
+			uint32_t button;
+			int x;
+			int y;
+			bool pressed;
 
-		explicit touch_device_button (const SDL_Event& e)
-			: detail::window_event (e.button.windowID, e),
-			  button (static_cast <uint32_t> (e.button.button)),
-			  x (e.button.x),
-			  y (e.button.y),
-			  pressed (e.button.state == SDL_PRESSED) {
-		}
+			explicit touch_device_button(const SDL_Event& e)
+				: window_event(e),
+				  button(static_cast <uint32_t>(e.button.button)),
+				  x(e.button.x),
+				  y(e.button.y),
+				  pressed(e.button.state == SDL_PRESSED) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const touch_device_button&);
@@ -389,17 +385,17 @@ namespace neutrino::sdl::events {
 	 * in which the user rotates the mouse wheel in either the horizontal or vertical direction.
 	 */
 	class mouse_wheel : public detail::window_event {
-	 public:
-		mouse_id_t mouse_id;
-		int x;
-		int y;
+		public:
+			mouse_id_t mouse_id;
+			int x;
+			int y;
 
-		explicit mouse_wheel (const SDL_Event& e)
-			: detail::window_event (e.wheel.windowID, e),
-			  mouse_id (static_cast <mouse_id_t> (e.wheel.which)),
-			  x (e.wheel.x),
-			  y (e.wheel.y) {
-		}
+			explicit mouse_wheel(const SDL_Event& e)
+				: window_event(e),
+				  mouse_id(static_cast <mouse_id_t>(e.wheel.which)),
+				  x(e.wheel.x),
+				  y(e.wheel.y) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const mouse_wheel&);
@@ -417,20 +413,18 @@ namespace neutrino::sdl::events {
 	  * information about the wheel event.
 	  */
 	class touch_device_wheel : public detail::window_event {
-	 public:
-		int x;
-		int y;
+		public:
+			int x;
+			int y;
 
-		explicit touch_device_wheel (const SDL_Event& e)
-			: detail::window_event (e.wheel.windowID, e),
-			  x (e.wheel.x),
-			  y (e.wheel.y) {
-		}
+			explicit touch_device_wheel(const SDL_Event& e)
+				: window_event(e),
+				  x(e.wheel.x),
+				  y(e.wheel.y) {
+			}
 	};
+
 	d_SDLPP_OSTREAM(const touch_device_wheel&);
-
-
-	using joystick_id = SDL_JoystickID;
 
 	/**
 	 * @class joystick_axis
@@ -440,16 +434,16 @@ namespace neutrino::sdl::events {
 	 * and the value of the axis.
 	 */
 	class joystick_axis {
-	 public:
-		joystick_id joystick;
-		uint8_t axis;
-		signed short value;
+		public:
+			joystick_id_t joystick;
+			uint8_t axis;
+			signed short value;
 
-		explicit joystick_axis (const SDL_Event& e)
-			: joystick (e.jaxis.which),
-			  axis (e.jaxis.axis),
-			  value (e.jaxis.value) {
-		}
+			explicit joystick_axis(const SDL_Event& e)
+				: joystick(e.jaxis.which),
+				  axis(e.jaxis.axis),
+				  value(e.jaxis.value) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const joystick_axis&);
@@ -459,38 +453,37 @@ namespace neutrino::sdl::events {
 	 * @brief Represents a joystick trackball event
 	 */
 	class joystick_ball {
-	 public:
-		joystick_id joystick;
-		uint8_t ball;
-		signed short xrel;
-		signed short yrel;
+		public:
+			joystick_id_t joystick;
+			uint8_t ball;
+			signed short xrel;
+			signed short yrel;
 
-		explicit joystick_ball (const SDL_Event& e)
-			: joystick (e.jball.which),
-			  ball (e.jball.ball),
-			  xrel (e.jball.xrel),
-			  yrel (e.jball.yrel) {
-		}
+			explicit joystick_ball(const SDL_Event& e)
+				: joystick(e.jball.which),
+				  ball(e.jball.ball),
+				  xrel(e.jball.xrel),
+				  yrel(e.jball.yrel) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const joystick_ball&);
-
 
 	/**
 	 * @class joystick_button
 	 * Represents a joystick button event.
 	 */
 	class joystick_button {
-	 public:
-		joystick_id joystick;
-		Uint8 button;
-		bool pressed;
+		public:
+			joystick_id_t joystick;
+			Uint8 button;
+			bool pressed;
 
-		explicit joystick_button (const SDL_Event& e)
-			: joystick (e.jbutton.which),
-			  button (e.jbutton.button),
-			  pressed (e.jbutton.state == SDL_PRESSED) {
-		}
+			explicit joystick_button(const SDL_Event& e)
+				: joystick(e.jbutton.which),
+				  button(e.jbutton.button),
+				  pressed(e.jbutton.state == SDL_PRESSED) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const joystick_button&);
@@ -504,7 +497,6 @@ namespace neutrino::sdl::events {
 	 * enumeration values are based on the SDL hat states.
 	 */
 	enum class joystick_hat_state {
-
 		LEFTUP = SDL_HAT_LEFTUP,
 		HAT_UP = SDL_HAT_UP,
 		HAT_RIGHTUP = SDL_HAT_RIGHTUP,
@@ -518,7 +510,6 @@ namespace neutrino::sdl::events {
 
 	d_SDLPP_OSTREAM(joystick_hat_state);
 
-
 	/**
 	 * @class joystick_hat
 	 * @brief Represents the state of a joystick hat
@@ -528,21 +519,19 @@ namespace neutrino::sdl::events {
 	 * position of the hat.
 	 */
 	class joystick_hat {
+		public:
+			joystick_id_t joystick;
+			Uint8 value;
+			joystick_hat_state state;
 
-	 public:
-		joystick_id joystick;
-		Uint8 value;
-		joystick_hat_state state;
-
-		explicit joystick_hat (const SDL_Event& e)
-			: joystick (e.jhat.which),
-			  value (e.jhat.value),
-			  state (static_cast <joystick_hat_state>(e.jhat.value)) {
-		}
+			explicit joystick_hat(const SDL_Event& e)
+				: joystick(e.jhat.which),
+				  value(e.jhat.value),
+				  state(static_cast <joystick_hat_state>(e.jhat.value)) {
+			}
 	};
 
 	d_SDLPP_OSTREAM(const joystick_hat&);
-
 
 	/**
 	 * @struct user
@@ -554,35 +543,33 @@ namespace neutrino::sdl::events {
 	 * the event code and data pointers.
 	 */
 	struct user {
-	 public:
-		explicit user (const SDL_Event& u)
-			: code (u.user.code),
-			  data1 (u.user.data1),
-			  data2 (u.user.data2) {
+		public:
+			explicit user(const SDL_Event& u)
+				: code(u.user.code),
+				  data1(u.user.data1),
+				  data2(u.user.data2) {
+			}
 
-		}
+			explicit user(int32_t code_)
+				: code(code_),
+				  data1(nullptr),
+				  data2(nullptr) {
+			}
 
-		explicit user (int32_t code_)
-			: code (code_),
-			  data1 (nullptr),
-			  data2 (nullptr) {
-		}
+			user(int32_t code_, void* d1, void* d2 = nullptr)
+				: code(code_),
+				  data1(d1),
+				  data2(d2) {
+			}
 
-		user (int32_t code_, void* d1, void* d2 = nullptr)
-			: code (code_),
-			  data1 (d1),
-			  data2 (d2) {
-		}
-
-		int32_t code;
-		void* data1;
-		void* data2;
+			int32_t code;
+			void* data1;
+			void* data2;
 	};
 
 	d_SDLPP_OSTREAM(const user&);
 
-
-	using event_t = std::variant<
+	using event_t = std::variant <
 		std::monostate,
 		keyboard,
 		window_shown,

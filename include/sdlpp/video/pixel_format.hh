@@ -452,18 +452,18 @@ namespace neutrino::sdl {
 		};
 	}
 	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_provides_format)&
-	values(typename std::enable_if<std::is_same_v<pixel_format::format, T>>::type* = nullptr) {
+	static constexpr const decltype(detail::s_vals_of_provides_format)&
+	values(std::enable_if_t<std::is_same_v<pixel_format::format, T>>* = nullptr) {
 		return detail::s_vals_of_provides_format;
 	}
 	template <typename T>
-	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<pixel_format::format, T>>::type* = nullptr) {
+	static constexpr auto
+	begin(std::enable_if_t<std::is_same_v<pixel_format::format, T>>* = nullptr) {
 		return detail::s_vals_of_provides_format.begin();
 	}
 	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<pixel_format::format, T>>::type* = nullptr) {
+	static constexpr auto
+	end(std::enable_if_t<std::is_same_v<pixel_format::format, T>>* = nullptr) {
 		return detail::s_vals_of_provides_format.end();
 	}
 
@@ -485,18 +485,18 @@ namespace neutrino::sdl {
 		};
 	}
 	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_provides_type)&
-	values(typename std::enable_if<std::is_same_v<pixel_format::type, T>>::type* = nullptr) {
+	static constexpr const decltype(detail::s_vals_of_provides_type)&
+	values(std::enable_if_t<std::is_same_v<pixel_format::type, T>>* = nullptr) {
 		return detail::s_vals_of_provides_type;
 	}
 	template <typename T>
-	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<pixel_format::type, T>>::type* = nullptr) {
+	static constexpr auto
+	begin(std::enable_if_t<std::is_same_v<pixel_format::type, T>>* = nullptr) {
 		return detail::s_vals_of_provides_type.begin();
 	}
 	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<pixel_format::type, T>>::type* = nullptr) {
+	static constexpr auto
+	end(std::enable_if_t<std::is_same_v<pixel_format::type, T>>* = nullptr) {
 		return detail::s_vals_of_provides_type.end();
 	}
 
@@ -509,18 +509,18 @@ namespace neutrino::sdl {
 		};
 	}
 	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_provides_order)&
-	values(typename std::enable_if<std::is_same_v<pixel_format::order, T>>::type* = nullptr) {
+	static constexpr const decltype(detail::s_vals_of_provides_order)&
+	values(std::enable_if_t<std::is_same_v<pixel_format::order, T>>* = nullptr) {
 		return detail::s_vals_of_provides_order;
 	}
 	template <typename T>
-	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<pixel_format::order, T>>::type* = nullptr) {
+	static constexpr auto
+	begin(std::enable_if_t<std::is_same_v<pixel_format::order, T>>* = nullptr) {
 		return detail::s_vals_of_provides_order.begin();
 	}
 	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<pixel_format::order, T>>::type* = nullptr) {
+	static constexpr auto
+	end(std::enable_if_t<std::is_same_v<pixel_format::order, T>>* = nullptr) {
 		return detail::s_vals_of_provides_order.end();
 	}
 
@@ -539,18 +539,18 @@ namespace neutrino::sdl {
 		};
 	}
 	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_provides_component_order)&
-	values(typename std::enable_if<std::is_same_v<pixel_format::component_order, T>>::type* = nullptr) {
+	static constexpr const decltype(detail::s_vals_of_provides_component_order)&
+	values(std::enable_if_t<std::is_same_v<pixel_format::component_order, T>>* = nullptr) {
 		return detail::s_vals_of_provides_component_order;
 	}
 	template <typename T>
-	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<pixel_format::component_order, T>>::type* = nullptr) {
+	static constexpr auto
+	begin(std::enable_if_t<std::is_same_v<pixel_format::component_order, T>>* = nullptr) {
 		return detail::s_vals_of_provides_component_order.begin();
 	}
 	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<pixel_format::component_order, T>>::type* = nullptr) {
+	static constexpr auto
+	end(std::enable_if_t<std::is_same_v<pixel_format::component_order, T>>* = nullptr) {
 		return detail::s_vals_of_provides_component_order.end();
 	}
 
@@ -567,18 +567,18 @@ namespace neutrino::sdl {
 		};
 	}
 	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_provides_array_order)&
-	values(typename std::enable_if<std::is_same_v<pixel_format::array_order, T>>::type* = nullptr) {
+	static constexpr const decltype(detail::s_vals_of_provides_array_order)&
+	values(std::enable_if_t<std::is_same_v<pixel_format::array_order, T>>* = nullptr) {
 		return detail::s_vals_of_provides_array_order;
 	}
 	template <typename T>
-	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<pixel_format::array_order, T>>::type* = nullptr) {
+	static constexpr auto
+	begin(std::enable_if_t<std::is_same_v<pixel_format::array_order, T>>* = nullptr) {
 		return detail::s_vals_of_provides_array_order.begin();
 	}
 	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<pixel_format::array_order, T>>::type* = nullptr) {
+	static constexpr auto
+	end(std::enable_if_t<std::is_same_v<pixel_format::array_order, T>>* = nullptr) {
 		return detail::s_vals_of_provides_array_order.end();
 	}
 
@@ -597,18 +597,18 @@ namespace neutrino::sdl {
 		};
 	}
 	template <typename T>
-	static inline constexpr const decltype(detail::s_vals_of_provides_layout)&
-	values(typename std::enable_if<std::is_same_v<pixel_format::layout, T>>::type* = nullptr) {
+	static constexpr const decltype(detail::s_vals_of_provides_layout)&
+	values(std::enable_if_t<std::is_same_v<pixel_format::layout, T>>* = nullptr) {
 		return detail::s_vals_of_provides_layout;
 	}
 	template <typename T>
-	static inline constexpr auto
-	begin(typename std::enable_if<std::is_same_v<pixel_format::layout, T>>::type* = nullptr) {
+	static constexpr auto
+	begin(std::enable_if_t<std::is_same_v<pixel_format::layout, T>>* = nullptr) {
 		return detail::s_vals_of_provides_layout.begin();
 	}
 	template <typename T>
-	static inline constexpr auto
-	end(typename std::enable_if<std::is_same_v<pixel_format::layout, T>>::type* = nullptr) {
+	static constexpr auto
+	end(std::enable_if_t<std::is_same_v<pixel_format::layout, T>>* = nullptr) {
 		return detail::s_vals_of_provides_layout.end();
 	}
 
