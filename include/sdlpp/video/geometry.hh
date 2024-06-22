@@ -63,25 +63,25 @@ namespace neutrino::sdl {
 
 	template <typename P>
 	[[nodiscard]]
-	P operator+(const P& a, const P& b, std::enable_if_t<detail::is_point_v<P>>* = nullptr) noexcept {
+	std::enable_if_t<detail::is_point_v<P>, P> operator+(const P& a, const P& b) noexcept {
 		return {a.x + b.x, a.y + b.y};
 	}
 
 	template <typename P>
 	[[nodiscard]]
-	P operator-(const P& a, const P& b, std::enable_if_t<detail::is_point_v<P>>* = nullptr) noexcept {
+	std::enable_if_t<detail::is_point_v<P>, P> operator-(const P& a, const P& b) noexcept {
 		return {a.x - b.x, a.y - b.y};
 	}
 
 	template <typename P>
 	[[nodiscard]]
-	bool operator==(const P& a, const P& b, std::enable_if_t<detail::is_point_v<P>>* = nullptr) {
+	std::enable_if_t<detail::is_point_v<P>, bool> operator==(const P& a, const P& b) {
 		return a.x == b.x && a.y == b.y;
 	}
 
 	template <typename P>
 	[[nodiscard]]
-	bool operator!=(const P& a, const P& b, std::enable_if_t<detail::is_point_v<P>>* = nullptr) {
+	std::enable_if_t<detail::is_point_v<P>, bool> operator!=(const P& a, const P& b) {
 		return !(a == b);
 	}
 
