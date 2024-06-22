@@ -8,7 +8,7 @@
 #include <utility>
 #include <cmath>
 #include <vector>
-#include <utility>
+#include <type_traits>
 #include <array>
 
 #include <sdlpp/detail/sdl2.hh>
@@ -26,6 +26,16 @@ namespace neutrino::sdl {
 
 	d_SDLPP_OSTREAM_WITHOT_FROM_STRING(const area_type&);
 
+	struct point2f : public SDL_FPoint{
+		point2f() noexcept;
+		point2f(int x_, int y_) noexcept;
+		point2f(float x_, float y_) noexcept;
+		explicit point2f(const SDL_Point& p) noexcept;
+		point2f& operator=(const SDL_Point& p) noexcept;
+		explicit point2f(const SDL_FPoint& p) noexcept;
+		point2f& operator=(const SDL_FPoint& p) noexcept;
+	};
+
 	struct point : public SDL_Point {
 		point() noexcept;
 		point(int x_, int y_) noexcept;
@@ -33,41 +43,50 @@ namespace neutrino::sdl {
 		point& operator=(const SDL_Point& p) noexcept;
 	};
 
-	[[nodiscard]] inline
-	unsigned long distance(const point& a, const point& b) {
-		const auto d =
-			std::sqrt(std::pow(a.x - b.x, 2) + std::pow(a.y - b.y, 2));
-		return static_cast <unsigned long>(std::round(d));
+	namespace detail {
+		template <typename T>
+		static inline constexpr auto is_point_v = std::is_same_v<T, point> || std::is_same_v<T, point2f>
+		|| std::is_same_v<T, SDL_Point> || std::is_same_v<T, SDL_FPoint>;
 	}
 
-	[[nodiscard]] inline
-	unsigned long distance(const point& a) {
-		const auto d =
-			std::sqrt(std::pow(a.x, 2) + std::pow(a.y, 2));
-		return static_cast <unsigned long>(std::round(d));
+
+	template <typename P>
+	[[nodiscard]] float distance(const P& a, const P& b, std::enable_if_t<detail::is_point_v<P>>* = nullptr) {
+		return std::sqrt(std::pow(a.x - b.x, 2) + std::pow(a.y - b.y, 2));
 	}
 
-	[[nodiscard]] inline
-	point operator+(const point& a, const point& b) noexcept {
+	template <typename P>
+	[[nodiscard]]
+	float distance(const P& a, std::enable_if_t<detail::is_point_v<P>>* = nullptr) {
+		return std::sqrt(std::pow(a.x, 2) + std::pow(a.y, 2));
+	}
+
+	template <typename P>
+	[[nodiscard]]
+	P operator+(const P& a, const P& b, std::enable_if_t<detail::is_point_v<P>>* = nullptr) noexcept {
 		return {a.x + b.x, a.y + b.y};
 	}
 
-	[[nodiscard]] inline
-	point operator-(const point& a, const point& b) noexcept {
+	template <typename P>
+	[[nodiscard]]
+	P operator-(const P& a, const P& b, std::enable_if_t<detail::is_point_v<P>>* = nullptr) noexcept {
 		return {a.x - b.x, a.y - b.y};
 	}
 
-	[[nodiscard]] inline
-	bool operator==(const point& a, const point& b) {
+	template <typename P>
+	[[nodiscard]]
+	bool operator==(const P& a, const P& b, std::enable_if_t<detail::is_point_v<P>>* = nullptr) {
 		return a.x == b.x && a.y == b.y;
 	}
 
-	[[nodiscard]] inline
-	bool operator!=(const point& a, const point& b) {
+	template <typename P>
+	[[nodiscard]]
+	bool operator!=(const P& a, const P& b, std::enable_if_t<detail::is_point_v<P>>* = nullptr) {
 		return !(a == b);
 	}
 
 	d_SDLPP_OSTREAM_WITHOT_FROM_STRING(const point&);
+	d_SDLPP_OSTREAM_WITHOT_FROM_STRING(const point2f&);
 
 	struct rect : public SDL_Rect {
 		rect() noexcept;
@@ -245,8 +264,42 @@ namespace neutrino::sdl {
 		y = p.y;
 		return *this;
 	}
+	// ====================================================================
+	inline point2f::point2f() noexcept
+		: SDL_FPoint{0, 0} {
+	}
 
-	// ===================================================================
+	// -------------------------------------------------------------------
+	inline point2f::point2f(int x_, int y_) noexcept
+		: SDL_FPoint{static_cast<float>(x_), static_cast<float>(y_)} {
+	}
+
+	inline point2f::point2f(float x_, float y_) noexcept
+	: SDL_FPoint{x_, y_} {
+
+	}
+
+	// -------------------------------------------------------------------
+	inline point2f::point2f(const SDL_Point& p) noexcept
+		: SDL_FPoint{static_cast<float>(p.x), static_cast<float>(p.y)} {
+	}
+
+	inline point2f::point2f(const SDL_FPoint& p) noexcept
+		: SDL_FPoint{p.x, p.y} {
+	}
+	// -------------------------------------------------------------------
+	inline point2f& point2f::operator=(const SDL_Point& p) noexcept {
+		x = static_cast<float>(p.x);
+		y = static_cast<float>(p.y);
+		return *this;
+	}
+	// -------------------------------------------------------------------
+	inline point2f& point2f::operator=(const SDL_FPoint& p) noexcept {
+		x = p.x;
+		y = p.y;
+		return *this;
+	}
+	// ========================================================	===========
 	inline rect::rect() noexcept
 		: SDL_Rect{0, 0, 0, 0} {
 	}

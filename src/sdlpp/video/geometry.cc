@@ -16,6 +16,16 @@ namespace neutrino::sdl {
 		return os.str();
 	}
 
+	std::ostream& operator << (std::ostream& os, const point2f& p) {
+		os << "(" << p.x << ", " << p.y << ")";
+		return os;
+	}
+	std::string to_string(const point2f& p) {
+		std::ostringstream os;
+		os << p;
+		return os.str();
+	}
+
 	std::ostream& operator << (std::ostream& os, const area_type& p) {
 		os << "(" << p.w << ", " << p.h << ")";
 		return os;
