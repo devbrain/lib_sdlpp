@@ -55,6 +55,7 @@ namespace neutrino::sdl {
 		return static_cast<unsigned >(SAFE_SDL_CALL(Mix_VolumeChunk, const_handle(), -1));
 	}
 
+	inline
 	sound_effect::sound_effect (object<SDL_RWops>& rwops)
 	: object<Mix_Chunk>(SAFE_SDL_CALL(Mix_LoadWAV_RW, rwops.handle(), 0), true)
 	{

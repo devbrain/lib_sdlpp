@@ -126,18 +126,22 @@ namespace neutrino::sdl {
 		}
 	}
 
+	inline
 	std::optional<std::string> music::get_album () const {
 		return detail::opt_string (Mix_GetMusicAlbumTag (const_handle()));
 	}
 
+	inline
 	std::optional<std::string> music::get_artist () const {
 		return detail::opt_string (Mix_GetMusicArtistTag (const_handle()));
 	}
 
+	inline
 	std::optional<std::string> music::get_copyright () const {
 		return detail::opt_string (Mix_GetMusicCopyrightTag (const_handle()));
 	}
 
+	inline
 	std::optional<std::string> music::get_title () const {
 		const char* p = Mix_GetMusicTitleTag (const_handle());
 		if (p) {
@@ -146,26 +150,32 @@ namespace neutrino::sdl {
 		return detail::opt_string (Mix_GetMusicTitle (const_handle()));
 	}
 
+	inline
 	std::chrono::milliseconds music::get_loop_end_time () const {
 		return std::chrono::milliseconds(static_cast<unsigned long>(1000* SAFE_SDL_CALL(Mix_GetMusicLoopEndTime ,const_handle())));
 	}
 
+	inline
 	std::chrono::milliseconds music::get_loop_length_time () const {
 		return std::chrono::milliseconds(static_cast<unsigned long>(1000* SAFE_SDL_CALL(Mix_GetMusicLoopLengthTime,const_handle())));
 	}
 
+	inline
 	std::chrono::milliseconds music::get_loop_start_time () const {
 		return std::chrono::milliseconds(static_cast<unsigned long>(1000* SAFE_SDL_CALL(Mix_GetMusicLoopStartTime,const_handle())));
 	}
 
+	inline
 	std::chrono::milliseconds music::get_position () const {
 		return std::chrono::milliseconds(static_cast<unsigned long>(1000* SAFE_SDL_CALL(Mix_GetMusicPosition,const_handle())));
 	}
 
+	inline
 	music::format music::get_format () const {
 		return static_cast<format>(Mix_GetMusicType (const_handle()));
 	}
 
+	inline
 	music::music (object<SDL_RWops>& rwops)
 	: object<Mix_Music>(SAFE_SDL_CALL(Mix_LoadMUS_RW, rwops.handle(), 0), true)
 	{
