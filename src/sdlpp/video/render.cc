@@ -17,12 +17,6 @@ namespace neutrino::sdl {
 			case renderer::flags::TARGETTEXTURE: return "TARGETTEXTURE";
 	END_IMPL_OUTPUT(renderer::flags)
 
-	BEGIN_IMPL_OUTPUT(renderer::flip)
-			case renderer::flip::NONE: return "NONE";
-			case renderer::flip::HORIZONTAL: return "HORIZONTAL";
-			case renderer::flip::VERTICAL: return "VERTICAL";
-	END_IMPL_OUTPUT(renderer::flip)
-
 	void renderer::draw_hline (int x1, int x2, int y) {
 		const auto c = get_active_color ();
 		hlineRGBA (handle (),

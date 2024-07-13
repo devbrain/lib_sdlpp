@@ -19,7 +19,7 @@ demo::demo (int argc, char *argv[])
 	  m_vga (WIDTH * HEIGHT) {
 
 	m_window.title (m_base_name);
-	m_render.logical_size (WIDTH, HEIGHT);
+	m_render.set_logical_size (WIDTH, HEIGHT);
 
 }
 

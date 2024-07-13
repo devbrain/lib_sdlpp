@@ -197,8 +197,8 @@ namespace neutrino::sdl {
 			LAYOUT_1010102 = SDL_PACKEDLAYOUT_1010102
 		};
 	 public:
-		explicit pixel_format (std::uint32_t f);
-		explicit pixel_format (format f);
+		pixel_format (std::uint32_t f);
+		pixel_format (format f);
 		pixel_format (uint8_t bpp, uint32_t rmask, uint32_t gmask, uint32_t bmask, uint32_t amask);
 
 		/**

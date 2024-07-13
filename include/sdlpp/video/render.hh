@@ -13,6 +13,7 @@
 #include <sdlpp/video/texture.hh>
 #include <sdlpp/detail/ostreamops.hh>
 #include <bsw/array_view.hh>
+#include <bitflags/bitflags.hpp>
 
 namespace neutrino::sdl {
 	/**
@@ -52,11 +53,11 @@ namespace neutrino::sdl {
 			TARGETTEXTURE = SDL_RENDERER_TARGETTEXTURE
 		};
 
-		enum class flip : uint32_t {
-			NONE = SDL_FLIP_NONE,
-			HORIZONTAL = SDL_FLIP_HORIZONTAL,
-			VERTICAL = SDL_FLIP_VERTICAL
-		};
+		BEGIN_BITFLAGS(flip)
+			FLAG(NONE)
+			FLAG(HORIZONTAL)
+			FLAG(VERTICAL)
+		END_BITFLAGS(flip)
 
 	 public:
 		renderer () = default;
@@ -817,11 +818,20 @@ namespace neutrino::sdl {
 		void draw_latin1_string (const point& p, const std::string& s);
 
 		void present () const noexcept;
-
+		private:
+		static SDL_RendererFlip _convert(const flip& flip_) {
+			uint32_t out = SDL_FLIP_NONE;
+			if (flip_.contains(flip::VERTICAL)) {
+				out |= SDL_FLIP_VERTICAL;
+			}
+			if (flip_.contains(flip::HORIZONTAL)) {
+				out |= SDL_FLIP_HORIZONTAL;
+			}
+			return static_cast<SDL_RendererFlip>(out);
+		}
 	};
 
 	d_SDLPP_OSTREAM(renderer::flags);
-	d_SDLPP_OSTREAM(renderer::flip);
 }
 
 // ===========================================================================================================
@@ -1052,7 +1062,6 @@ namespace neutrino::sdl {
 	void renderer::clear () {
 		SAFE_SDL_CALL(SDL_RenderClear, handle ());
 	}
-
 	// ----------------------------------------------------------------------------------------------------------------
 	inline
 	void renderer::copy (const texture& t, flip flip_) {
@@ -1063,7 +1072,7 @@ namespace neutrino::sdl {
 					  nullptr,
 					  0.0,
 					  nullptr,
-					  static_cast<SDL_RendererFlip>(flip_)
+					  _convert(flip_)
 		);
 	}
 
@@ -1077,7 +1086,7 @@ namespace neutrino::sdl {
 					  nullptr,
 					  0.0,
 					  nullptr,
-					  static_cast<SDL_RendererFlip>(flip_)
+					  _convert(flip_)
 		);
 	}
 
@@ -1091,7 +1100,7 @@ namespace neutrino::sdl {
 					  &dstrect,
 					  0.0,
 					  nullptr,
-					  static_cast<SDL_RendererFlip>(flip_)
+					  _convert(flip_)
 		);
 	}
 
@@ -1105,7 +1114,7 @@ namespace neutrino::sdl {
 					  &dstrect,
 					  angle,
 					  nullptr,
-					  static_cast<SDL_RendererFlip>(flip_)
+					  _convert(flip_)
 		);
 	}
 
@@ -1121,7 +1130,7 @@ namespace neutrino::sdl {
 					  &dstrect,
 					  angle,
 					  &pt,
-					  static_cast<SDL_RendererFlip>(flip_)
+					  _convert(flip_)
 		);
 	}
 
