@@ -58,6 +58,7 @@ if (sdlpp_ENABLE_DEMO)
 endif()
 
 if (sdlpp_ENABLE_TESTING)
+   message("SDLPP Testing is enabled")
    add_subdirectory(src/unittest)
 endif()
 
