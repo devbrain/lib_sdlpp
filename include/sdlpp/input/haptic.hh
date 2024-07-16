@@ -216,7 +216,7 @@ namespace neutrino::sdl {
 		auto f = SDL_HapticQuery(const_handle());
 		static_assert(sdl_features.size() == my_features.size());
 		features out{};
-		for (int i = 0u; i < sdl_features.size(); i++) {
+		for (auto i = 0u; i < sdl_features.size(); i++) {
 			if ((f & sdl_features[i]) == sdl_features[i]) {
 				out.set(my_features[i]);
 			}

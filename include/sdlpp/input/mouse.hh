@@ -80,7 +80,7 @@ namespace neutrino::sdl {
 				ev.button.button = global
 					                   ? SDL_GetGlobalMouseState(&ev.button.x, &ev.button.y)
 					                   : SDL_GetMouseState(&ev.button.x, &ev.button.y);
-				ev.button.state == (ev.button.button != 0 ? SDL_PRESSED : SDL_RELEASED);
+				ev.button.state = (ev.button.button != 0 ? SDL_PRESSED : SDL_RELEASED);
 				return events::mouse_button(ev);
 			}
 
