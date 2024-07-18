@@ -66,6 +66,8 @@ namespace neutrino::sdl {
 
 			explicit ttf(object <TTF_Font>&& other);
 			ttf& operator=(object <TTF_Font>&& other) noexcept;
+
+			ttf(ttf&& other) noexcept;
 			ttf& operator=(ttf&& other) noexcept;
 
 			ttf& operator=(const ttf& other) = delete;
@@ -188,6 +190,11 @@ namespace neutrino::sdl {
 
 	inline
 	ttf::ttf(object <TTF_Font>&& other)
+		: object <TTF_Font>(std::move(other)) {
+	}
+
+	inline
+	ttf::ttf(ttf&& other) noexcept
 		: object <TTF_Font>(std::move(other)) {
 	}
 
