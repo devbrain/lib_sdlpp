@@ -42,13 +42,17 @@ namespace neutrino::sdl {
 			surface(const surface& other) = delete;
 
 			surface(unsigned width, unsigned height, pixel_format format);
+			surface(const area_type& dims, pixel_format format);
 			// pitch - size of the scanline in bytes
 			surface(void* data, unsigned width, unsigned height, unsigned pitch, pixel_format format);
+			surface(void* data, const area_type& dims, unsigned pitch, pixel_format format);
 
 			explicit surface(object <SDL_RWops>& rwops);
 
 			[[nodiscard]] static surface make_8bit(unsigned width, unsigned height);
+			[[nodiscard]] static surface make_8bit(const area_type& dims);
 			[[nodiscard]] static surface make_rgba_32bit(unsigned width, unsigned height);
+			[[nodiscard]] static surface make_rgba_32bit(const area_type& dims);
 
 			void save_bmp(const std::string& path) const;
 			void save_bmp(object <SDL_RWops>& stream) const;
@@ -230,8 +234,15 @@ namespace neutrino::sdl {
 	inline
 	surface::surface(unsigned width, unsigned height, pixel_format format)
 		: object <SDL_Surface>(SAFE_SDL_CALL(SDL_CreateRGBSurfaceWithFormat, 0,
-		                                     static_cast<int>(width), static_cast<int>(height), format
-		                                     .get_bits_per_pixels (), format.value ())		                       , true) {
+		                                     static_cast<int>(width), static_cast<int>(height),
+		                                     format.get_bits_per_pixels (), format.value ())		                       , true) {
+	}
+
+	inline
+	surface::surface(const area_type& dims, pixel_format format)
+		: object <SDL_Surface>(SAFE_SDL_CALL(SDL_CreateRGBSurfaceWithFormat, 0,
+		                                     static_cast<int>(dims.w), static_cast<int>(dims.h),
+		                                     format.get_bits_per_pixels (), format.value ())		                       , true) {
 	}
 
 	// ----------------------------------------------------------------------------------------------
@@ -240,6 +251,16 @@ namespace neutrino::sdl {
 		: object <SDL_Surface>(SAFE_SDL_CALL(SDL_CreateRGBSurfaceWithFormatFrom, data,
 		                                     static_cast<int>(width),
 		                                     static_cast<int>(height),
+		                                     format.get_bits_per_pixels (),
+		                                     static_cast<int>(pitch),
+		                                     format.value ())		                       , true) {
+	}
+
+	inline
+	surface::surface(void* data, const area_type& dims, unsigned pitch, pixel_format format)
+		: object <SDL_Surface>(SAFE_SDL_CALL(SDL_CreateRGBSurfaceWithFormatFrom, data,
+		                                     static_cast<int>(dims.w),
+		                                     static_cast<int>(dims.h),
 		                                     format.get_bits_per_pixels (),
 		                                     static_cast<int>(pitch),
 		                                     format.value ())		                       , true) {
@@ -257,12 +278,20 @@ namespace neutrino::sdl {
 		return {width, height, pixel_format::make_8bit()};
 	}
 
+	inline
+	surface surface::make_8bit(const area_type& dims) {
+		return make_8bit(dims.w, dims.h);
+	}
+
 	// ----------------------------------------------------------------------------------------------
 	inline
 	surface surface::make_rgba_32bit(unsigned width, unsigned height) {
 		return {width, height, pixel_format::make_rgba_32bit()};
 	}
-
+	inline
+	surface surface::make_rgba_32bit(const area_type& dims) {
+		return make_rgba_32bit(dims.w, dims.h);
+	}
 	// ----------------------------------------------------------------------------------------------
 
 	inline
