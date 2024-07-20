@@ -44,6 +44,10 @@ namespace neutrino::sdl {
 			texture(const object <SDL_Renderer>& r, const pixel_format& format, unsigned w, unsigned h,
 			        Args&&... flags);
 
+			template<typename... Args,
+			         typename std::enable_if <(std::is_same_v <access, Args> && ...), int>::type = 0>
+			texture(const object <SDL_Renderer>& r, const pixel_format& format, area_type dims,
+			        Args&&... flags);
 			texture(const object <SDL_Renderer>& r, const object <SDL_Surface>& s);
 
 			explicit texture(object <SDL_Texture>&& other);
@@ -96,6 +100,16 @@ namespace neutrino::sdl {
 		                                     (static_cast<std::uint32_t>(flags) | ... | 0u),
 		                                     static_cast<int>(w),
 		                                     static_cast<int>(h))		                       , true) {
+	}
+
+	template<typename... Args, typename std::enable_if <(std::is_same_v <texture::access, Args> && ...), int>::type>
+	texture::texture(const object <SDL_Renderer>& r, const pixel_format& format, area_type dims, Args&&... flags)
+		: object <SDL_Texture>(SAFE_SDL_CALL(SDL_CreateTexture,
+		                                     const_cast<SDL_Renderer*>(r.handle ()),
+		                                     format.value (),
+		                                     (static_cast<std::uint32_t>(flags) | ... | 0u),
+		                                     static_cast<int>(dims.w),
+		                                     static_cast<int>(dims.h))		                       , true) {
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
