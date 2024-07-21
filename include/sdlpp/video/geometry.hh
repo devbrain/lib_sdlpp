@@ -43,6 +43,46 @@ namespace neutrino::sdl {
 		point& operator=(const SDL_Point& p) noexcept;
 	};
 
+	inline
+	area_type operator* (const area_type& a, int scale) {
+		return {scale*static_cast <int>(a.w), scale* static_cast <int>(a.h)};
+	}
+
+	inline
+	area_type operator* (int scale, const area_type& a) {
+		return {scale*static_cast <int>(a.w), scale* static_cast <int>(a.h)};
+	}
+
+	inline
+	point operator* (const point& a, int scale) {
+		return {scale*static_cast <int>(a.x), scale* static_cast <int>(a.y)};
+	}
+
+	inline
+	point operator* (int scale, const point& a) {
+		return {scale*static_cast <int>(a.x), scale* static_cast <int>(a.y)};
+	}
+
+	inline
+	point2f operator* (const point2f& a, int scale) {
+		return {static_cast <float>(scale)*a.x, static_cast <float>(scale)* a.y};
+	}
+
+	inline
+	point2f operator* (int scale, const point2f& a) {
+		return {static_cast <float>(scale)*a.x, static_cast <float>(scale)* a.y};
+	}
+
+	inline
+	point2f operator* (const point2f& a, float scale) {
+		return {scale*a.x, scale* a.y};
+	}
+
+	inline
+	point2f operator* (float scale, const point2f& a) {
+		return {scale*a.x, scale* a.y};
+	}
+
 	namespace detail {
 		template <typename T>
 		static inline constexpr auto is_point_v = std::is_same_v<T, point> || std::is_same_v<T, point2f>
