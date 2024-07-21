@@ -15,6 +15,7 @@
 #include <sdlpp/detail/object.hh>
 #include <sdlpp/detail/sdl2.hh>
 #include <sdlpp/detail/window_id.hh>
+#include <sdlpp/video/geometry.hh>
 #include <sdlpp/detail/ostreamops.hh>
 
 namespace neutrino::sdl {
@@ -76,7 +77,8 @@ namespace neutrino::sdl {
 			[[nodiscard]] window_id_t id() const;
 
 			// w, h
-			[[nodiscard]] std::tuple <int, int> size() const noexcept;
+			[[nodiscard]] area_type size() const noexcept;
+			void size(const area_type& dims) noexcept;
 			void size(int w, int h) noexcept;
 
 			[[nodiscard]] std::tuple <int, int> position() const noexcept;
@@ -195,13 +197,18 @@ namespace neutrino::sdl {
 
 	// --------------------------------------------------------------------------------------------
 	inline
-	std::tuple <int, int> window::size() const noexcept {
+	area_type window::size() const noexcept {
 		int w, h;
 		SDL_GetWindowSize(const_handle(), &w, &h);
 		return {w, h};
 	}
 
 	// --------------------------------------------------------------------------------------------
+	inline
+	void window::size(const area_type& dims) noexcept {
+		SDL_SetWindowSize(handle(), static_cast<int>(dims.w), static_cast<int>(dims.h));
+	}
+
 	inline
 	void window::size(int w, int h) noexcept {
 		SDL_SetWindowSize(handle(), w, h);
