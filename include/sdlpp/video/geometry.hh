@@ -231,8 +231,30 @@ namespace neutrino::sdl {
         point& operator=(const SDL_Point& p) noexcept;
     };
     */
-    using point2f = neutrino::math::vector <float, 2>;
-    using point = neutrino::math::vector <int, 2>;
+    using point2f = math::vector <float, 2>;
+    using point = math::vector <int, 2>;
+
+    inline
+    bool operator == (const point& a, const point2f& b) {
+        return static_cast<float>(a.x) == b.x && static_cast<float>(a.y) == b.y;
+    }
+    inline
+    bool operator != (const point& a, const point2f& b) {
+        return !(a == b);
+    }
+
+    inline
+    bool operator == (const point2f& b, const point& a) {
+        return static_cast<float>(a.x) == b.x && static_cast<float>(a.y) == b.y;
+    }
+
+    inline
+    bool operator != (const point2f& b, const point& a) {
+        return !(a == b);
+    }
+
+
+
     inline
     area_type operator*(const area_type& a, int scale) {
         return {scale * static_cast <int>(a.w), scale * static_cast <int>(a.h)};
