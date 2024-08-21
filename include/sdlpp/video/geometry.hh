@@ -200,6 +200,28 @@ namespace neutrino::math {
                 return *this;
             }
     };
+
+    using point2f = math::vector <float, 2>;
+    using point = math::vector <int, 2>;
+
+    inline
+    bool operator == (const point& a, const point2f& b) {
+        return static_cast<float>(a.x) == b.x && static_cast<float>(a.y) == b.y;
+    }
+    inline
+    bool operator != (const point& a, const point2f& b) {
+        return !(a == b);
+    }
+
+    inline
+    bool operator == (const point2f& b, const point& a) {
+        return static_cast<float>(a.x) == b.x && static_cast<float>(a.y) == b.y;
+    }
+
+    inline
+    bool operator != (const point2f& b, const point& a) {
+        return !(a == b);
+    }
 }
 
 namespace neutrino::sdl {
@@ -233,27 +255,6 @@ namespace neutrino::sdl {
     */
     using point2f = math::vector <float, 2>;
     using point = math::vector <int, 2>;
-
-    inline
-    bool operator == (const point& a, const point2f& b) {
-        return static_cast<float>(a.x) == b.x && static_cast<float>(a.y) == b.y;
-    }
-    inline
-    bool operator != (const point& a, const point2f& b) {
-        return !(a == b);
-    }
-
-    inline
-    bool operator == (const point2f& b, const point& a) {
-        return static_cast<float>(a.x) == b.x && static_cast<float>(a.y) == b.y;
-    }
-
-    inline
-    bool operator != (const point2f& b, const point& a) {
-        return !(a == b);
-    }
-
-
 
     inline
     area_type operator*(const area_type& a, int scale) {
