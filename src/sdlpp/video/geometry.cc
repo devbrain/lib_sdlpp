@@ -6,25 +6,25 @@
 #include "sdlpp/video/geometry.hh"
 
 namespace neutrino::sdl {
-	std::ostream& operator << (std::ostream& os, const point& p) {
-		os << "(" << p.x << ", " << p.y << ")";
-		return os;
-	}
-	std::string to_string(const point& p) {
-		std::ostringstream os;
-		os << p;
-		return os.str();
-	}
-
-	std::ostream& operator << (std::ostream& os, const point2f& p) {
-		os << "(" << p.x << ", " << p.y << ")";
-		return os;
-	}
-	std::string to_string(const point2f& p) {
-		std::ostringstream os;
-		os << p;
-		return os.str();
-	}
+	// std::ostream& operator << (std::ostream& os, const point& p) {
+	// 	os << "(" << p.x << ", " << p.y << ")";
+	// 	return os;
+	// }
+	// std::string to_string(const point& p) {
+	// 	std::ostringstream os;
+	// 	os << p;
+	// 	return os.str();
+	// }
+	//
+	// std::ostream& operator << (std::ostream& os, const point2f& p) {
+	// 	os << "(" << p.x << ", " << p.y << ")";
+	// 	return os;
+	// }
+	// std::string to_string(const point2f& p) {
+	// 	std::ostringstream os;
+	// 	os << p;
+	// 	return os.str();
+	// }
 
 	std::ostream& operator << (std::ostream& os, const area_type& p) {
 		os << "(" << p.w << ", " << p.h << ")";

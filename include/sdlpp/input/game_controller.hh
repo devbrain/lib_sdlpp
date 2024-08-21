@@ -638,7 +638,7 @@ namespace neutrino::sdl {
 
 	template<class T>
 	std::vector <T>
-	game_controller::get_data(sensor::type st, std::size_t num_values, std::enable_if_t <std::is_same_v <T,
+	game_controller::get_data([[maybe_unused]] sensor::type st, std::size_t num_values, std::enable_if_t <std::is_same_v <T,
 		                          timed_data_t>>*) const {
 		std::vector <uint64_t> times(num_values);
 		std::vector <float> values(num_values);

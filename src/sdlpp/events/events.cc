@@ -58,7 +58,7 @@ static int SDLCALL event_filter_complex (void *userdata, SDL_Event* event) {
 	return 1;
 }
 
-static int SDLCALL nop_filter (void *userdata, SDL_Event* event) {
+static int SDLCALL nop_filter ([[maybe_unused]] void *userdata, [[maybe_unused]] SDL_Event* event) {
 	return 1;
 }
 

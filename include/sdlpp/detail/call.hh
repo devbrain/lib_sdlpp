@@ -68,10 +68,21 @@ namespace neutrino::sdl {
 			f (std::forward<Args> (args)...);
 		}
 	}
-#define SAFE_SDL_CALL(F, ...) ::neutrino::sdl::detail::call_sdl(F, __PRETTY_FUNCTION__, __FILE__, __LINE__, ##__VA_ARGS__)
+
+
 
 }
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#endif
+
 #define RAISE_SDL_EX(...) throw ::neutrino::sdl::sdl_error{__PRETTY_FUNCTION__, __FILE__, __LINE__,  ##__VA_ARGS__}
+#define SAFE_SDL_CALL(F, ...) ::neutrino::sdl::detail::call_sdl(F, __PRETTY_FUNCTION__, __FILE__, __LINE__, ##__VA_ARGS__)
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 #endif //NEUTRINO_SDL_CALL_HH

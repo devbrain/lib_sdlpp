@@ -16,4 +16,5 @@ add_subdirectory(bsw)
 add_subdirectory(sdl2)
 add_subdirectory(bitflags)
 add_subdirectory(strong_type)
+add_subdirectory(neutrino_math)
 

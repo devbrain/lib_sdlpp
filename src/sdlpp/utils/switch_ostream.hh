@@ -29,7 +29,7 @@
          os << t;                                               		\
          return os.str();                  								\
     }                                									\
-	std::ostream& operator << (std::ostream& os, const TYPE& t) { 		\
+	std::ostream& operator << (std::ostream& os, [[maybe_unused]]const TYPE& t) { 		\
 		os << STRINGIZE(TYPE) << '\n';
 
 #define END_CLASS_OUTPUT	return os; }

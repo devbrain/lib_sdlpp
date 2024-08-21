@@ -14,6 +14,11 @@ set_target_properties(vga_demo PROPERTIES FOLDER "Demos")
 add_executable(blob blob.cc)
 target_link_libraries(blob PRIVATE vga_demo thirdparty::sdl2-main)
 set_target_properties(blob PROPERTIES FOLDER "Demos")
+if (MSVC)
+    target_compile_options(blob PRIVATE /W4)
+else()
+    target_compile_options(blob PRIVATE -Wall -Wextra -pedantic -Werror)
+endif()
 
 
 add_executable(plasma plasma.cc)

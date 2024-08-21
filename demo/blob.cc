@@ -38,7 +38,7 @@ class blob : public demo {
   }
  private:
 
-  void draw(unsigned char* video_mem, double delta_time) override {
+  void draw(unsigned char* video_mem, [[maybe_unused]] double delta_time) override {
 	  for (auto & m_coord : m_coords) {
 		  m_coord.x += -2 + (5.0 * (rand() / (RAND_MAX + 2.0)));
 		  m_coord.y += -2 + (5.0 * (rand() / (RAND_MAX + 2.0)));

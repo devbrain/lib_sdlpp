@@ -60,7 +60,7 @@ namespace neutrino::sdl {
 
 	void mixer::allocate_channels(std::size_t num) {
 		auto rc = Mix_AllocateChannels(static_cast <int>(num));
-		if (rc != num) {
+		if (rc != static_cast<int>(num)) {
 			RAISE_SDL_EX("Failed to allocate ", num, " channels");
 		}
 	}

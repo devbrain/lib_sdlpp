@@ -16,6 +16,10 @@
 #define RTC_PALETTE
 #define RTC_SURFACE
 #endif
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#endif
 
 // RTC for palette
 #if defined(RTC_PALETTE)
@@ -29,6 +33,10 @@
 #define RTC_IN_SURFACE(value, ...) RTC_OP(value, ##__VA_ARGS__)
 #else
 #define RTC_IN_SURFACE(value, ...) RTC_NO_OP
+#endif
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
 #endif
 
 #endif
