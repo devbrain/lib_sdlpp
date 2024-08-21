@@ -101,7 +101,7 @@ namespace neutrino::math {
 
     // ============================================================================
     template<>
-    class vector <float, 2> : public vector_ops <int, 2>, public SDL_FPoint {
+    class vector <float, 2> : public vector_ops <float, 2>, public SDL_FPoint {
         public:
             using value_type = float;
 
