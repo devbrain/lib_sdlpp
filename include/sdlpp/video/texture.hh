@@ -140,14 +140,15 @@ namespace neutrino::sdl {
         const auto w = dims.w;
         const auto h = dims.h;
         texture target(r, format, w, h, access::TARGET);
+        surface srf(dims, format);
         SDL_Texture* original = SDL_GetRenderTarget(r.const_handle());
         SAFE_SDL_CALL(SDL_SetRenderTarget, r.const_handle(), target.handle());
         try {
             SAFE_SDL_CALL(SDL_RenderCopy, r.const_handle(), this->const_handle(), nullptr, nullptr);
-            const int pitch = static_cast <int>(w * format.get_bytes_per_pixels());
+            const int pitch = srf->pitch;
             std::vector <char> pixels(h*pitch, 0);
             SAFE_SDL_CALL(SDL_RenderReadPixels, r.const_handle(), nullptr, format.value(), pixels.data(), pitch);
-            surface srf(pixels.data(), dims,  pitch, format);
+            SDL_memcpy(srf->pixels, pixels.data(), pixels.size());
             SDL_SetRenderTarget (r.const_handle(), original);
             return srf;
         } catch (...) {
