@@ -47,6 +47,7 @@ namespace neutrino::sdl {
 			surface(void* data, unsigned width, unsigned height, unsigned pitch, pixel_format format);
 			surface(void* data, const area_type& dims, unsigned pitch, pixel_format format);
 
+
 			explicit surface(object <SDL_RWops>& rwops);
 
 			[[nodiscard]] static surface make_8bit(unsigned width, unsigned height);

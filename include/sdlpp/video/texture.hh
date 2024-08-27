@@ -16,6 +16,7 @@
 #include <sdlpp/video/blend_mode.hh>
 #include <sdlpp/video/color.hh>
 #include <sdlpp/video/geometry.hh>
+#include <sdlpp/video/surface.hh>
 #include <sdlpp/detail/ostreamops.hh>
 
 namespace neutrino::sdl {
@@ -60,8 +61,8 @@ namespace neutrino::sdl {
             [[nodiscard]] std::optional <color> get_color_mod() const;
             void set_color_mod(const color& c);
 
-            [[nodiscard]] object <SDL_Surface> convert_to_surface(const object <SDL_Renderer>& r,
-                                                                  const pixel_format& format = pixel_format::RGBA32)
+            [[nodiscard]] surface convert_to_surface(const object <SDL_Renderer>& r,
+                                                     const pixel_format& format = pixel_format::RGBA32)
             const;
 
             /*
@@ -134,28 +135,23 @@ namespace neutrino::sdl {
 
     // ---------------------------------------------------------------------------------------------------------------
     inline
-    object <SDL_Surface> texture::convert_to_surface(const object <SDL_Renderer>& r, const pixel_format& format) const {
+    surface texture::convert_to_surface(const object <SDL_Renderer>& r, const pixel_format& format) const {
         const auto dims = get_dimensions();
         const auto w = dims.w;
         const auto h = dims.h;
         texture target(r, format, w, h, access::TARGET);
+        SDL_Texture* original = SDL_GetRenderTarget(r.const_handle());
         SAFE_SDL_CALL(SDL_SetRenderTarget, r.const_handle(), target.handle());
         try {
             SAFE_SDL_CALL(SDL_RenderCopy, r.const_handle(), this->const_handle(), nullptr, nullptr);
             const int pitch = static_cast <int>(w * format.get_bytes_per_pixels());
-            std::vector <char> pixels(w * h * format.get_bytes_per_pixels());
+            std::vector <char> pixels(h*pitch, 0);
             SAFE_SDL_CALL(SDL_RenderReadPixels, r.const_handle(), nullptr, format.value(), pixels.data(), pitch);
-
-            SDL_Surface* srf = SDL_CreateRGBSurfaceWithFormatFrom(pixels.data(),
-                                                                  static_cast <int>(w), static_cast <int>(h),
-                                                                  format.get_bytes_per_pixels(), pitch, format.value());
-            if (!srf) {
-                RAISE_SDL_EX("SDL_CreateRGBSurfaceWithFormatFrom failed");
-            }
-            SAFE_SDL_CALL(SDL_SetRenderTarget, r.const_handle(), nullptr);
-            return {srf, true};
+            surface srf(pixels.data(), dims,  pitch, format);
+            SDL_SetRenderTarget (r.const_handle(), original);
+            return srf;
         } catch (...) {
-            SAFE_SDL_CALL(SDL_SetRenderTarget, r.const_handle(), nullptr);
+            SDL_SetRenderTarget (r.const_handle(), original);
             throw;
         }
     }
