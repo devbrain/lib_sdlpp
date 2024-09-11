@@ -1282,11 +1282,13 @@ namespace neutrino::sdl {
 		return detail::s_vals_of_keymod.end();
 	}
 
-	d_SDLPP_OSTREAM(event_action);
 	d_SDLPP_OSTREAM(event_type);
 	d_SDLPP_OSTREAM(scancode);
 	d_SDLPP_OSTREAM(keycode);
 	d_SDLPP_OSTREAM(keymod);
 }
 
+d_SDLPP_S11N(scancode);
+d_SDLPP_S11N(keycode);
+d_SDLPP_S11N(keymod);
 #endif //NEUTRINO_SDL_EVENTS_EVENT_TYPES_HH

@@ -8,7 +8,7 @@
 #include <string>
 #include <iosfwd>
 #include <chrono>
-
+#include <variant>
 #include <bitflags/bitflags.hpp>
 #include <sdlpp/events/event_types.hh>
 #include <sdlpp/detail/ostreamops.hh>
