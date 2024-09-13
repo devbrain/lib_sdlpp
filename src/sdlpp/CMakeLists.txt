@@ -110,7 +110,7 @@ target_include_directories(sdlpp
         PUBLIC ${PROJECT_INCLUDE} ${PROJECT_CONFIG_INCLUDE}
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 )
-target_link_libraries(sdlpp PUBLIC thirdparty::sdl2 thirdparty::sdl2_ttf thirdparty::sdl2_mixer thirdparty::sdl2_image thirdparty::bitflags thirdparty::strong_type bsw neutrino_math)
+target_link_libraries(sdlpp PUBLIC thirdparty::sdl2 thirdparty::sdl2_ttf thirdparty::sdl2_mixer thirdparty::sdl2_image thirdparty::bitflags bsw neutrino_math)
 
 if (MSVC)
     target_compile_options(sdlpp PRIVATE /W4)
