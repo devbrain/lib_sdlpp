@@ -722,7 +722,7 @@ namespace neutrino::sdl {
 	}
 
 	namespace detail {
-		static inline constexpr std::array <scancode, 242> s_vals_of_scancode = {
+		static inline constexpr std::array <scancode, 241> s_vals_of_scancode = {
 			scancode::UNKNOWN,
 			scancode::A,
 			scancode::B,
@@ -964,7 +964,6 @@ namespace neutrino::sdl {
 			scancode::SLEEP,
 			scancode::APP1,
 			scancode::APP2,
-			scancode::NUM_SCANCODES,
 		};
 	}
 
