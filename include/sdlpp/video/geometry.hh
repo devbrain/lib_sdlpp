@@ -222,8 +222,8 @@ namespace neutrino::math {
 	inline
 	vector<int, 2>::vector(const vector<float, 2>& other)
 	: SDL_Point() {
-		x = other.x;
-		y = other.y;
+		x = static_cast<int>(other.x);
+		y = static_cast<int>(other.y);
 	}
 
 	using point2f = math::vector<float, 2>;
