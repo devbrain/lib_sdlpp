@@ -230,7 +230,7 @@ namespace neutrino::sdl::generic {
 				auto y5 = std::max(y1, y3);
 				auto x6 = std::min(x2, x4);
 				auto y6 = std::min(y2, y4);
-				return {x5, y5, x6 - x5, y6 - y5};
+				return rect<Scalar>(x5, y5, static_cast<Scalar>(x6 - x5), static_cast<Scalar>(y6 - y5));
 			}
 			return std::nullopt;
 		}
