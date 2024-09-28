@@ -485,7 +485,7 @@ namespace neutrino::sdl {
 	inline
 	area_type surface::get_dimanesions() const {
 		const auto* s = handle();
-		return {s->w, s->h};
+		return {static_cast<unsigned int>(s->w), static_cast<unsigned int>(s->h)};
 	}
 
 	// ----------------------------------------------------------------------------------------------

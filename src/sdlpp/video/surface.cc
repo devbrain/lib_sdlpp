@@ -33,7 +33,7 @@ namespace neutrino::sdl {
 			&dw,
 			&dh
 		);
-		return {dw, dh};
+		return {static_cast<unsigned int>(dw), static_cast<unsigned int>(dh)};
 	}
 
 	area_type surface::roto_zoom_size (double angle, double zoom_x, double zoom_y) const {
@@ -48,6 +48,6 @@ namespace neutrino::sdl {
 			&dw,
 			&dh
 		);
-		return {dw, dh};
+		return {static_cast<unsigned int>(dw), static_cast<unsigned int>(dh)};
 	}
 }

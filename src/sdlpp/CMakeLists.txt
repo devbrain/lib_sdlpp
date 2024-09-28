@@ -68,6 +68,10 @@ add_library(sdlpp
         ${PROJECT_INCLUDE}/sdlpp/video/ttf.hh
         ${PROJECT_INCLUDE}/sdlpp/video/window.hh
 
+        ${PROJECT_INCLUDE}/sdlpp/geometry/point.hh
+        ${PROJECT_INCLUDE}/sdlpp/geometry/area.hh
+        ${PROJECT_INCLUDE}/sdlpp/geometry/rect.hh
+
         thirdparty/gfx/SDL2_gfxPrimitives.c
         thirdparty/gfx/SDL2_gfxPrimitives.h
         thirdparty/gfx/SDL2_gfxPrimitives_font.h

@@ -204,7 +204,7 @@ namespace neutrino::sdl {
     area_type window::size() const noexcept {
         int w, h;
         SDL_GetWindowSize(const_handle(), &w, &h);
-        return {w, h};
+        return {static_cast<unsigned int>(w), static_cast<unsigned int>(h)};
     }
 
     // --------------------------------------------------------------------------------------------

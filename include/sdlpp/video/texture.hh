@@ -173,7 +173,7 @@ namespace neutrino::sdl {
         int w;
         int h;
         SAFE_SDL_CALL(SDL_QueryTexture, const_handle (), nullptr, nullptr, &w, &h);
-        return {w, h};
+        return {static_cast<unsigned int>(w), static_cast<unsigned int>(h)};
     }
 
     // ---------------------------------------------------------------------------------------------------------------

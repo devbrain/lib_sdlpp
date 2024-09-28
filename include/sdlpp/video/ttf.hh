@@ -434,7 +434,7 @@ namespace neutrino::sdl {
 		int count;
 		auto* f = const_cast <TTF_Font*>(handle());
 		detail::TTF_Measure_impl::call(f, std::forward <LikeAString&&>(str), max_width_pixels, &extent, &count);
-		return {count, extent};
+		return {static_cast<unsigned int>(count), static_cast<unsigned int>(extent)};
 	}
 
 	template<typename LikeAString>
