@@ -30,10 +30,6 @@ namespace neutrino::sdl {
 
 			area_type& operator=(const area_type&) = default;
 		};
-
-
-
-
 	}
 
 	template <typename Scalar>
@@ -48,6 +44,16 @@ namespace neutrino::sdl {
 		std::ostream& operator << (std::ostream& os, const generic::area_type<Scalar>& area) {
 			os << to_string(area);
 			return os;
+		}
+
+		template <typename Scalar>
+		area_type<Scalar> operator*(const area_type<Scalar>& a, Scalar scale) {
+			return {scale * a.w, scale * a.h};
+		}
+
+		template <typename Scalar>
+		area_type<Scalar> operator*(Scalar scale, const area_type<Scalar>& a) {
+			return {scale * a.w, scale * a.h};
 		}
 	}
 

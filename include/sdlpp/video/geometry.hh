@@ -27,15 +27,7 @@ namespace neutrino::sdl {
 	using point2f = math::vector<float, 2>;
 	using point = math::vector<int, 2>;
 
-	inline
-	area_type operator*(const area_type& a, int scale) {
-		return {scale * static_cast <unsigned int>(a.w), scale * static_cast <unsigned int>(a.h)};
-	}
 
-	inline
-	area_type operator*(int scale, const area_type& a) {
-		return {scale * static_cast <unsigned int>(a.w), scale * static_cast <unsigned int>(a.h)};
-	}
 
 	namespace detail {
 		template <typename T>
