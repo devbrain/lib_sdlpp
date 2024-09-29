@@ -198,8 +198,8 @@ namespace neutrino::sdl::generic {
 			const auto box_top = static_cast<Scalar>(r.y);
 			const auto box_bottom = static_cast<Scalar>(r.y + r.h);
 
-			return left() <= box_left && box_right() <= right() &&
-				   top() <= box_top && box_bottom() <= bottom();
+			return left() <= box_left && box_right <= right() &&
+				   top() <= box_top && box_bottom <= bottom();
 		}
 
 		template <typename RectType, class = std::enable_if<is_rect_v<RectType>>>
