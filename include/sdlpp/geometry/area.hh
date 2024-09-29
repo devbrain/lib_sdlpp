@@ -55,6 +55,12 @@ namespace neutrino::sdl {
 		area_type<Scalar> operator*(Scalar scale, const area_type<Scalar>& a) {
 			return {scale * a.w, scale * a.h};
 		}
+
+		template <typename Scalar>
+		area_type<Scalar> operator/(const area_type<Scalar>& a, Scalar scale) {
+			return {static_cast<Scalar>(a.w / scale), static_cast<Scalar>(a.h / scale)};
+		}
+
 	}
 
 }
