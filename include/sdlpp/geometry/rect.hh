@@ -21,6 +21,17 @@ namespace neutrino::sdl::generic {
 		using dim_t = unsigned int;
 		rect_traits()
 			: SDL_Rect{} {}
+
+		[[nodiscard]] bool equals(const SDL_Rect& other) const noexcept {
+			return x == other.x && y == other.y && w == other.w && h == other.h;
+		}
+
+		[[nodiscard]] bool equals(const SDL_FRect& other) const noexcept {
+			return x == static_cast<int>(other.x) &&
+				   y == static_cast<int>(other.y) &&
+				   w == static_cast<int>(other.w) &&
+				   h == static_cast<int>(other.h);
+		}
 	};
 
 
@@ -31,6 +42,17 @@ namespace neutrino::sdl::generic {
 		using dim_t = float;
 		rect_traits()
 			: SDL_FRect{} {}
+
+		[[nodiscard]] bool equals(const SDL_FRect& other) const noexcept {
+			return SDL_TRUE == SDL_FRectEqualsEpsilon(this, &other, math::detail::EPSILON<float>);
+		}
+
+		[[nodiscard]] bool equals(const SDL_Rect& other) const noexcept {
+			return x == static_cast<float>(other.x) &&
+				   y == static_cast<float>(other.y) &&
+				   w == static_cast<float>(other.w) &&
+				   h == static_cast<float>(other.h);
+		}
 	};
 
 	template <typename RectType>
@@ -238,8 +260,27 @@ namespace neutrino::sdl::generic {
 		[[nodiscard]] bool empty() const noexcept {
 			return this->w > 0 && this->h > 0;
 		}
-
 	};
+
+	template <typename Scalar, typename OtherRect, class = std::enable_if<is_rect_v<OtherRect>>>
+	bool operator == (const rect<Scalar>& a, const OtherRect& b) {
+		return a.equals(b);
+	}
+
+	template <typename Scalar, typename OtherRect, class = std::enable_if<is_rect_v<OtherRect>>>
+	bool operator != (const rect<Scalar>& a, const OtherRect& b) {
+		return !(a == b);
+	}
+
+	template <typename Scalar, typename OtherRect, class = std::enable_if<is_rect_v<OtherRect>>>
+	bool operator == (const OtherRect& a, const rect<Scalar>& b) {
+		return a.equals(b);
+	}
+
+	template <typename Scalar, typename OtherRect, class = std::enable_if<is_rect_v<OtherRect>>>
+	bool operator != (const OtherRect& a, const rect<Scalar>& b) {
+		return !(a == b);
+	}
 }
 
 #endif
