@@ -1,343 +1,356 @@
 //
-// Created by igor on 01/06/2020.
+// Created by igor on 7/13/25.
 //
 
-#ifndef NEUTRINO_SDL_COLOR_HH
-#define NEUTRINO_SDL_COLOR_HH
+#pragma once
 
+/**
+ * @file color.hh
+ * @brief Template-based color types with concepts for SDL3
+ * 
+ * This header provides modern C++ color types with both integer (0-255)
+ * and floating-point (0.0-1.0) representations, designed to work seamlessly
+ * with SDL3's color types while providing rich functionality.
+ */
+
+#include <sdlpp/core/sdl.hh>
 #include <algorithm>
-#include <cstdint>
-#include <tuple>
-#include <cmath>
+#include <type_traits>
+#include <concepts>
 
-#include <sdlpp/detail/sdl2.hh>
-#include <sdlpp/detail/ostreamops.hh>
+namespace sdlpp {
+    /**
+     * @brief Type traits for mapping C++ types to SDL color types
+     */
+    template<typename T>
+    struct sdl_color_types;
 
-namespace neutrino::sdl {
-	/**
-	 * @brief The color struct represents a color in RGBA format.
-	 *
-	 * The color struct provides methods for creating colors, converting between color spaces,
-	 * and accessing the individual color component values.
-	 */
-	struct color : public SDL_Color {
-		color();
-		constexpr color(uint8_t r, uint8_t g, uint8_t b);
-		constexpr color(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
-		explicit color(const SDL_Color& c);
-		color& operator=(const SDL_Color& c);
+    template<>
+    struct sdl_color_types <uint8_t> {
+        using color_type = SDL_Color;
+        static constexpr uint8_t max_value = 255;
+        static constexpr uint8_t default_alpha = 255;
+    };
 
-		/**
-		 * @brief Creates a color object from the given HSL values.
-		 *
-		 * This static method takes three parameters representing the Hue, Saturation, and Lightness values of the desired color.
-		 * It then calculates the corresponding RGB values and creates a color object with those values.
-		 *
-		 * @param h The Hue value of the color (0-255).
-		 * @param s The Saturation value of the color (0-255).
-		 * @param l The Lightness value of the color (0-255).
-		 * @return The color object created from the given HSL values.
-		 *
-		 * @see color
-		 */
-		static color from_hsl(uint8_t h, uint8_t s, uint8_t l);
-		/**
-		 * @brief Creates a color object from the given HSV values.
-		 *
-		 * This static method takes three parameters representing the Hue, Saturation, and Value (brightness) values of the desired color.
-		 * It then calculates the corresponding RGB values and creates a color object with those values.
-		 *
-		 * @param h The Hue value of the color (0-255).
-		 * @param s The Saturation value of the color (0-255).
-		 * @param v The Value (brightness) value of the color (0-255).
-		 * @return The color object created from the given HSV values.
-		 */
-		static color from_hsv(uint8_t h, uint8_t s, uint8_t v);
+    template<>
+    struct sdl_color_types <float> {
+        using color_type = SDL_FColor;
+        static constexpr float max_value = 1.0f;
+        static constexpr float default_alpha = 1.0f;
+    };
 
-		/**
-		 * @brief Converts the color from RGB to HSL color space.
-		 *
-		 * This method calculates the Hue, Saturation, and Lightness values of the color in the HSL color space.
-		 * The resulting values are returned as a tuple.
-		 *
-		 * @return A tuple containing the Hue, Saturation, and Lightness values of the color in the HSL color space.
-		 *
-		 * @see color
-		 */
-		[[nodiscard]] std::tuple <uint8_t, uint8_t, uint8_t> to_hsl() const;
-		/**
-		 * @brief Converts the color from RGB to HSV color space.
-		 *
-		 * This method calculates the Hue, Saturation, and Value (brightness) values of the color in the HSV color space.
-		 * The resulting values are returned as a tuple.
-		 *
-		 * @return A tuple containing the Hue, Saturation, and Value values of the color in the HSV color space.
-		 *
-		 * @see color
-		 */
-		[[nodiscard]] std::tuple <uint8_t, uint8_t, uint8_t> to_hsv() const;
-	};
+    /**
+     * @brief Concept for numeric types suitable for color components
+     */
+    template<typename T>
+    concept color_component = (std::is_same_v <T, uint8_t> || std::is_same_v <T, float>);
 
-	inline
-	bool operator==(const color& a, const color& b) {
-		return (a.r == b.r) && (a.g == b.g) && (a.b && b.b) && (a.a == b.a);
-	}
+    /**
+     * @brief Generic RGBA color with template component type
+     * @tparam T Component type (uint8_t for 0-255, float for 0.0-1.0)
+     */
+    template<color_component T>
+    struct basic_color {
+        using value_type = T;
+        using sdl_type = typename sdl_color_types <T>::color_type;
 
-	inline
-	bool operator!=(const color& a, const color& b) {
-		return !(a == b);
-	}
+        T r = 0; ///< Red component
+        T g = 0; ///< Green component
+        T b = 0; ///< Blue component
+        T a = sdl_color_types <T>::default_alpha; ///< Alpha component
 
-	d_SDLPP_OSTREAM_WITHOT_FROM_STRING(const color&);
+        /**
+         * @brief Default constructor - creates black color with full opacity
+         */
+        constexpr basic_color() = default;
 
-	inline constexpr color::color(uint8_t r, uint8_t g, uint8_t b)
-		: SDL_Color{r, g, b, 0xFF} {
-	}
+        /**
+         * @brief Construct a color from RGBA components
+         * @param red Red component
+         * @param green Green component
+         * @param blue Blue component
+         * @param alpha Alpha component (default is full opacity)
+         */
+        constexpr basic_color(T red, T green, T blue, T alpha = sdl_color_types <T>::default_alpha)
+            : r(red), g(green), b(blue), a(alpha) {
+        }
 
-	inline constexpr color::color(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
-		: SDL_Color{r, g, b, a} {
-	}
-} // ns sdl
+        /**
+         * @brief Convert to SDL color type
+         * @return SDL_Color for uint8_t, SDL_FColor for float
+         */
+        [[nodiscard]] constexpr auto to_sdl() const {
+            if constexpr (std::is_same_v <T, uint8_t>) {
+                return SDL_Color{r, g, b, a};
+            } else {
+                return SDL_FColor{r, g, b, a};
+            }
+        }
 
-// =========================================================================
-// Implementation
-// =========================================================================
+        /**
+         * @brief Create color from SDL type
+         * @param c SDL color structure
+         * @return basic_color instance
+         */
+        static constexpr basic_color from_sdl(const sdl_type& c) {
+            return {c.r, c.g, c.b, c.a};
+        }
 
-namespace neutrino::sdl {
-	inline color::color()
-		: SDL_Color{0, 0, 0, 0} {
-	}
+        /**
+         * @brief Conversion constructor from different component type
+         * @tparam U Source component type
+         * @param other Source color
+         */
+        template<color_component U>
+        constexpr explicit basic_color(const basic_color <U>& other) {
+            if constexpr (std::is_same_v <T, uint8_t> && std::is_same_v <U, float>) {
+                // Float to uint8_t conversion
+                r = static_cast <T>(std::clamp(other.r * 255.0f, 0.0f, 255.0f));
+                g = static_cast <T>(std::clamp(other.g * 255.0f, 0.0f, 255.0f));
+                b = static_cast <T>(std::clamp(other.b * 255.0f, 0.0f, 255.0f));
+                a = static_cast <T>(std::clamp(other.a * 255.0f, 0.0f, 255.0f));
+            } else if constexpr (std::is_same_v <T, float> && std::is_same_v <U, uint8_t>) {
+                // uint8_t to float conversion
+                r = static_cast <T>(other.r) / 255.0f;
+                g = static_cast <T>(other.g) / 255.0f;
+                b = static_cast <T>(other.b) / 255.0f;
+                a = static_cast <T>(other.a) / 255.0f;
+            }
+        }
 
-	inline color::color(const SDL_Color& c)
-		: SDL_Color{c.r, c.g, c.b, c.a} {
-	}
+        /**
+         * @brief Mix two colors with linear interpolation
+         * @param other Target color
+         * @param t Interpolation factor (0-1)
+         * @return Interpolated color
+         */
+        [[nodiscard]] constexpr basic_color mix(const basic_color& other, float t) const {
+            if constexpr (std::is_same_v <T, uint8_t>) {
+                return {
+                    static_cast <T>(r + (other.r - r) * t),
+                    static_cast <T>(g + (other.g - g) * t),
+                    static_cast <T>(b + (other.b - b) * t),
+                    static_cast <T>(a + (other.a - a) * t)
+                };
+            } else {
+                return {
+                    r + (other.r - r) * t,
+                    g + (other.g - g) * t,
+                    b + (other.b - b) * t,
+                    a + (other.a - a) * t
+                };
+            }
+        }
 
-	inline color& color::operator=(const SDL_Color& c) {
-		r = c.r;
-		g = c.g;
-		b = c.b;
-		a = c.a;
-		return *this;
-	}
+        /**
+         * @brief Premultiply RGB by alpha
+         * @return Color with premultiplied alpha
+         */
+        [[nodiscard]] constexpr basic_color premultiply() const {
+            if constexpr (std::is_same_v <T, uint8_t>) {
+                float af = a / 255.0f;
+                return {
+                    static_cast <T>(r * af),
+                    static_cast <T>(g * af),
+                    static_cast <T>(b * af),
+                    a
+                };
+            } else {
+                return {r * a, g * a, b * a, a};
+            }
+        }
 
-	namespace detail {
-		static constexpr double EPSILON = 0.001;
-	}
+        /**
+         * @brief Calculate luminance (perceived brightness)
+         * @return Luminance value in component range
+         */
+        [[nodiscard]] constexpr T luminance() const {
+            if constexpr (std::is_same_v <T, uint8_t>) {
+                // ITU-R BT.709 luma coefficients
+                return static_cast <T>(0.2126f * r + 0.7152f * g + 0.0722f * b);
+            } else {
+                return 0.2126f * r + 0.7152f * g + 0.0722f * b;
+            }
+        }
 
-	inline
-	color color::from_hsl(uint8_t h_, uint8_t s_, uint8_t l_) {
-		double r, g, b, h, s, l; //this function works with floats between 0 and 1
-		double temp1, temp2, tempr, tempg, tempb;
-		h = h_ / 256.0;
-		s = s_ / 256.0;
-		l = l_ / 256.0;
+        /**
+         * @brief Convert to grayscale
+         * @return Grayscale color
+         */
+        [[nodiscard]] constexpr basic_color to_grayscale() const {
+            T lum = luminance();
+            return {lum, lum, lum, a};
+        }
 
-		//If saturation is 0, the color is a shade of gray
-		if (std::abs(s) < detail::EPSILON) {
-			r = g = b = l;
-		}
-		//If saturation > 0, more complex calculations are needed
-		else {
-			//Set the temporary values
-			if (l < 0.5) {
-				temp2 = l * (1 + s);
-			} else {
-				temp2 = (l + s) - (l * s);
-			}
-			temp1 = 2 * l - temp2;
-			tempr = h + 1.0 / 3.0;
-			if (tempr > 1) {
-				tempr--;
-			}
-			tempg = h;
-			tempb = h - 1.0 / 3.0;
-			if (tempb < 0) {
-				tempb++;
-			}
+        /**
+         * @brief Adjust brightness
+         * @param factor Brightness factor (1.0 = no change, >1.0 = brighter, <1.0 = darker)
+         * @return Adjusted color
+         */
+        [[nodiscard]] constexpr basic_color adjust_brightness(float factor) const {
+            if constexpr (std::is_same_v <T, uint8_t>) {
+                return {
+                    static_cast <T>(std::clamp(r * factor, 0.0f, 255.0f)),
+                    static_cast <T>(std::clamp(g * factor, 0.0f, 255.0f)),
+                    static_cast <T>(std::clamp(b * factor, 0.0f, 255.0f)),
+                    a
+                };
+            } else {
+                return {
+                    std::clamp(r * factor, 0.0f, 1.0f),
+                    std::clamp(g * factor, 0.0f, 1.0f),
+                    std::clamp(b * factor, 0.0f, 1.0f),
+                    a
+                };
+            }
+        }
 
-			//Red
-			if (tempr < 1.0 / 6.0) {
-				r = temp1 + (temp2 - temp1) * 6.0 * tempr;
-			} else {
-				if (tempr < 0.5) {
-					r = temp2;
-				} else {
-					if (tempr < 2.0 / 3.0) {
-						r = temp1 + (temp2 - temp1) * ((2.0 / 3.0) - tempr) * 6.0;
-					} else {
-						r = temp1;
-					}
-				}
-			}
+        // Comparison operators
+        [[nodiscard]] constexpr bool operator==(const basic_color&) const = default;
 
-			//Green
-			if (tempg < 1.0 / 6.0) {
-				g = temp1 + (temp2 - temp1) * 6.0 * tempg;
-			} else {
-				if (tempg < 0.5) {
-					g = temp2;
-				} else {
-					if (tempg < 2.0 / 3.0) {
-						g = temp1 + (temp2 - temp1) * ((2.0 / 3.0) - tempg) * 6.0;
-					} else {
-						g = temp1;
-					}
-				}
-			}
+        // Arithmetic operators for color blending
+        [[nodiscard]] constexpr basic_color operator+(const basic_color& other) const {
+            if constexpr (std::is_same_v <T, uint8_t>) {
+                return {
+                    static_cast <T>(std::min(static_cast <int>(r) + other.r, 255)),
+                    static_cast <T>(std::min(static_cast <int>(g) + other.g, 255)),
+                    static_cast <T>(std::min(static_cast <int>(b) + other.b, 255)),
+                    static_cast <T>(std::min(static_cast <int>(a) + other.a, 255))
+                };
+            } else {
+                return {
+                    std::min(r + other.r, 1.0f),
+                    std::min(g + other.g, 1.0f),
+                    std::min(b + other.b, 1.0f),
+                    std::min(a + other.a, 1.0f)
+                };
+            }
+        }
 
-			//Blue
-			if (tempb < 1.0 / 6.0) {
-				b = temp1 + (temp2 - temp1) * 6.0 * tempb;
-			} else {
-				if (tempb < 0.5) {
-					b = temp2;
-				} else {
-					if (tempb < 2.0 / 3.0) {
-						b = temp1 + (temp2 - temp1) * ((2.0 / 3.0) - tempb) * 6.0;
-					} else {
-						b = temp1;
-					}
-				}
-			}
-		}
-		return {
-			static_cast
-			<uint8_t>(r
-			          * 256),
-			static_cast
-			<uint8_t>(g
-			          * 256),
-			static_cast
-			<uint8_t>(b
-			          * 256)
-		};
-	}
+        [[nodiscard]] constexpr basic_color operator*(float factor) const {
+            return adjust_brightness(factor);
+        }
+    };
 
-	inline color color::from_hsv(uint8_t h_, uint8_t s_, uint8_t v_) {
-		double r, g, b, h, s, v; //this function works with floats between 0 and 1
-		h = h_ / 256.0;
-		s = s_ / 256.0;
-		v = v_ / 256.0;
+    // Type aliases for common use cases
+    using color = basic_color <uint8_t>; ///< Integer RGBA color (0-255)
+    using fcolor = basic_color <float>; ///< Floating-point RGBA color (0.0-1.0)
 
-		//If saturation is 0, the color is a shade of gray
-		if (std::abs(s) < detail::EPSILON) {
-			r = g = b = v;
-		}
-		//If saturation > 0, more complex calculations are needed
-		else {
-			double f, p, q, t;
-			int i;
-			h *= 6; //to bring hue to a number between 0 and 6, better for the calculations
-			i = int(floor(h)); //e.g. 2.7 becomes 2 and 3.01 becomes 3 or 4.9999 becomes 4
-			f = h - i; //the fractional part of h
-			p = v * (1 - s);
-			q = v * (1 - (s * f));
-			t = v * (1 - (s * (1 - f)));
-			switch (i) {
-				case 0: r = v;
-					g = t;
-					b = p;
-					break;
-				case 1: r = q;
-					g = v;
-					b = p;
-					break;
-				case 2: r = p;
-					g = v;
-					b = t;
-					break;
-				case 3: r = p;
-					g = q;
-					b = v;
-					break;
-				case 4: r = t;
-					g = p;
-					b = v;
-					break;
-				default:
-					/*case 5:*/ r = v;
-					g = p;
-					b = q;
-					break;
-			}
-		}
-		return {static_cast <uint8_t>(r * 256), static_cast <uint8_t>(g * 256), static_cast <uint8_t>(b * 256)};
-	}
+    /**
+     * @brief Concept for color-like types
+     */
+    template<typename T>
+    concept color_like = requires(T t)
+    {
+        { t.r } -> std::convertible_to <typename T::value_type>;
+        { t.g } -> std::convertible_to <typename T::value_type>;
+        { t.b } -> std::convertible_to <typename T::value_type>;
+        { t.a } -> std::convertible_to <typename T::value_type>;
+        typename T::value_type;
+        requires color_component <typename T::value_type>;
+    };
 
-	inline
-	std::tuple <uint8_t, uint8_t, uint8_t> color::to_hsl() const {
-		double fr, fg, fb, h, s, l; //this function works with floats between 0 and 1
-		fr = r / 256.0;
-		fg = g / 256.0;
-		fb = b / 256.0;
-		auto maxColor = std::max(fr, std::max(fg, fb));
-		auto minColor = std::min(fr, std::min(fg, fb));
-		//R == G == B, so it's a shade of gray
-		if (std::abs(minColor - maxColor) < detail::EPSILON) {
-			h = 0.0; //it doesn't matter what value it has
-			s = 0.0;
-			l = fr; //doesn't matter if you pick r, g, or b
-		} else {
-			l = (minColor + maxColor) / 2;
+    // Predefined color constants
+    namespace colors {
+        // Basic colors
+        inline constexpr color black{0, 0, 0};
+        inline constexpr color white{255, 255, 255};
+        inline constexpr color red{255, 0, 0};
+        inline constexpr color green{0, 255, 0};
+        inline constexpr color blue{0, 0, 255};
+        inline constexpr color yellow{255, 255, 0};
+        inline constexpr color cyan{0, 255, 255};
+        inline constexpr color magenta{255, 0, 255};
 
-			if (l < 0.5) {
-				s = (maxColor - minColor) / (maxColor + minColor);
-			} else {
-				s = (maxColor - minColor) / (2.0 - maxColor - minColor);
-			}
+        // Grays
+        inline constexpr color gray{128, 128, 128};
+        inline constexpr color light_gray{192, 192, 192};
+        inline constexpr color dark_gray{64, 64, 64};
 
-			if (std::abs(fr - maxColor) < detail::EPSILON) {
-				h = (fg - fb) / (maxColor - minColor);
-			} else {
-				if (std::abs(fg - maxColor) < detail::EPSILON) {
-					h = 2.0 + (fb - fr) / (maxColor - minColor);
-				} else {
-					h = 4.0 + (fr - fg) / (maxColor - minColor);
-				}
-			}
+        // Transparent
+        inline constexpr color transparent{0, 0, 0, 0};
 
-			h /= 6; //to bring it to a number between 0 and 1
-			if (h < 0) {
-				h++;
-			}
-		}
-		return {static_cast <uint8_t>(256 * h), static_cast <uint8_t>(256 * s), static_cast <uint8_t>(256 * l)};
-	}
+        // Floating-point versions
+        namespace f {
+            inline constexpr fcolor black{0.0f, 0.0f, 0.0f};
+            inline constexpr fcolor white{1.0f, 1.0f, 1.0f};
+            inline constexpr fcolor red{1.0f, 0.0f, 0.0f};
+            inline constexpr fcolor green{0.0f, 1.0f, 0.0f};
+            inline constexpr fcolor blue{0.0f, 0.0f, 1.0f};
+            inline constexpr fcolor yellow{1.0f, 1.0f, 0.0f};
+            inline constexpr fcolor cyan{0.0f, 1.0f, 1.0f};
+            inline constexpr fcolor magenta{1.0f, 0.0f, 1.0f};
+            inline constexpr fcolor gray{0.5f, 0.5f, 0.5f};
+            inline constexpr fcolor transparent{0.0f, 0.0f, 0.0f, 0.0f};
+        }
+    }
 
-	inline
-	std::tuple <uint8_t, uint8_t, uint8_t> color::to_hsv() const {
-		double fr, fg, fb, h, s, v; //this function works with floats between 0 and 1
-		fr = r / 256.0;
-		fg = g / 256.0;
-		fb = b / 256.0;
-		auto maxColor = std::max(fr, std::max(fg, fb));
-		auto minColor = std::min(fr, std::min(fg, fb));
-		v = maxColor;
-		if (std::abs(maxColor) < detail::EPSILON) //avoid division by zero when the color is black
-		{
-			s = 0;
-		} else {
-			s = (maxColor - minColor) / maxColor;
-		}
-		if (std::abs(s) < detail::EPSILON) {
-			h = 0; //it doesn't matter what value it has
-		} else {
-			if (std::abs(r - maxColor) < detail::EPSILON) {
-				h = (fg - fb) / (maxColor - minColor);
-			} else {
-				if (std::abs(fg - maxColor) < detail::EPSILON) {
-					h = 2.0 + (fb - fr) / (maxColor - minColor);
-				} else {
-					h = 4.0 + (fr - fg) / (maxColor - minColor);
-				}
-			}
-			h /= 6.0; //to bring it to a number between 0 and 1
-			if (h < 0) {
-				h++;
-			}
-		}
-		return {static_cast <uint8_t>(256 * h), static_cast <uint8_t>(256 * s), static_cast <uint8_t>(256 * v)};
-	}
-}
+    /**
+     * @brief Linear interpolation between two colors
+     * @tparam C Color type
+     * @param a Start color
+     * @param b End color
+     * @param t Interpolation factor (0-1)
+     * @return Interpolated color
+     */
+    template<color_like C>
+    [[nodiscard]] constexpr C lerp(const C& a, const C& b, float t) {
+        return a.mix(b, t);
+    }
 
-#endif
+    /**
+     * @brief Blend two colors using alpha blending
+     * @tparam C Color type
+     * @param src Source color (foreground)
+     * @param dst Destination color (background)
+     * @return Blended color
+     */
+    template<color_like C>
+    [[nodiscard]] constexpr C alpha_blend(const C& src, const C& dst) {
+        if constexpr (std::is_same_v <typename C::value_type, uint8_t>) {
+            float src_a = src.a / 255.0f;
+            float inv_src_a = 1.0f - src_a;
+
+            return C{
+                static_cast <uint8_t>(src.r * src_a + dst.r * inv_src_a),
+                static_cast <uint8_t>(src.g * src_a + dst.g * inv_src_a),
+                static_cast <uint8_t>(src.b * src_a + dst.b * inv_src_a),
+                static_cast <uint8_t>(src.a + dst.a * inv_src_a)
+            };
+        } else {
+            float inv_src_a = 1.0f - src.a;
+            return C{
+                src.r * src.a + dst.r * inv_src_a,
+                src.g * src.a + dst.g * inv_src_a,
+                src.b * src.a + dst.b * inv_src_a,
+                src.a + dst.a * inv_src_a
+            };
+        }
+    }
+
+    /**
+     * @brief Convert color to 32-bit RGBA value
+     * @param c Color to convert
+     * @return 32-bit RGBA value
+     */
+    [[nodiscard]] inline constexpr uint32_t to_rgba32(const color& c) {
+        return (static_cast <uint32_t>(c.r) << 24) |
+               (static_cast <uint32_t>(c.g) << 16) |
+               (static_cast <uint32_t>(c.b) << 8) |
+               static_cast <uint32_t>(c.a);
+    }
+
+    /**
+     * @brief Create color from 32-bit RGBA value
+     * @param rgba 32-bit RGBA value
+     * @return Color instance
+     */
+    [[nodiscard]] inline constexpr color from_rgba32(uint32_t rgba) {
+        return color{
+            static_cast <uint8_t>((rgba >> 24) & 0xFF),
+            static_cast <uint8_t>((rgba >> 16) & 0xFF),
+            static_cast <uint8_t>((rgba >> 8) & 0xFF),
+            static_cast <uint8_t>(rgba & 0xFF)
+        };
+    }
+} // namespace sdlpp

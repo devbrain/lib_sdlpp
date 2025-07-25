@@ -1,575 +1,881 @@
 //
-// Created by igor on 03/06/2020.
+// Created by igor on 7/13/25.
 //
 
-#ifndef NEUTRINO_SDL_SURFACE_HH
-#define NEUTRINO_SDL_SURFACE_HH
+#pragma once
 
+/**
+ * @file surface.hh
+ * @brief Modern C++ wrapper for SDL3 surface functionality
+ * 
+ * This header provides RAII-managed wrappers around SDL3's surface system,
+ * which represents images in system memory. Surfaces can be created, loaded,
+ * manipulated, and converted between different pixel formats.
+ */
+
+#include <sdlpp/core/sdl.hh>
+#include <sdlpp/core/error.hh>
+#include <sdlpp/detail/expected.hh>
+#include <sdlpp/detail/pointer.hh>
+#include <sdlpp/video/pixels.hh>
+#include <sdlpp/utility/geometry.hh>
+#include <sdlpp/io/iostream.hh>
+#include <sdlpp/video/palette.hh>
+#include <sdlpp/video/blend_mode.hh>
 #include <string>
 #include <optional>
-
-#include <bsw/array_view.hh>
-#include <bsw/macros.hh>
-#include <sdlpp/detail/call.hh>
-#include <sdlpp/detail/object.hh>
-#include <sdlpp/detail/lock.hh>
-#include <sdlpp/detail/sdl2.hh>
-#include <sdlpp/io/io.hh>
-#include <sdlpp/video/geometry.hh>
-#include <sdlpp/video/palette.hh>
-#include <sdlpp/video/pixel_format.hh>
-#include <sdlpp/video/blend_mode.hh>
-
-namespace neutrino::sdl {
-	/**
-	 * @class surface
-	 * @brief A class representing a surface in SDL.
-	 *
-	 * This class is used for representing a collection of pixels used in software blitting.
-	 * It provides functionality for manipulating and blitting surfaces, as well as changing properties
-	 * like color, transparency, and blending.
-	 */
-	class SDLPP_EXPORT surface : public object <SDL_Surface> {
-		public:
-			surface();
-			explicit surface(object <SDL_Surface>&& other);
-			surface(surface&& other) noexcept;
-			explicit surface(const object <SDL_Window>& other);
-			surface& operator=(object <SDL_Surface>&& other) noexcept;
-			surface& operator=(surface&& other) noexcept;
-
-			surface& operator=(const surface& other) = delete;
-			surface(const surface& other) = delete;
-
-			surface(unsigned width, unsigned height, pixel_format format);
-			surface(const area_type& dims, pixel_format format);
-			// pitch - size of the scanline in bytes
-			surface(void* data, unsigned width, unsigned height, unsigned pitch, pixel_format format);
-			surface(void* data, const area_type& dims, unsigned pitch, pixel_format format);
-
-
-			explicit surface(object <SDL_RWops>& rwops);
-
-			[[nodiscard]] static surface make_8bit(unsigned width, unsigned height);
-			[[nodiscard]] static surface make_8bit(const area_type& dims);
-			[[nodiscard]] static surface make_rgba_32bit(unsigned width, unsigned height);
-			[[nodiscard]] static surface make_rgba_32bit(const area_type& dims);
-
-			void save_bmp(const std::string& path) const;
-			void save_bmp(object <SDL_RWops>& stream) const;
-
-			[[nodiscard]] surface clone() const;
-			void lock() noexcept;
-			void unlock() noexcept;
-			[[nodiscard]] bool must_lock() const noexcept;
-
-			[[nodiscard]] rect get_clip() const;
-			/**
-			 * @brief set clip rectangle
-			 * @param r
-			 * @return Returns true if the rectangle intersects the surface, otherwise false and blits will be completely clipped.
-			 */
-			[[nodiscard]] bool set_clip(const rect& r);
-
-			void color_key(uint32_t c);
-			void color_key(const color& c);
-			void disable_color_key();
-			[[nodiscard]] std::optional <uint32_t> color_key() const;
-
-			[[nodiscard]] blend_mode get_blend_mode() const;
-			void set_blend_mode(blend_mode v);
-
-			[[nodiscard]] uint8_t get_alpha_mod() const;
-			void set_alpha_mod(uint8_t v);
-
-			void set_rle_acceleration(bool enabled);
-
-			void set_color_mod(uint8_t r, uint8_t g, uint8_t b);
-			[[nodiscard]] std::optional <color> get_color_mod() const;
-
-			/**
-			 * @brief Blit this surface to @c dst surface
-			 *
-			 * This function blits an area enclosed by @c srect to the destination surface area @c drect.
-			 * Scaling will be performed if needed.
-			 *
-			 * @param srect source area
-			 * @param dst  destination surface
-			 * @param drect destination area
-			 * @throws @see sdl::exception on failure
-			 */
-			void blit(const rect& srect, object <SDL_Surface>& dst, const rect& drect) const;
-
-			/**
-			 * @brief Blit this surface to @c dst surface
-			 *
-			 * This function blits the whole surface to the destination surface @c dst.
-			 * Scaling will be performed if needed.
-			 *
-			 * @param dst destination surface
-			 * @throws @see sdl::exception on failure
-			 */
-			void blit_scaled(const rect& srect, object <SDL_Surface>& dst) const;
-			void blit_scaled(object <SDL_Surface>& dst) const;
-			void blit_scaled(const rect& srect, object <SDL_Surface>& dst, const rect& drect) const;
-
-			/**
-			 * @brief Blit this surface to @c dst surface
-			 *
-			 * This function blits the source area enclosed be @srect to the point @c dpoint in the destination surface.
-			 * Clipping will be performed if needed.
-			 *
-			 * @param srect source area
-			 * @param dst  destination surface
-			 * @param dpoint destination point
-			 * @throws @see sdl::exception on failure
-			 */
-			void blit(const rect& srect, object <SDL_Surface>& dst, const point& dpoint) const;
-
-			/**
-			 * @brief Blit this surface to @c dst surface
-			 *
-			 * This function blits the source area enclosed be @srect to the (0,0) point in the destination surface.
-			 * Clipping will be performed if needed.
-			 *
-			 * @param srect source area
-			 * @param dst destination surface
-			 * @throws @see sdl::exception on failure
-			 */
-			void blit(const rect& srect, object <SDL_Surface>& dst) const;
-			/**
-			 * @brief Blit this surface to @c dst surface
-			 *
-			 * This function blits the whole surface to the (0,0) point in the destination surface.
-			 * Clipping will be performed if needed.
-			 *
-			 * @param dst destination surface
-			 * @throws @see sdl::exception on failure
-			 */
-			void blit(object <SDL_Surface>& dst) const;
-
-			// returns pixels, pitch, w, h
-			[[nodiscard]] std::tuple <void*, std::size_t, unsigned, unsigned> pixels_data() const;
-			[[nodiscard]] area_type get_dimanesions() const;
-
-			void fill(const rect& r, uint32_t c);
-			void fill(const rect& r, const color& c);
-			void fill(uint32_t c);
-			void fill(const color& c);
-			void fill(const bsw::array_view1d <rect>& rects, uint32_t c);
-			void fill(const bsw::array_view1d <rect>& rects, const color& c);
-
-			[[nodiscard]] surface convert(const pixel_format& fmt) const;
-
-			[[nodiscard]] pixel_format get_pixel_format() const;
-			[[nodiscard]] uint32_t map_color(const color& c);
-
-			// this method returns reference to the actual palette
-			[[nodiscard]] palette get_palette() const;
-			void set_palette(const palette& pal);
-
-			[[nodiscard]] surface roto_zoom(double angle, double zoom, bool smooth) const;
-			[[nodiscard]] surface roto_zoom(double angle, double zoom_x, double zoom_y, bool smooth) const;
-
-			[[nodiscard]] area_type roto_zoom_size(double angle, double zoom) const;
-			[[nodiscard]] area_type roto_zoom_size(double angle, double zoom_x, double zoom_y) const;
-	};
-
-	template<>
-	struct detail::locker_traits <surface> {
-		static bool must_lock(const surface& s) {
-			return s.must_lock();
-		}
-
-		static void lock(surface& s) {
-			s.lock();
-		}
-
-		static void unlock(surface& s) {
-			s.unlock();
-		}
-	};
-}
-
-// ===================================================================================================
-// Implementation
-// ===================================================================================================
-namespace neutrino::sdl {
-	inline
-	surface::surface() = default;
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	surface::surface(object <SDL_Surface>&& other)
-		: object <SDL_Surface>(std::move(other)) {
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	surface::surface(surface&& other) noexcept
-		: object <SDL_Surface>(nullptr, false) {
-		other.swap(*this);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	surface& surface::operator=(surface&& other) noexcept {
-		object <SDL_Surface>::operator=(std::move(other));
-		return *this;
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	surface::surface(const object <SDL_Window>& other)
-		: object <SDL_Surface>(SAFE_SDL_CALL(SDL_GetWindowSurface, const_cast<SDL_Window*>(other.handle ())), false) {
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	surface& surface::operator=(object <SDL_Surface>&& other) noexcept {
-		object <SDL_Surface>::operator=(std::move(other));
-		return *this;
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	surface::surface(unsigned width, unsigned height, pixel_format format)
-		: object <SDL_Surface>(SAFE_SDL_CALL(SDL_CreateRGBSurfaceWithFormat, 0,
-		                                     static_cast<int>(width), static_cast<int>(height),
-		                                     format.get_bits_per_pixels (), format.value ())		                       , true) {
-	}
-
-	inline
-	surface::surface(const area_type& dims, pixel_format format)
-		: object <SDL_Surface>(SAFE_SDL_CALL(SDL_CreateRGBSurfaceWithFormat, 0,
-		                                     static_cast<int>(dims.w), static_cast<int>(dims.h),
-		                                     format.get_bits_per_pixels (), format.value ())		                       , true) {
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	surface::surface(void* data, unsigned width, unsigned height, unsigned pitch, pixel_format format)
-		: object <SDL_Surface>(SAFE_SDL_CALL(SDL_CreateRGBSurfaceWithFormatFrom, data,
-		                                     static_cast<int>(width),
-		                                     static_cast<int>(height),
-		                                     format.get_bits_per_pixels (),
-		                                     static_cast<int>(pitch),
-		                                     format.value ())		                       , true) {
-	}
-
-	inline
-	surface::surface(void* data, const area_type& dims, unsigned pitch, pixel_format format)
-		: object <SDL_Surface>(SAFE_SDL_CALL(SDL_CreateRGBSurfaceWithFormatFrom, data,
-		                                     static_cast<int>(dims.w),
-		                                     static_cast<int>(dims.h),
-		                                     format.get_bits_per_pixels (),
-		                                     static_cast<int>(pitch),
-		                                     format.value ())		                       , true) {
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	surface::surface(object <SDL_RWops>& rwops)
-		: object <SDL_Surface>(SAFE_SDL_CALL(IMG_Load_RW, rwops.handle (), SDL_FALSE), true) {
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	surface surface::make_8bit(unsigned width, unsigned height) {
-		return {width, height, pixel_format::make_8bit()};
-	}
-
-	inline
-	surface surface::make_8bit(const area_type& dims) {
-		return make_8bit(dims.w, dims.h);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	surface surface::make_rgba_32bit(unsigned width, unsigned height) {
-		return {width, height, pixel_format::make_rgba_32bit()};
-	}
-	inline
-	surface surface::make_rgba_32bit(const area_type& dims) {
-		return make_rgba_32bit(dims.w, dims.h);
-	}
-	// ----------------------------------------------------------------------------------------------
-
-	inline
-	surface surface::clone() const {
-		return surface(object <SDL_Surface>(SAFE_SDL_CALL(SDL_ConvertSurface, const_cast<SDL_Surface*>(handle ()),
-		                                                  handle ()
-		                                                  ->format, SDL_SWSURFACE)		                                    , true));
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::save_bmp(const std::string& path) const {
-		SAFE_SDL_CALL(SDL_SaveBMP_RW, const_handle (), SDL_RWFromFile (path.c_str (), "wb"), 1);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::save_bmp(object <SDL_RWops>& stream) const {
-		SAFE_SDL_CALL(SDL_SaveBMP_RW, const_handle (), stream.handle (), 0);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::lock() noexcept {
-		SDL_LockSurface(handle());
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::unlock() noexcept {
-		SDL_UnlockSurface(handle());
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	bool surface::must_lock() const noexcept {
-		return SDL_MUSTLOCK(handle ());
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	rect surface::get_clip() const {
-		SDL_Rect r;
-		SDL_GetClipRect(const_handle(), &r);
-		return rect{r};
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	bool surface::set_clip(const rect& r) {
-		return SDL_TRUE == SDL_SetClipRect(handle(), &r);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::color_key(uint32_t c) {
-		SAFE_SDL_CALL(SDL_SetColorKey, handle (), SDL_TRUE, c);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::color_key(const color& c) {
-		SAFE_SDL_CALL(SDL_SetColorKey, handle (), SDL_TRUE, map_color (c));
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::disable_color_key() {
-		SAFE_SDL_CALL(SDL_SetColorKey, handle (), SDL_FALSE, 0);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	std::optional <uint32_t> surface::color_key() const {
-		uint32_t c;
-		auto rc = SDL_GetColorKey(const_handle(), &c);
-		if (0 == rc) {
-			return c;
-		}
-		return std::nullopt;
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	blend_mode surface::get_blend_mode() const {
-		SDL_BlendMode x;
-		SAFE_SDL_CALL(SDL_GetSurfaceBlendMode, const_handle (), &x);
-		return static_cast <blend_mode>(x);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::set_blend_mode(blend_mode v) {
-		SAFE_SDL_CALL(SDL_SetSurfaceBlendMode, handle (), static_cast<SDL_BlendMode>(v));
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	uint8_t surface::get_alpha_mod() const {
-		uint8_t x;
-		SAFE_SDL_CALL(SDL_GetSurfaceAlphaMod, const_handle (), &x);
-		return x;
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::set_alpha_mod(uint8_t v) {
-		SAFE_SDL_CALL(SDL_SetSurfaceAlphaMod, handle (), v);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::set_rle_acceleration(bool enabled) {
-		SAFE_SDL_CALL(SDL_SetSurfaceRLE, handle (), enabled ? 1 : 0);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::set_color_mod(uint8_t r, uint8_t g, uint8_t b) {
-		SAFE_SDL_CALL(SDL_SetSurfaceColorMod, handle (), r, g, b);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	std::optional <color> surface::get_color_mod() const {
-		color c{0, 0, 0, 0};
-		if (0 == SDL_GetSurfaceColorMod(const_handle(), &c.r, &c.g, &c.b)) {
-			return c;
-		}
-		return std::nullopt;
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::blit(const rect& srect, object <SDL_Surface>& dst, const rect& drect) const {
-		SAFE_SDL_CALL(SDL_BlitSurface,
-		              const_handle (), const_cast<rect*>(&srect),
-		              dst.handle (), const_cast<rect*>(&drect));
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::blit_scaled(const rect& srect, object <SDL_Surface>& dst) const {
-		SAFE_SDL_CALL(SDL_BlitScaled, const_handle (), &srect, dst.handle (), nullptr);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::blit_scaled(object <SDL_Surface>& dst) const {
-		SAFE_SDL_CALL(SDL_BlitScaled, const_handle (), nullptr, dst.handle (), nullptr);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::blit_scaled(const rect& srect, object <SDL_Surface>& dst, const rect& drect) const {
-		SAFE_SDL_CALL(SDL_BlitScaled, const_handle (), &srect, dst.handle (), const_cast<rect*>(&drect));
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::blit(const rect& srect, object <SDL_Surface>& dst, const point& dpoint) const {
-		rect dstrect{dpoint, srect.w, srect.h};
-		blit(srect, dst, dstrect);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::blit(const rect& srect, object <SDL_Surface>& dst) const {
-		SAFE_SDL_CALL(SDL_BlitSurface,
-		              const_handle (), &srect,
-		              dst.handle (), nullptr);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::blit(object <SDL_Surface>& dst) const {
-		SAFE_SDL_CALL(SDL_BlitSurface,
-		              const_handle (), nullptr,
-		              dst.handle (), nullptr);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	std::tuple <void*, std::size_t, unsigned, unsigned> surface::pixels_data() const {
-		const auto* s = handle();
-		return {s->pixels, s->pitch, s->w, s->h};
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	area_type surface::get_dimanesions() const {
-		const auto* s = handle();
-		return {static_cast<unsigned int>(s->w), static_cast<unsigned int>(s->h)};
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::fill(const rect& r, uint32_t c) {
-		SAFE_SDL_CALL(SDL_FillRect, handle (), &r, c);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::fill(const rect& r, const color& c) {
-		SAFE_SDL_CALL(SDL_FillRect, handle (), &r, map_color (c));
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::fill(uint32_t c) {
-		SAFE_SDL_CALL(SDL_FillRect, handle (), nullptr, c);
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::fill(const color& c) {
-		SAFE_SDL_CALL(SDL_FillRect, handle (), nullptr, map_color (c));
-	}
-
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::fill(const bsw::array_view1d <rect>& rects, uint32_t c) {
-#if defined(_MSC_VER)
-#pragma warning ( push )
-#pragma warning ( disable : 4267 )
+#include <sdlpp/utility/dimension.hh>
+
+namespace sdlpp {
+    /**
+     * @brief Smart pointer type for SDL_Surface with automatic cleanup
+     */
+    using surface_ptr = pointer <SDL_Surface, SDL_DestroySurface>;
+
+    /**
+     * @brief RAII wrapper for SDL_Surface
+     *
+     * This class provides a safe, RAII-managed interface to SDL's surface
+     * functionality. Surfaces are automatically freed when the object
+     * goes out of scope.
+     *
+     * Example usage:
+     * @code
+     * auto surf_result = surface::create_rgb(800, 600, pixel_format_enum::RGBA8888);
+     * if (surf_result) {
+     *     auto& surf = *surf_result;
+     *     surf.fill(colors::blue);
+     *     // Surface is automatically freed when surf goes out of scope
+     * }
+     * @endcode
+     */
+    class surface {
+        private:
+            surface_ptr ptr;
+
+        public:
+            /**
+             * @brief Default constructor - creates an empty surface
+             */
+            surface() = default;
+
+            /**
+             * @brief Construct from existing SDL_Surface pointer
+             * @param surf Existing SDL_Surface pointer (takes ownership)
+             */
+            explicit surface(SDL_Surface* surf)
+                : ptr(surf) {
+            }
+
+            /**
+             * @brief Move constructor
+             */
+            surface(surface&&) = default;
+
+            /**
+             * @brief Move assignment operator
+             */
+            surface& operator=(surface&&) = default;
+
+            // Delete copy operations - surfaces are move-only
+            surface(const surface&) = delete;
+            surface& operator=(const surface&) = delete;
+
+            /**
+             * @brief Check if the surface is valid
+             * @return true if the surface is valid, false otherwise
+             */
+            [[nodiscard]] bool is_valid() const { return ptr != nullptr; }
+
+            /**
+             * @brief Check if the surface is valid (conversion operator)
+             */
+            [[nodiscard]] explicit operator bool() const { return is_valid(); }
+
+            /**
+             * @brief Get the underlying SDL_Surface pointer
+             * @return Raw SDL_Surface pointer (does not transfer ownership)
+             */
+            [[nodiscard]] SDL_Surface* get() const { return ptr.get(); }
+
+            /**
+             * @brief Get surface dimensions
+             * @tparam S Size type to return (defaults to built-in size if available)
+             * @return Surface size
+             */
+            template<size_like S = 
+#ifdef SDLPP_HAS_BUILTIN_GEOMETRY
+                size_i
+#else
+                void
 #endif
-		SAFE_SDL_CALL(SDL_FillRects, handle (), rects.begin (), rects.size (), c);
-#if defined(_MSC_VER)
-#pragma warning ( pop )
-#endif
-	}
+            >
+            [[nodiscard]] S dimensions() const
+                requires (!std::is_void_v<S>) {
+                if (!ptr) return S{0, 0};
+                return S{ptr->w, ptr->h};
+            }
 
-	// ----------------------------------------------------------------------------------------------
-	inline
-	void surface::fill(const bsw::array_view1d <rect>& rects, const color& c) {
-#if defined(_MSC_VER)
-#pragma warning ( push )
-#pragma warning ( disable : 4267 )
-#endif
-		SAFE_SDL_CALL(SDL_FillRects, handle (), rects.begin (), rects.size (), map_color (c));
-#if defined(_MSC_VER)
-#pragma warning ( pop )
-#endif
-	}
+            /**
+             * @brief Get surface width
+             * @return Width in pixels
+             */
+            [[nodiscard]] size_t width() const {
+                return (ptr && ptr->w > 0) ? static_cast<size_t>(ptr->w) : 0;
+            }
 
-	// ----------------------------------------------------------------------------------------------
-	inline
-	surface surface::convert(const pixel_format& fmt) const {
-		SDL_Surface* s = SAFE_SDL_CALL(SDL_ConvertSurfaceFormat, const_handle (), fmt.value (), 0);
-		return surface{object <SDL_Surface>(s, true)};
-	}
+            /**
+             * @brief Get surface height
+             * @return Height in pixels
+             */
+            [[nodiscard]] size_t height() const {
+                return (ptr && ptr->h > 0) ? static_cast<size_t>(ptr->h) : 0;
+            }
 
-	// ----------------------------------------------------------------------------------------------
-	inline
-	pixel_format surface::get_pixel_format() const {
-		return pixel_format(handle()->format->format);
-	}
+            /**
+             * @brief Get surface pitch (bytes per row)
+             * @return Pitch in bytes
+             */
+            [[nodiscard]] size_t pitch() const {
+                return (ptr && ptr->pitch > 0) ? static_cast<size_t>(ptr->pitch) : 0;
+            }
 
-	// ----------------------------------------------------------------------------------------------
-	inline
-	uint32_t surface::map_color(const color& c) {
-		if (get_pixel_format().is_alpha()) {
-			return SDL_MapRGBA(handle()->format, c.r, c.g, c.b, c.a);
-		}
-		return SDL_MapRGB(handle()->format, c.r, c.g, c.b);
-	}
+            /**
+             * @brief Get pixel format
+             * @return Pixel format enum
+             */
+            [[nodiscard]] pixel_format_enum format() const {
+                return ptr
+                           ? static_cast <pixel_format_enum>(ptr->format)
+                           : pixel_format_enum::unknown;
+            }
 
-	// --------------------------------------------------------------------------------------------
-	inline
-	palette surface::get_palette() const {
-		return palette(*this);
-	}
+            // Note: pixels() methods commented out due to std::span issues in some environments
+            // TODO: Uncomment when span is properly available
 
-	// --------------------------------------------------------------------------------------------
-	inline
-	void surface::set_palette(const palette& pal) {
-		SAFE_SDL_CALL(SDL_SetSurfacePalette, handle (), pal.const_handle ());
-	}
-}
-#endif
+            // /**
+            //  * @brief Get direct access to pixel data
+            //  * @return Span of pixel data bytes
+            //  * @warning The surface must be locked before accessing pixels
+            //  */
+            // [[nodiscard]] std::span<uint8_t> pixels() {
+            //     if (!ptr || !ptr->pixels) return {};
+            //     return {static_cast<uint8_t*>(ptr->pixels),
+            //             static_cast<size_t>(ptr->h * ptr->pitch)};
+            // }
+
+            // /**
+            //  * @brief Get read-only access to pixel data
+            //  * @return Span of pixel data bytes
+            //  * @warning The surface must be locked before accessing pixels
+            //  */
+            // [[nodiscard]] std::span<const uint8_t> pixels() const {
+            //     if (!ptr || !ptr->pixels) return {};
+            //     return {static_cast<const uint8_t*>(ptr->pixels),
+            //             static_cast<size_t>(ptr->h * ptr->pitch)};
+            // }
+
+            /**
+             * @brief Lock surface for direct pixel access
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> lock() {
+                if (!ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+                if (SDL_LockSurface(ptr.get()) != 0) {
+                    return make_unexpected(get_error());
+                }
+                return {};
+            }
+
+            /**
+             * @brief Unlock surface after pixel access
+             */
+            void unlock() {
+                if (ptr) {
+                    SDL_UnlockSurface(ptr.get());
+                }
+            }
+
+            /**
+             * @brief RAII lock guard for surface pixel access
+             */
+            class lock_guard {
+                private:
+                    surface* surf;
+                    bool locked;
+
+                public:
+                    explicit lock_guard(surface& s)
+                        : surf(&s), locked(false) {
+                        if (auto lock_result = surf->lock()) {
+                            locked = true;
+                        }
+                    }
+
+                    ~lock_guard() {
+                        if (locked) {
+                            surf->unlock();
+                        }
+                    }
+
+                    [[nodiscard]] bool is_locked() const { return locked; }
+
+                    // Non-copyable, non-movable
+                    lock_guard(const lock_guard&) = delete;
+                    lock_guard& operator=(const lock_guard&) = delete;
+                    lock_guard(lock_guard&&) = delete;
+                    lock_guard& operator=(lock_guard&&) = delete;
+            };
+
+            /**
+             * @brief Fill the entire surface with a color
+             * @param c Color to fill with
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> fill(const color& c) {
+                if (!ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                uint32_t mapped = SDL_MapSurfaceRGBA(ptr.get(), c.r, c.g, c.b, c.a);
+
+                if (!SDL_FillSurfaceRect(ptr.get(), nullptr, mapped)) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Fill a rectangle with a color
+             * @param area Rectangle to fill
+             * @param c Color to fill with
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            template<rect_like R>
+            expected <void, std::string> fill_rect(const R& area, const color& c) {
+                if (!ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                uint32_t mapped = SDL_MapSurfaceRGBA(ptr.get(), c.r, c.g, c.b, c.a);
+
+                SDL_Rect sdl_rect{
+                    static_cast <int>(get_x(area)), static_cast <int>(get_y(area)),
+                    static_cast <int>(get_width(area)), static_cast <int>(get_height(area))
+                };
+                if (!SDL_FillSurfaceRect(ptr.get(), &sdl_rect, mapped)) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get pixel color at specified coordinates
+             * @param x X coordinate
+             * @param y Y coordinate
+             * @return Expected containing color at (x,y), or error message
+             * @note The surface must be locked before calling this method
+             */
+            expected <color, std::string> get_pixel(int x, int y) const {
+                if (!ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                // Bounds check
+                if (x < 0 || x >= ptr->w || y < 0 || y >= ptr->h) {
+                    return make_unexpected("Coordinates out of bounds");
+                }
+
+                // Check if surface is locked
+                if (!SDL_MUSTLOCK(ptr.get()) || SDL_SurfaceHasRLE(ptr.get())) {
+                    // Surface doesn't require locking or has RLE encoding
+                } else if (!ptr->pixels) {
+                    return make_unexpected("Surface must be locked before accessing pixels");
+                }
+
+                // Get pixel based on format
+                const auto* pixels = static_cast <const uint8_t*>(ptr->pixels);
+                const int bpp = SDL_BYTESPERPIXEL(ptr->format);
+                const uint8_t* p = pixels + y * ptr->pitch + x * bpp;
+
+                uint32_t pixel = 0;
+                switch (bpp) {
+                    case 1:
+                        pixel = *p;
+                        break;
+                    case 2:
+                        pixel = *reinterpret_cast <const uint16_t*>(p);
+                        break;
+                    case 3:
+                        if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
+                            pixel = p[0] << 16 | p[1] << 8 | p[2];
+                        } else {
+                            pixel = p[0] | p[1] << 8 | p[2] << 16;
+                        }
+                        break;
+                    case 4:
+                        pixel = *reinterpret_cast <const uint32_t*>(p);
+                        break;
+                    default:
+                        return make_unexpected("Unsupported pixel format");
+                }
+
+                // Convert to RGBA
+                uint8_t r, g, b, a;
+                SDL_GetRGBA(pixel, SDL_GetPixelFormatDetails(ptr->format),
+                            nullptr, &r, &g, &b, &a);
+
+                return color{r, g, b, a};
+            }
+
+            /**
+             * @brief Set pixel color at specified coordinates
+             * @param x X coordinate
+             * @param y Y coordinate
+             * @param c Color to set
+             * @return Expected<void> - empty on success, error message on failure
+             * @note The surface must be locked before calling this method
+             */
+            expected <void, std::string> put_pixel(int x, int y, const color& c) {
+                if (!ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                // Bounds check
+                if (x < 0 || x >= ptr->w || y < 0 || y >= ptr->h) {
+                    return make_unexpected("Coordinates out of bounds");
+                }
+
+                // Check if surface is locked
+                if (!SDL_MUSTLOCK(ptr.get()) || SDL_SurfaceHasRLE(ptr.get())) {
+                    // Surface doesn't require locking or has RLE encoding
+                } else if (!ptr->pixels) {
+                    return make_unexpected("Surface must be locked before accessing pixels");
+                }
+
+                // Map color to pixel format
+                uint32_t pixel = SDL_MapSurfaceRGBA(ptr.get(), c.r, c.g, c.b, c.a);
+
+                // Set pixel based on format
+                auto* pixels = static_cast <uint8_t*>(ptr->pixels);
+                const int bpp = SDL_BYTESPERPIXEL(ptr->format);
+                uint8_t* p = pixels + y * ptr->pitch + x * bpp;
+
+                switch (bpp) {
+                    case 1:
+                        *p = static_cast <uint8_t>(pixel);
+                        break;
+                    case 2:
+                        *reinterpret_cast <uint16_t*>(p) = static_cast <uint16_t>(pixel);
+                        break;
+                    case 3:
+                        if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
+                            p[0] = (pixel >> 16) & 0xff;
+                            p[1] = (pixel >> 8) & 0xff;
+                            p[2] = pixel & 0xff;
+                        } else {
+                            p[0] = pixel & 0xff;
+                            p[1] = (pixel >> 8) & 0xff;
+                            p[2] = (pixel >> 16) & 0xff;
+                        }
+                        break;
+                    case 4:
+                        *reinterpret_cast <uint32_t*>(p) = pixel;
+                        break;
+                    default:
+                        return make_unexpected("Unsupported pixel format");
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get pixel color at specified point
+             * @tparam P Point type (must satisfy point_like)
+             * @param p Point coordinates
+             * @return Expected containing color at point, or error message
+             * @note The surface must be locked before calling this method
+             */
+            template<point_like P>
+            expected <color, std::string> get_pixel(const P& p) const {
+                return get_pixel(static_cast<int>(get_x(p)), static_cast<int>(get_y(p)));
+            }
+
+            /**
+             * @brief Set pixel color at specified point
+             * @tparam P Point type (must satisfy point_like)
+             * @param p Point coordinates
+             * @param c Color to set
+             * @return Expected<void> - empty on success, error message on failure
+             * @note The surface must be locked before calling this method
+             */
+            template<point_like P>
+            expected <void, std::string> put_pixel(const P& p, const color& c) {
+                return put_pixel(static_cast<int>(get_x(p)), static_cast<int>(get_y(p)), c);
+            }
+
+            /**
+             * @brief Set blend mode
+             * @param mode Blend mode to set
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_blend_mode(blend_mode mode) {
+                if (!ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                if (!SDL_SetSurfaceBlendMode(ptr.get(), static_cast <SDL_BlendMode>(mode))) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get current blend mode
+             * @return Expected containing blend mode, or error message
+             */
+            expected <blend_mode, std::string> get_blend_mode() const {
+                if (!ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                SDL_BlendMode mode;
+                if (!SDL_GetSurfaceBlendMode(ptr.get(), &mode)) {
+                    return make_unexpected(get_error());
+                }
+
+                return static_cast <blend_mode>(mode);
+            }
+
+            /**
+             * @brief Set color modulation
+             * @param c Color for modulation (RGB components used)
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_color_mod(const color& c) {
+                if (!ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                if (!SDL_SetSurfaceColorMod(ptr.get(), c.r, c.g, c.b)) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Set alpha modulation
+             * @param alpha Alpha value (0-255)
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_alpha_mod(uint8_t alpha) {
+                if (!ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                if (!SDL_SetSurfaceAlphaMod(ptr.get(), alpha)) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Convert surface to a different pixel format
+             * @param format Target pixel format
+             * @return Expected containing new surface, or error message
+             */
+            expected <surface, std::string> convert(pixel_format_enum format) const {
+                if (!ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                SDL_Surface* converted = SDL_ConvertSurface(ptr.get(),
+                                                            static_cast <SDL_PixelFormat>(format));
+                if (!converted) {
+                    return make_unexpected(get_error());
+                }
+
+                return surface(converted);
+            }
+
+            /**
+             * @brief Create a duplicate of this surface
+             * @return Expected containing duplicated surface, or error message
+             */
+            expected <surface, std::string> duplicate() const {
+                if (!ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                SDL_Surface* dup = SDL_DuplicateSurface(ptr.get());
+                if (!dup) {
+                    return make_unexpected(get_error());
+                }
+
+                return surface(dup);
+            }
+
+            /**
+             * @brief Blit this surface to another surface
+             * @tparam R Rectangle type (must satisfy rect_like)
+             * @tparam P Point type (must satisfy point_like)
+             * @param dst Destination surface
+             * @param src_rect Source rectangle (nullopt for entire surface)
+             * @param dst_pos Destination position
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            template<rect_like R = void, point_like P = void>
+            expected <void, std::string> blit_to(
+                surface& dst,
+                std::optional <R> src_rect = std::nullopt,
+                P dst_pos = P{0, 0}) const {
+                if (!ptr || !dst.ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                SDL_Rect src_r;
+                SDL_Rect* src_ptr = nullptr;
+                if (src_rect) {
+                    src_r = SDL_Rect{
+                        static_cast<int>(get_x(*src_rect)),
+                        static_cast<int>(get_y(*src_rect)),
+                        static_cast<int>(get_width(*src_rect)),
+                        static_cast<int>(get_height(*src_rect))
+                    };
+                    src_ptr = &src_r;
+                }
+
+                SDL_Rect dst_r = {static_cast<int>(get_x(dst_pos)), 
+                                  static_cast<int>(get_y(dst_pos)), 0, 0};
+
+                if (!SDL_BlitSurface(ptr.get(), src_ptr, dst.ptr.get(), &dst_r)) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Scaled blit to another surface
+             * @tparam R Rectangle type (must satisfy rect_like)
+             * @param dst Destination surface
+             * @param src_rect Source rectangle (nullopt for entire surface)
+             * @param dst_rect Destination rectangle (nullopt for entire surface)
+             * @param mode Scale mode to use
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            template<rect_like R = void>
+            expected <void, std::string> blit_scaled_to(
+                surface& dst,
+                std::optional <R> src_rect = std::nullopt,
+                std::optional <R> dst_rect = std::nullopt,
+                scale_mode mode = scale_mode::linear) const {
+                if (!ptr || !dst.ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                SDL_Rect src_r, dst_r;
+                SDL_Rect* src_ptr = nullptr;
+                SDL_Rect* dst_ptr = nullptr;
+
+                if (src_rect) {
+                    src_r = SDL_Rect{
+                        static_cast<int>(get_x(*src_rect)),
+                        static_cast<int>(get_y(*src_rect)),
+                        static_cast<int>(get_width(*src_rect)),
+                        static_cast<int>(get_height(*src_rect))
+                    };
+                    src_ptr = &src_r;
+                }
+
+                if (dst_rect) {
+                    dst_r = SDL_Rect{
+                        static_cast<int>(get_x(*dst_rect)),
+                        static_cast<int>(get_y(*dst_rect)),
+                        static_cast<int>(get_width(*dst_rect)),
+                        static_cast<int>(get_height(*dst_rect))
+                    };
+                    dst_ptr = &dst_r;
+                }
+
+                if (!SDL_BlitSurfaceScaled(ptr.get(), src_ptr, dst.ptr.get(), dst_ptr,
+                                           static_cast <SDL_ScaleMode>(mode))) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            // Static factory functions
+
+            /**
+             * @brief Create an RGB surface with any dimensions-like type
+             * @param dims Surface dimensions (must satisfy dimensions_like concept)
+             * @param format Pixel format
+             * @return Expected containing new surface, or error message
+             */
+            template<dimensions_like D>
+            static expected <surface, std::string> create_rgb(
+                const D& dims,
+                pixel_format_enum format) {
+                auto [w, h] = to_sdl_dimensions(sdlpp::dimensions <int>(
+                    static_cast <int>(dims.width.value()),
+                    static_cast <int>(dims.height.value())
+                ));
+
+                SDL_Surface* surf = SDL_CreateSurface(w, h,
+                                                      static_cast <SDL_PixelFormat>(format));
+                if (!surf) {
+                    return make_unexpected(get_error());
+                }
+
+                return surface(surf);
+            }
+
+            /**
+             * @brief Create an RGB surface (compatibility overload)
+             * @param width Surface width
+             * @param height Surface height
+             * @param format Pixel format
+             * @return Expected containing new surface, or error message
+             * @note Negative dimensions will be clamped to 0
+             */
+            static expected <surface, std::string> create_rgb(
+                int width, int height,
+                pixel_format_enum format) {
+                return create_rgb(sdlpp::dimensions <int>(width, height), format);
+            }
+
+            /**
+             * @brief Create a surface from existing pixel data
+             * @param pixels Pixel data
+             * @param width Surface width
+             * @param height Surface height
+             * @param pitch Bytes per row
+             * @param format Pixel format
+             * @return Expected containing new surface, or error message
+             * @note The surface does not own the pixel data
+             */
+            static expected <surface, std::string> create_from_pixels(
+                void* pixels, int width, int height, int pitch,
+                pixel_format_enum format) {
+                SDL_Surface* surf = SDL_CreateSurfaceFrom(width, height,
+                                                          static_cast <SDL_PixelFormat>(format),
+                                                          pixels, pitch);
+                if (!surf) {
+                    return make_unexpected(get_error());
+                }
+
+                return surface(surf);
+            }
+
+            /**
+             * @brief Get the surface's palette (if any) - const version
+             * @return Non-owning const reference to palette, or invalid reference if no palette
+             * @note The returned const_palette_ref does NOT own the palette - the surface does
+             */
+            [[nodiscard]] const_palette_ref get_palette() const {
+                if (!ptr) return {};
+                return const_palette_ref(SDL_GetSurfacePalette(ptr.get()));
+            }
+
+            /**
+             * @brief Get the surface's palette (if any) - mutable version
+             * @return Non-owning mutable reference to palette, or invalid reference if no palette
+             * @note The returned palette_ref does NOT own the palette - the surface does
+             * @warning Modifying the palette will affect the surface's appearance
+             */
+            [[nodiscard]] palette_ref get_palette() {
+                if (!ptr) return {};
+                return palette_ref(SDL_GetSurfacePalette(ptr.get()));
+            }
+
+            /**
+             * @brief Check if surface has a palette
+             * @return true if surface has a palette
+             */
+            [[nodiscard]] bool has_palette() const {
+                return get_palette().is_valid();
+            }
+
+            /**
+             * @brief Set a palette for the surface
+             * @param pal Palette to set (can be owning palette, palette_ref, or const_palette_ref)
+             * @return Expected<void> - empty on success, error message on failure
+             * @note The surface will reference the palette but not own it
+             */
+            expected <void, std::string> set_palette(const const_palette_ref& pal) {
+                if (!ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+                if (!pal) {
+                    return make_unexpected("Invalid palette");
+                }
+
+                // SDL_SetSurfacePalette needs non-const pointer, but doesn't modify
+                if (!SDL_SetSurfacePalette(ptr.get(), const_cast <SDL_Palette*>(pal.get()))) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Save surface to BMP format using an iostream
+             * @param stream Output stream to write to
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> save_bmp(iostream& stream) const {
+                if (!ptr) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                if (!SDL_SaveBMP_IO(ptr.get(), stream.get(), false)) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Load surface from BMP format using an iostream
+             * @param stream Input stream to read from
+             * @return Expected containing loaded surface, or error message
+             */
+            static expected <surface, std::string> load_bmp(iostream& stream) {
+                SDL_Surface* surf = SDL_LoadBMP_IO(stream.get(), false);
+                if (!surf) {
+                    return make_unexpected(get_error());
+                }
+
+                return surface(surf);
+            }
+    };
+
+    /**
+     * @brief Load surface from file
+     * @param file Path to image file
+     * @return Expected containing loaded surface, or error message
+     * @note Requires SDL_image to be initialized for formats other than BMP
+     */
+    inline expected <surface, std::string> load_surface(const std::string& file) {
+        SDL_Surface* surf = SDL_LoadBMP(file.c_str());
+        if (!surf) {
+            return make_unexpected(get_error());
+        }
+
+        return surface(surf);
+    }
+
+    /**
+     * @brief Save surface to BMP file
+     * @param surf Surface to save
+     * @param file Path to output file
+     * @return Expected<void> - empty on success, error message on failure
+     */
+    inline expected <void, std::string> save_bmp(const surface& surf,
+                                                 const std::string& file) {
+        if (!surf) {
+            return make_unexpected("Invalid surface");
+        }
+
+        if (!SDL_SaveBMP(surf.get(), file.c_str())) {
+            return make_unexpected(get_error());
+        }
+
+        return {};
+    }
+
+    /**
+     * @brief Save surface to BMP format in a standard output stream
+     * @param surf Surface to save
+     * @param stream Standard output stream to write BMP data to
+     * @return Expected<void> - empty on success, error message on failure
+     */
+    inline expected <void, std::string> save_bmp(const surface& surf,
+                                                 std::ostream& stream) {
+        if (!surf) {
+            return make_unexpected("Invalid surface");
+        }
+
+        auto io_result = from_ostream(stream);
+        if (!io_result) {
+            return make_unexpected(io_result.error());
+        }
+
+        return surf.save_bmp(*io_result);
+    }
+
+    /**
+     * @brief Save surface to BMP format in memory
+     * @param surf Surface to save
+     * @return Expected containing vector with BMP data, or error message
+     */
+    inline expected <std::vector <uint8_t>, std::string> save_bmp(const surface& surf) {
+        if (!surf) {
+            return make_unexpected("Invalid surface");
+        }
+
+        // Create a dynamic memory stream
+        auto io_result = from_dynamic_memory();
+        if (!io_result) {
+            return make_unexpected(io_result.error());
+        }
+
+        // Save to the stream
+        auto save_result = surf.save_bmp(*io_result);
+        if (!save_result) {
+            return make_unexpected(save_result.error());
+        }
+
+        // Get the size of the data
+        auto size_result = io_result->size();
+        if (!size_result) {
+            return make_unexpected(size_result.error());
+        }
+
+        // Read all the data
+        auto seek_result = io_result->seek(0, io_seek_pos::set);
+        if (!seek_result) {
+            return make_unexpected(seek_result.error());
+        }
+
+        return io_result->read(static_cast <size_t>(*size_result));
+    }
+
+    /**
+     * @brief Load surface from BMP data in a standard input stream
+     * @param stream Standard input stream containing BMP data
+     * @return Expected containing loaded surface, or error message
+     */
+    inline expected <surface, std::string> load_bmp(std::istream& stream) {
+        auto io_result = from_istream(stream);
+        if (!io_result) {
+            return make_unexpected(io_result.error());
+        }
+
+        return surface::load_bmp(*io_result);
+    }
+
+    /**
+     * @brief Load surface from BMP data in memory
+     * @param data Memory buffer containing BMP data
+     * @param size Size of the buffer in bytes
+     * @return Expected containing loaded surface, or error message
+     */
+    inline expected <surface, std::string> load_bmp(const void* data, size_t data_size) {
+        auto io_result = from_memory(data, data_size);
+        if (!io_result) {
+            return make_unexpected(io_result.error());
+        }
+
+        return surface::load_bmp(*io_result);
+    }
+} // namespace sdlpp

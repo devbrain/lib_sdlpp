@@ -1,90 +1,173 @@
-cmake_minimum_required(VERSION 3.24)
-project(sdlpp VERSION 1.0.0)
+cmake_minimum_required(VERSION 3.20)
+project(sdlpp
+    VERSION 0.1.0
+    DESCRIPTION "Modern C++20 wrapper for SDL3"
+    LANGUAGES CXX
+)
 
-if (NOT DEFINED CMAKE_CXX_VISIBILITY_PRESET AND
-    NOT DEFINED CMAKE_VISIBILITY_INLINES_HIDDEN)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Build options
+option(SDLPP_BUILD_WITH_TESTS "Build SDL++ tests" ON)
+option(SDLPP_BUILD_WITH_EXAMPLES "Build SDL++ examples" ON)
+option(SDLPP_BUILD_SHARED "Build SDL++ as a shared library" ON)
+option(SDLPP_INSTALL "Generate install targets" ON)
+
+# Include standard install directories
+include(GNUInstallDirs)
+
+# Set default build type if not specified
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(STATUS "Setting build type to 'Release' as none was specified.")
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif()
+
+# Build configuration options
+option(SDLPP_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(SDLPP_ENABLE_LTO "Enable link-time optimization" OFF)
+
+# Set visibility settings for shared libraries
+if(SDLPP_BUILD_SHARED)
     set(CMAKE_CXX_VISIBILITY_PRESET hidden)
     set(CMAKE_C_VISIBILITY_PRESET hidden)
     set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
+    include(GenerateExportHeader)
 endif()
 
-string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}" sdlpp_is_top_level)
-option(sdlpp_INCLUDE_PACKAGING "Include packaging rules for sdlpp" "${sdlpp_is_top_level}")
-option(sdlpp_ENABLE_TESTING "Enable testing" "${sdlpp_is_top_level}")
-option(sdlpp_ENABLE_DEMO "Enable demo" "${sdlpp_is_top_level}")
-option(sdlpp_BUILD_DOCS "Enable docs" "${sdlpp_is_top_level}")
-option(sdlpp_SHARED_LIBS "Build shared libs" ON)
+# Define warning flags for our project
+set(SDLPP_WARNING_FLAGS)
 
-set(CMAKE_MODULE_PATH "${CMAKE_BINARY_DIR};${CMAKE_SOURCE_DIR}/cmake")
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads)
-
-set(PROJECT_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
-set(PROJECT_INCLUDE_PRIVATE ${PROJECT_ROOT}/src)
-set(PROJECT_INCLUDE ${PROJECT_ROOT}/include)
-set(PROJECT_CONFIG_INCLUDE ${CMAKE_CURRENT_BINARY_DIR}/include)
-
-if (DEFINED sdlpp_SHARED_LIBS)
-    set(BUILD_SHARED_LIBS "${sdlpp_SHARED_LIBS}")
-endif ()
-
-if (sdlpp_is_top_level)
-    set(BINARY_OUT_DIR ${CMAKE_BINARY_DIR}/bin)
-    set(LIB_OUT_DIR ${CMAKE_BINARY_DIR}/lib)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BINARY_OUT_DIR})
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BINARY_OUT_DIR})
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${LIB_OUT_DIR})
-
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${BINARY_OUT_DIR})
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${BINARY_OUT_DIR})
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${LIB_OUT_DIR})
-
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${BINARY_OUT_DIR})
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${BINARY_OUT_DIR})
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${LIB_OUT_DIR})
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set(SDLPP_WARNING_FLAGS
+        -Wall           # All standard warnings
+        -Wextra         # Extra warnings
+        -Wpedantic      # Strict ISO C++ compliance
+        -Wcast-align    # Warn about potential performance problem casts
+        -Wcast-qual     # Warn about casts that remove qualifiers
+        -Wconversion    # Warn about type conversions that may lose data
+        -Wdouble-promotion  # Warn about float to double promotion
+        -Wformat=2      # Additional format string warnings
+        -Wnon-virtual-dtor  # Warn about non-virtual destructors
+        -Wold-style-cast    # Warn about C-style casts
+        -Woverloaded-virtual # Warn about overloaded virtual functions
+        -Wshadow        # Warn about variable shadowing
+        -Wsign-conversion   # Warn about sign conversions
+        -Wundef         # Warn about undefined identifiers in #if
+        -Wunused        # Warn about unused entities
+        -Wzero-as-null-pointer-constant # Warn about using 0 as nullptr
+    )
+    
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        list(APPEND SDLPP_WARNING_FLAGS
+            -Wlogical-op    # Warn about logical operations being used where bitwise were probably wanted
+            -Wuseless-cast  # Warn about useless casts
+        )
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    set(SDLPP_WARNING_FLAGS
+        /W4             # Highest warning level
+        /permissive-    # Strict standard conformance
+        /Zc:__cplusplus # Report correct __cplusplus value
+    )
 endif()
+
+# Treat warnings as errors in CI/Release builds (optional)
+# list(APPEND SDLPP_WARNING_FLAGS -Werror)
+
+# Sanitizer flags
+if(SDLPP_ENABLE_SANITIZERS)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        set(SDLPP_SANITIZER_FLAGS
+            -fsanitize=address
+            -fsanitize=undefined
+            -fno-omit-frame-pointer
+        )
+        list(APPEND SDLPP_WARNING_FLAGS ${SDLPP_SANITIZER_FLAGS})
+        
+        # Link flags for sanitizers
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address -fsanitize=undefined")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=address -fsanitize=undefined")
+    else()
+        message(WARNING "Sanitizers are only supported with GCC and Clang")
+    endif()
+endif()
+
+# Link-time optimization
+if(SDLPP_ENABLE_LTO)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT ipo_supported OUTPUT ipo_output)
+    if(ipo_supported)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+        message(STATUS "Link-time optimization enabled")
+    else()
+        message(WARNING "Link-time optimization not supported: ${ipo_output}")
+    endif()
+endif()
+
+# Output binary to predictable location.
+set(BINARY_OUT_DIR ${CMAKE_BINARY_DIR}/bin)
+set(LIB_OUT_DIR ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BINARY_OUT_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BINARY_OUT_DIR})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${LIB_OUT_DIR})
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${BINARY_OUT_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${BINARY_OUT_DIR})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${LIB_OUT_DIR})
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${BINARY_OUT_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${BINARY_OUT_DIR})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${LIB_OUT_DIR})
+# ===========================================================================
+set (PROJECT_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory(ext)
 add_subdirectory(src/sdlpp)
 
-if (sdlpp_ENABLE_DEMO)
-    add_subdirectory(demo)
+if(SDLPP_BUILD_WITH_TESTS)
+    add_subdirectory(test)
 endif()
 
-if (sdlpp_ENABLE_TESTING)
-   message("SDLPP Testing is enabled")
-   add_subdirectory(src/unittest)
+if(SDLPP_BUILD_WITH_EXAMPLES)
+    add_subdirectory(examples)
 endif()
 
-if (sdlpp_BUILD_DOCS)
-    find_package(Doxygen QUIET)
-    if (DOXYGEN_FOUND)
-        # set input and output files
-        set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in)
-        set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+# Feature summary
+include(FeatureSummary)
 
-        # request to configure the file
-        configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
-        message("Doxygen found")
-        file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc_doxygen/)
-        # note the option ALL which allows to build the docs together with the application
-        add_custom_target(doc_doxygen ALL
-                COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
-                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-                COMMENT "Generating API documentation with Doxygen"
-                VERBATIM )
-    else (DOXYGEN_FOUND)
-        message("Doxygen need to be installed to generate the doxygen documentation")
-    endif (DOXYGEN_FOUND)
-endif()
+set_package_properties(SDL3 PROPERTIES
+    TYPE REQUIRED
+    DESCRIPTION "Simple DirectMedia Layer 3"
+    URL "https://www.libsdl.org/"
+)
 
-if (sdlpp_INCLUDE_PACKAGING)
- #   add_subdirectory(packaging)
-endif ()
+set_package_properties(doctest PROPERTIES
+    TYPE REQUIRED
+    DESCRIPTION "C++ testing framework"
+    URL "https://github.com/onqtam/doctest"
+)
 
+set_package_properties(failsafe PROPERTIES
+    TYPE REQUIRED
+    DESCRIPTION "C++ error handling library"
+    URL "https://github.com/devbrain/failsafe"
+)
+
+add_feature_info("Shared Library" SDLPP_BUILD_SHARED "Build SDL++ as a shared library")
+add_feature_info("Tests" SDLPP_BUILD_WITH_TESTS "Build unit tests")
+add_feature_info("Examples" SDLPP_BUILD_WITH_EXAMPLES "Build example applications")
+add_feature_info("Install" SDLPP_INSTALL "Generate installation targets")
+add_feature_info("Sanitizers" SDLPP_ENABLE_SANITIZERS "Enable AddressSanitizer and UBSan")
+add_feature_info("LTO" SDLPP_ENABLE_LTO "Enable link-time optimization")
+
+message(STATUS "")
+message(STATUS "SDL++ ${PROJECT_VERSION} Configuration Summary:")
+message(STATUS "================================")
+message(STATUS "Build type:        ${CMAKE_BUILD_TYPE}")
+message(STATUS "Install prefix:    ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "Library type:      ${SDLPP_LIBRARY_TYPE}")
+message(STATUS "")
+
+feature_summary(WHAT ALL)

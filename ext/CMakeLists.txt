@@ -2,18 +2,32 @@ include(FetchContent)
 
 set(FETCHCONTENT_QUIET off)
 
-if (sdlpp_ENABLE_TESTING)
-    add_subdirectory(doctest)
+# Save current warning flags
+set(SAVED_CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+set(SAVED_CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+
+# Disable warnings for third-party libraries
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W0")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W0")
 endif()
 
-macro(ADD_TO_FOLDER NAME FOLDER)
-    if (TARGET ${NAME})
-        set_target_properties(${NAME} PROPERTIES FOLDER ${FOLDER})
-    endif()
-endmacro()
+# Also set properties to suppress warnings in a more modern way
+add_compile_options(
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-w>
+    $<$<CXX_COMPILER_ID:MSVC>:/W0>
+)
 
-add_subdirectory(bsw)
-add_subdirectory(sdl2)
-add_subdirectory(bitflags)
-add_subdirectory(neutrino_math)
+add_subdirectory(sdl3)
+add_subdirectory(doctest)
+add_subdirectory(expected)
+add_subdirectory(failsafe)
+
+# Restore original flags (though subdirectories won't inherit the change back)
+set(CMAKE_CXX_FLAGS ${SAVED_CMAKE_CXX_FLAGS})
+set(CMAKE_C_FLAGS ${SAVED_CMAKE_C_FLAGS})
+
 

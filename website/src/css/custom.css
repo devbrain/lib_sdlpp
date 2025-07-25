@@ -1,0 +1,125 @@
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+:root {
+  --ifm-color-primary: #2563eb;
+  --ifm-color-primary-dark: #1d4ed8;
+  --ifm-color-primary-darker: #1e40af;
+  --ifm-color-primary-darkest: #1e3a8a;
+  --ifm-color-primary-light: #3b82f6;
+  --ifm-color-primary-lighter: #60a5fa;
+  --ifm-color-primary-lightest: #93bbfc;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+/* For readability concerns, you should choose a lighter palette in dark mode. */
+[data-theme='dark'] {
+  --ifm-color-primary: #60a5fa;
+  --ifm-color-primary-dark: #3b82f6;
+  --ifm-color-primary-darker: #2563eb;
+  --ifm-color-primary-darkest: #1d4ed8;
+  --ifm-color-primary-light: #93bbfc;
+  --ifm-color-primary-lighter: #a5c6fc;
+  --ifm-color-primary-lightest: #c7dbfe;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* Custom styles for SDL++ documentation */
+.hero {
+  background: linear-gradient(135deg, var(--ifm-color-primary) 0%, var(--ifm-color-primary-dark) 100%);
+}
+
+/* Code blocks */
+pre {
+  border-radius: 8px;
+}
+
+/* API reference tables */
+.api-table {
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.api-table th {
+  background-color: var(--ifm-color-emphasis-100);
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.api-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+/* Feature cards */
+.feature-card {
+  padding: 2rem;
+  border-radius: 8px;
+  background: var(--ifm-card-background-color);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Code examples */
+.code-example {
+  position: relative;
+  margin: 1.5rem 0;
+}
+
+.code-example-header {
+  background: var(--ifm-color-emphasis-100);
+  padding: 0.5rem 1rem;
+  border-radius: 8px 8px 0 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.code-example pre {
+  margin-top: 0;
+  border-radius: 0 0 8px 8px;
+}
+
+/* Platform badges */
+.platform-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  margin: 0.25rem;
+  border-radius: 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.platform-badge.windows {
+  background-color: #0078d4;
+  color: white;
+}
+
+.platform-badge.linux {
+  background-color: #fcc624;
+  color: #333;
+}
+
+.platform-badge.macos {
+  background-color: #333;
+  color: white;
+}
+
+.platform-badge.android {
+  background-color: #3ddc84;
+  color: white;
+}
+
+.platform-badge.ios {
+  background-color: #000;
+  color: white;
+}

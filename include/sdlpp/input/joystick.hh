@@ -1,391 +1,770 @@
-//
-// Created by igor on 6/16/24.
-//
+#pragma once
 
-#ifndef SDLPP_INCLUDE_SDLPP_INPUT_JOYSTIC_HH_
-#define SDLPP_INCLUDE_SDLPP_INPUT_JOYSTIC_HH_
+/**
+ * @file joystick.hh
+ * @brief Joystick input functionality
+ * 
+ * This header provides C++ wrappers around SDL3's joystick API, offering
+ * low-level joystick access. For most games, consider using the gamepad API
+ * instead, which provides standardized button mappings.
+ */
+
+#include <sdlpp/core/sdl.hh>
+#include <sdlpp/detail/export.hh>
+#include <sdlpp/core/error.hh>
+#include <sdlpp/system/power_state.hh>
+#include <sdlpp/detail/expected.hh>
+#include <sdlpp/detail/pointer.hh>
+#include <sdlpp/utility/guid.hh>
+
 #include <string>
+#include <vector>
 #include <optional>
-#include <tuple>
-#include <chrono>
-#include <array>
-#include <strong_type/strong_type.hpp>
+#include <span>
+#include <cstdint>
 
-#include <sdlpp/detail/sdl2.hh>
-#include <sdlpp/detail/object.hh>
-#include <sdlpp/detail/call.hh>
-#include <sdlpp/detail/ostreamops.hh>
-#include <sdlpp/video/color.hh>
-#include <sdlpp/detail/joystick_id.hh>
-#include <sdlpp/events/system_events.hh>
+namespace sdlpp {
+    /**
+     * @brief Joystick instance ID type
+     */
+    using joystick_id = SDL_JoystickID;
 
-namespace neutrino::sdl {
-	using joystick_axis_t = strong::type <std::size_t,
-	                                      struct _joystick_axis_,
-	                                      strong::bicrementable,
-	                                      strong::ordered,
-	                                      strong::ostreamable>;
-	using joystick_ball_t = strong::type <std::size_t,
-	                                      struct _joystick_ball_,
-	                                      strong::bicrementable,
-	                                      strong::ordered,
-	                                      strong::ostreamable>;
-	using joystick_button_t = strong::type <std::size_t,
-	                                        struct _joystick_button_,
-	                                        strong::bicrementable,
-	                                        strong::ordered,
-	                                        strong::ostreamable>;
-	using joystick_hat_t = strong::type <std::size_t,
-	                                     struct _joystick_hat_,
-	                                     strong::bicrementable,
-	                                     strong::ordered,
-	                                     strong::ostreamable>;
+    /**
+     * @brief Power state (from SDL_power.h)
+     */
 
-	class joystick : public object <SDL_Joystick> {
-		public:
-			enum class power_level {
-				UNKNOWN = SDL_JOYSTICK_POWER_UNKNOWN,
-				EMPTY = SDL_JOYSTICK_POWER_EMPTY,
-				LOW = SDL_JOYSTICK_POWER_LOW,
-				MEDIUM = SDL_JOYSTICK_POWER_MEDIUM,
-				FULL = SDL_JOYSTICK_POWER_FULL,
-				WIRED = SDL_JOYSTICK_POWER_WIRED,
-				MAX = SDL_JOYSTICK_POWER_MAX
-			};
+    /**
+     * @brief Joystick type
+     */
+    enum class joystick_type : int {
+        unknown = SDL_JOYSTICK_TYPE_UNKNOWN,
+        gamepad = SDL_JOYSTICK_TYPE_GAMEPAD,
+        wheel = SDL_JOYSTICK_TYPE_WHEEL,
+        arcade_stick = SDL_JOYSTICK_TYPE_ARCADE_STICK,
+        flight_stick = SDL_JOYSTICK_TYPE_FLIGHT_STICK,
+        dance_pad = SDL_JOYSTICK_TYPE_DANCE_PAD,
+        guitar = SDL_JOYSTICK_TYPE_GUITAR,
+        drum_kit = SDL_JOYSTICK_TYPE_DRUM_KIT,
+        arcade_pad = SDL_JOYSTICK_TYPE_ARCADE_PAD,
+        throttle = SDL_JOYSTICK_TYPE_THROTTLE
+    };
 
-			enum class type {
-				UNKNOWN = SDL_JOYSTICK_TYPE_UNKNOWN,
-				GAMECONTROLLER = SDL_JOYSTICK_TYPE_GAMECONTROLLER,
-				WHEEL = SDL_JOYSTICK_TYPE_WHEEL,
-				ARCADE_STICK = SDL_JOYSTICK_TYPE_ARCADE_STICK,
-				FLIGHT_STICK = SDL_JOYSTICK_TYPE_FLIGHT_STICK,
-				DANCE_PAD = SDL_JOYSTICK_TYPE_DANCE_PAD,
-				GUITAR = SDL_JOYSTICK_TYPE_GUITAR,
-				DRUM_KIT = SDL_JOYSTICK_TYPE_DRUM_KIT,
-				ARCADE_PAD = SDL_JOYSTICK_TYPE_ARCADE_PAD,
-				THROTTLE = SDL_JOYSTICK_TYPE_THROTTLE
-			};
+    /**
+     * @brief Joystick connection state
+     */
+    enum class joystick_connection_state : int {
+        invalid = SDL_JOYSTICK_CONNECTION_INVALID,
+        unknown = SDL_JOYSTICK_CONNECTION_UNKNOWN,
+        wired = SDL_JOYSTICK_CONNECTION_WIRED,
+        wireless = SDL_JOYSTICK_CONNECTION_WIRELESS
+    };
 
-		public:
-			joystick() = default;
-			joystick& operator=(object <SDL_Joystick>&& other) noexcept;
-			joystick& operator=(joystick&& other) noexcept;
+    /**
+     * @brief Hat position values
+     */
+    enum class hat_position : uint8_t {
+        centered = SDL_HAT_CENTERED,
+        up = SDL_HAT_UP,
+        right = SDL_HAT_RIGHT,
+        down = SDL_HAT_DOWN,
+        left = SDL_HAT_LEFT,
+        rightup = SDL_HAT_RIGHTUP,
+        rightdown = SDL_HAT_RIGHTDOWN,
+        leftup = SDL_HAT_LEFTUP,
+        leftdown = SDL_HAT_LEFTDOWN
+    };
 
-			joystick& operator=(const joystick& other) = delete;
-			joystick(const joystick& other) = delete;
+    /**
+     * @brief Smart pointer type for SDL_Joystick with automatic cleanup
+     */
+    using joystick_ptr = pointer <SDL_Joystick, SDL_CloseJoystick>;
 
-			[[nodiscard]] joystick_id_t get_id() const;
+    /**
+     * @brief Check if the joystick subsystem is initialized
+     *
+     * @return true if joystick subsystem is initialized
+     */
+    [[nodiscard]] inline bool has_joystick() noexcept {
+        return SDL_HasJoystick();
+    }
 
-			[[nodiscard]] std::string get_name() const;
-			[[nodiscard]] std::string get_path() const;
-			[[nodiscard]] std::string get_serial() const;
-			[[nodiscard]] std::optional <uint16_t> get_firmware_version() const;
-			[[nodiscard]] std::optional <uint16_t> get_product() const;
-			[[nodiscard]] std::optional <uint16_t> get_product_version() const;
-			[[nodiscard]] std::optional <uint16_t> get_vendor() const;
-			[[nodiscard]] bool has_led() const;
+    /**
+     * @brief Get list of available joysticks
+     *
+     * @return Vector of joystick instance IDs
+     */
+    [[nodiscard]] inline std::vector <joystick_id> get_joysticks() {
+        int count = 0;
+        const SDL_JoystickID* joysticks = SDL_GetJoysticks(&count);
+        if (!joysticks || count <= 0) {
+            return {};
+        }
+        return std::vector <joystick_id>(joysticks, joysticks + count);
+    }
 
-			void set_led(uint8_t r, uint8_t g, uint8_t b);
-			void set_led(const color& c);
+    /**
+     * @brief Update the joystick subsystem
+     *
+     * This is called automatically by the event loop if you are using it.
+     * You only need to call this if you are not using the event loop.
+     */
+    inline void update_joysticks() noexcept {
+        SDL_UpdateJoysticks();
+    }
 
-			[[nodiscard]] power_level get_power_level() const noexcept;
-			[[nodiscard]] std::optional <joystick_player_index_t> get_player_index() const noexcept;
-			void set_player_index(joystick_player_index_t idx);
-			void clear_player_index();
+    /**
+     * @brief Get the implementation-dependent name of a joystick
+     *
+     * @param instance_id The joystick instance ID
+     * @return Joystick name, or empty string if not found
+     */
+    [[nodiscard]] inline std::string get_joystick_name_for_id(joystick_id instance_id) {
+        const char* name = SDL_GetJoystickNameForID(instance_id);
+        return name ? name : "";
+    }
 
-			[[nodiscard]] joystick_axis_t count_axes() const;
-			[[nodiscard]] int16_t get_axis(joystick_axis_t axis_id) const;
-			[[nodiscard]] std::optional <int16_t> get_axis_initial_state(joystick_axis_t axis_id) const;
+    /**
+     * @brief Get the implementation-dependent path of a joystick
+     *
+     * @param instance_id The joystick instance ID
+     * @return Joystick path, or empty string if not found
+     */
+    [[nodiscard]] inline std::string get_joystick_path_for_id(joystick_id instance_id) {
+        const char* path = SDL_GetJoystickPathForID(instance_id);
+        return path ? path : "";
+    }
 
-			[[nodiscard]] joystick_ball_t count_balls() const;
-			[[nodiscard]] std::tuple <int, int> get_ball(joystick_ball_t ball_id) const;
+    /**
+     * @brief Get the player index of a joystick
+     *
+     * @param instance_id The joystick instance ID
+     * @return Player index, or -1 if not set
+     */
+    [[nodiscard]] inline int get_joystick_player_index_for_id(joystick_id instance_id) noexcept {
+        return SDL_GetJoystickPlayerIndexForID(instance_id);
+    }
 
-			[[nodiscard]] joystick_button_t count_buttons() const;
-			[[nodiscard]] bool get_button(joystick_button_t button_id) const;
+    /**
+     * @brief Get the GUID of a joystick
+     *
+     * @param instance_id The joystick instance ID
+     * @return GUID of the joystick
+     */
+    [[nodiscard]] inline guid get_joystick_guid_for_id(joystick_id instance_id) noexcept {
+        return guid(SDL_GetJoystickGUIDForID(instance_id));
+    }
 
-			[[nodiscard]] joystick_hat_t count_hats() const;
-			[[nodiscard]] events::joystick_hat_state get_hat(joystick_hat_t hat_idx) const;
+    /**
+     * @brief Get the USB vendor ID of a joystick
+     *
+     * @param instance_id The joystick instance ID
+     * @return USB vendor ID, or 0 if not available
+     */
+    [[nodiscard]] inline uint16_t get_joystick_vendor_for_id(joystick_id instance_id) noexcept {
+        return SDL_GetJoystickVendorForID(instance_id);
+    }
 
-			[[nodiscard]] bool has_rumble() const;
-			void rumble_triggers(uint16_t left, uint16_t right, std::chrono::milliseconds duration);
-			void send_effect(const void* data, std::size_t size);
+    /**
+     * @brief Get the USB product ID of a joystick
+     *
+     * @param instance_id The joystick instance ID
+     * @return USB product ID, or 0 if not available
+     */
+    [[nodiscard]] inline uint16_t get_joystick_product_for_id(joystick_id instance_id) noexcept {
+        return SDL_GetJoystickProductForID(instance_id);
+    }
 
-			[[nodiscard]] bool is_haptic() const;
-			[[nodiscard]] object <SDL_Haptic> as_haptic() const;
-			[[nodiscard]] bool is_game_cotroller() const;
-			[[nodiscard]] object <SDL_GameController> as_game_cotroller() const;
-	};
+    /**
+     * @brief Get the product version of a joystick
+     *
+     * @param instance_id The joystick instance ID
+     * @return Product version, or 0 if not available
+     */
+    [[nodiscard]] inline uint16_t get_joystick_product_version_for_id(joystick_id instance_id) noexcept {
+        return SDL_GetJoystickProductVersionForID(instance_id);
+    }
 
-	namespace detail {
-		static inline constexpr std::array <joystick::power_level, 7> s_vals_of_joystick_power_level = {
-			joystick::power_level::UNKNOWN,
-			joystick::power_level::EMPTY,
-			joystick::power_level::LOW,
-			joystick::power_level::MEDIUM,
-			joystick::power_level::FULL,
-			joystick::power_level::WIRED,
-			joystick::power_level::MAX,
-		};
-	}
+    /**
+     * @brief Get the type of a joystick
+     *
+     * @param instance_id The joystick instance ID
+     * @return Joystick type
+     */
+    [[nodiscard]] inline joystick_type get_joystick_type_for_id(joystick_id instance_id) noexcept {
+        return static_cast <joystick_type>(SDL_GetJoystickTypeForID(instance_id));
+    }
 
-	template<typename T>
-	static constexpr const decltype(detail::s_vals_of_joystick_power_level)&
-	values(std::enable_if_t <std::is_same_v <joystick::power_level, T>>* = nullptr) {
-		return detail::s_vals_of_joystick_power_level;
-	}
+    /**
+     * @brief RAII wrapper for SDL_Joystick
+     *
+     * This class provides a safe, RAII-managed interface to SDL's joystick functionality.
+     * The joystick is automatically closed when the object goes out of scope.
+     */
+    class joystick {
+        private:
+            joystick_ptr ptr;
 
-	template<typename T>
-	static constexpr auto
-	begin(std::enable_if_t <std::is_same_v <joystick::power_level, T>>* = nullptr) {
-		return detail::s_vals_of_joystick_power_level.begin();
-	}
+        public:
+            /**
+             * @brief Default constructor - creates an empty joystick
+             */
+            joystick() = default;
 
-	template<typename T>
-	static constexpr auto
-	end(std::enable_if_t <std::is_same_v <joystick::power_level, T>>* = nullptr) {
-		return detail::s_vals_of_joystick_power_level.end();
-	}
+            /**
+             * @brief Construct from existing SDL_Joystick pointer
+             * @param j Existing SDL_Joystick pointer (takes ownership)
+             */
+            explicit joystick(SDL_Joystick* j)
+                : ptr(j) {
+            }
 
-	namespace detail {
-		static inline constexpr std::array <joystick::type, 10> s_vals_of_joystick_type = {
-			joystick::type::UNKNOWN,
-			joystick::type::GAMECONTROLLER,
-			joystick::type::WHEEL,
-			joystick::type::ARCADE_STICK,
-			joystick::type::FLIGHT_STICK,
-			joystick::type::DANCE_PAD,
-			joystick::type::GUITAR,
-			joystick::type::DRUM_KIT,
-			joystick::type::ARCADE_PAD,
-			joystick::type::THROTTLE,
-		};
-	}
+            /**
+             * @brief Move constructor
+             */
+            joystick(joystick&&) = default;
 
-	template<typename T>
-	static constexpr const decltype(detail::s_vals_of_joystick_type)&
-	values(std::enable_if_t <std::is_same_v <joystick::type, T>>* = nullptr) {
-		return detail::s_vals_of_joystick_type;
-	}
+            /**
+             * @brief Move assignment operator
+             */
+            joystick& operator=(joystick&&) = default;
 
-	template<typename T>
-	static constexpr auto
-	begin(std::enable_if_t <std::is_same_v <joystick::type, T>>* = nullptr) {
-		return detail::s_vals_of_joystick_type.begin();
-	}
+            // Delete copy operations - joysticks are move-only
+            joystick(const joystick&) = delete;
+            joystick& operator=(const joystick&) = delete;
 
-	template<typename T>
-	static constexpr auto
-	end(std::enable_if_t <std::is_same_v <joystick::type, T>>* = nullptr) {
-		return detail::s_vals_of_joystick_type.end();
-	}
+            /**
+             * @brief Check if the joystick is valid
+             */
+            [[nodiscard]] bool is_valid() const noexcept { return ptr != nullptr; }
+            [[nodiscard]] explicit operator bool() const noexcept { return is_valid(); }
 
-	d_SDLPP_OSTREAM(joystick::power_level);
-	d_SDLPP_OSTREAM(joystick::type);
+            /**
+             * @brief Get the underlying SDL_Joystick pointer
+             */
+            [[nodiscard]] SDL_Joystick* get() const noexcept { return ptr.get(); }
 
-	inline
-	joystick& joystick::operator=(object <SDL_Joystick>&& other) noexcept {
-		object <SDL_Joystick>::operator=(std::move(other));
-		return *this;;
-	}
+            /**
+             * @brief Open a joystick for use
+             *
+             * @param instance_id The joystick instance ID
+             * @return Expected containing joystick, or error message
+             */
+            static expected <joystick, std::string> open(joystick_id instance_id) {
+                auto* j = SDL_OpenJoystick(instance_id);
+                if (!j) {
+                    return make_unexpected(get_error());
+                }
+                return joystick(j);
+            }
 
-	inline
-	joystick& joystick::operator=(joystick&& other) noexcept {
-		object <SDL_Joystick>::operator=(std::move(other));
-		return *this;
-	}
+            /**
+             * @brief Get the instance ID of this joystick
+             *
+             * @return Instance ID, or 0 if invalid
+             */
+            [[nodiscard]] joystick_id get_id() const noexcept {
+                return ptr ? SDL_GetJoystickID(ptr.get()) : 0;
+            }
 
-	inline
-	std::string joystick::get_name() const {
-		return SAFE_SDL_CALL(SDL_JoystickName, const_handle ());
-	}
+            /**
+             * @brief Get the name of this joystick
+             *
+             * @return Joystick name, or empty string if invalid
+             */
+            [[nodiscard]] std::string get_name() const {
+                if (!ptr) return "";
+                const char* name = SDL_GetJoystickName(ptr.get());
+                return name ? name : "";
+            }
 
-	inline
-	std::string joystick::get_path() const {
-		return SAFE_SDL_CALL(SDL_JoystickPath, const_handle ());
-	}
+            /**
+             * @brief Get the path of this joystick
+             *
+             * @return Joystick path, or empty string if invalid
+             */
+            [[nodiscard]] std::string get_path() const {
+                if (!ptr) return "";
+                const char* path = SDL_GetJoystickPath(ptr.get());
+                return path ? path : "";
+            }
 
-	inline
-	joystick::power_level joystick::get_power_level() const noexcept {
-		return static_cast <power_level>(SDL_JoystickCurrentPowerLevel(const_cast <SDL_Joystick*>(const_handle())));
-	}
+            /**
+             * @brief Get the player index of this joystick
+             *
+             * @return Player index, or -1 if not set
+             */
+            [[nodiscard]] int get_player_index() const noexcept {
+                return ptr ? SDL_GetJoystickPlayerIndex(ptr.get()) : -1;
+            }
 
-	inline
-	std::optional <joystick_player_index_t> joystick::get_player_index() const noexcept {
-		auto rc = SDL_JoystickGetPlayerIndex(const_handle());
-		if (rc >= 0) {
-			return joystick_player_index_t{rc};
-		}
-		return std::nullopt;
-	}
+            /**
+             * @brief Set the player index of this joystick
+             *
+             * @param player_index The player index to set
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_player_index(int player_index) {
+                if (!ptr) {
+                    return make_unexpected("Invalid joystick");
+                }
+                if (!SDL_SetJoystickPlayerIndex(ptr.get(), player_index)) {
+                    return make_unexpected(get_error());
+                }
+                return {};
+            }
 
-	inline
-	joystick_axis_t joystick::count_axes() const {
-		auto rc = SAFE_SDL_CALL(SDL_JoystickNumAxes, const_handle ());
-		return joystick_axis_t{static_cast <std::size_t>(rc)};
-	}
+            /**
+             * @brief Get the GUID of this joystick
+             *
+             * @return GUID of the joystick
+             */
+            [[nodiscard]] guid get_guid() const noexcept {
+                return ptr ? guid(SDL_GetJoystickGUID(ptr.get())) : guid();
+            }
 
-	inline
-	int16_t joystick::get_axis(joystick_axis_t axis_id) const {
-		const auto rc = SDL_JoystickGetAxis(const_handle(), static_cast <int>(axis_id.value_of()));
-		if (rc == 0) {
-			RAISE_SDL_EX();
-		}
-		return rc;
-	}
+            /**
+             * @brief Get the USB vendor ID of this joystick
+             *
+             * @return USB vendor ID, or 0 if not available
+             */
+            [[nodiscard]] uint16_t get_vendor() const noexcept {
+                return ptr ? SDL_GetJoystickVendor(ptr.get()) : 0;
+            }
 
-	inline
-	std::optional <int16_t> joystick::get_axis_initial_state(joystick_axis_t axis_id) const {
-		Sint16 state;
-		if (SDL_TRUE
-		    == SDL_JoystickGetAxisInitialState(const_handle(), static_cast <int>(axis_id.value_of()), &state)) {
-			return state;
-		}
-		return std::nullopt;
-	}
+            /**
+             * @brief Get the USB product ID of this joystick
+             *
+             * @return USB product ID, or 0 if not available
+             */
+            [[nodiscard]] uint16_t get_product() const noexcept {
+                return ptr ? SDL_GetJoystickProduct(ptr.get()) : 0;
+            }
 
-	inline
-	joystick_ball_t joystick::count_balls() const {
-		const auto rc = SAFE_SDL_CALL(SDL_JoystickNumBalls, const_handle ());
-		return joystick_ball_t{static_cast <std::size_t>(rc)};
-	}
+            /**
+             * @brief Get the product version of this joystick
+             *
+             * @return Product version, or 0 if not available
+             */
+            [[nodiscard]] uint16_t get_product_version() const noexcept {
+                return ptr ? SDL_GetJoystickProductVersion(ptr.get()) : 0;
+            }
 
-	inline
-	std::tuple <int, int> joystick::get_ball(joystick_ball_t ball_id) const {
-		int dx;
-		int dy;
-		SAFE_SDL_CALL(SDL_JoystickGetBall, const_handle (), static_cast<int>(ball_id.value_of ()), &dx, &dy);
-		return {dx, dy};
-	}
+            /**
+             * @brief Get the firmware version of this joystick
+             *
+             * @return Firmware version, or 0 if not available
+             */
+            [[nodiscard]] uint16_t get_firmware_version() const noexcept {
+                return ptr ? SDL_GetJoystickFirmwareVersion(ptr.get()) : 0;
+            }
 
-	inline
-	joystick_button_t joystick::count_buttons() const {
-		const auto rc = SAFE_SDL_CALL(SDL_JoystickNumButtons, const_handle ());
-		return joystick_button_t{static_cast <std::size_t>(rc)};
-	}
+            /**
+             * @brief Get the serial number of this joystick
+             *
+             * @return Serial number, or empty string if not available
+             */
+            [[nodiscard]] std::string get_serial() const {
+                if (!ptr) return "";
+                const char* serial = SDL_GetJoystickSerial(ptr.get());
+                return serial ? serial : "";
+            }
 
-	inline
-	bool joystick::get_button(joystick_button_t button_id) const {
-		return SDL_JoystickGetButton(const_handle(), static_cast <int>(button_id.value_of()));
-	}
+            /**
+             * @brief Get the type of this joystick
+             *
+             * @return Joystick type
+             */
+            [[nodiscard]] joystick_type get_type() const noexcept {
+                return ptr
+                           ? static_cast <joystick_type>(SDL_GetJoystickType(ptr.get()))
+                           : joystick_type::unknown;
+            }
 
-	inline
-	std::optional <uint16_t> joystick::get_firmware_version() const {
-		if (auto rc = SDL_JoystickGetFirmwareVersion(const_handle()); rc != 0) {
-			return rc;
-		}
-		return std::nullopt;
-	}
+            /**
+             * @brief Check if this joystick has been opened as a gamepad
+             *
+             * @return true if attached as gamepad
+             */
+            [[nodiscard]] bool is_gamepad() const noexcept {
+                return ptr && SDL_IsGamepad(get_id());
+            }
 
-	inline
-	joystick_hat_t joystick::count_hats() const {
-		const auto rc = SAFE_SDL_CALL(SDL_JoystickNumHats, const_handle ());
-		return joystick_hat_t{static_cast <std::size_t>(rc)};
-	}
+            /**
+             * @brief Get the connection state of this joystick
+             *
+             * @return Connection state
+             */
+            [[nodiscard]] joystick_connection_state get_connection_state() const noexcept {
+                return ptr
+                           ? static_cast <joystick_connection_state>(SDL_GetJoystickConnectionState(ptr.get()))
+                           : joystick_connection_state::invalid;
+            }
 
-	inline
-	events::joystick_hat_state joystick::get_hat(joystick_hat_t hat_idx) const {
-		return static_cast <events::joystick_hat_state>(SDL_JoystickGetHat(const_handle(), static_cast <int>(hat_idx
-			                                                                   .value_of())));
-	}
+            /**
+             * @brief Get the power info of this joystick
+             *
+             * @param[out] percent Battery percentage (0-100), or -1 if unknown
+             * @return Power state
+             */
+            [[nodiscard]] power_state get_power_info(int* percent = nullptr) const noexcept {
+                if (!ptr) {
+                    if (percent) *percent = -1;
+                    return power_state::error;
+                }
+                return static_cast <power_state>(SDL_GetJoystickPowerInfo(ptr.get(), percent));
+            }
 
-	inline
-	std::optional <uint16_t> joystick::get_product() const {
-		auto rc = SDL_JoystickGetProduct(const_handle());
-		if (rc == 0) {
-			return std::nullopt;
-		}
-		return rc;
-	}
+            /**
+             * @brief Get the number of axes on this joystick
+             *
+             * @return Number of axes, or 0 if invalid
+             */
+            [[nodiscard]] size_t get_num_axes() const noexcept {
+                if (!ptr) return 0;
+                int count = SDL_GetNumJoystickAxes(ptr.get());
+                return count > 0 ? static_cast<size_t>(count) : 0;
+            }
 
-	inline
-	std::optional <uint16_t> joystick::get_product_version() const {
-		auto rc = SDL_JoystickGetProductVersion(const_handle());
-		if (rc == 0) {
-			return std::nullopt;
-		}
-		return rc;
-	}
+            /**
+             * @brief Get the number of trackballs on this joystick
+             *
+             * @return Number of trackballs, or 0 if invalid
+             */
+            [[nodiscard]] size_t get_num_balls() const noexcept {
+                if (!ptr) return 0;
+                int count = SDL_GetNumJoystickBalls(ptr.get());
+                return count > 0 ? static_cast<size_t>(count) : 0;
+            }
 
-	inline
-	std::optional <uint16_t> joystick::get_vendor() const {
-		auto rc = SDL_JoystickGetVendor(const_handle());
-		if (rc == 0) {
-			return std::nullopt;
-		}
-		return rc;
-	}
+            /**
+             * @brief Get the number of hats on this joystick
+             *
+             * @return Number of hats, or 0 if invalid
+             */
+            [[nodiscard]] size_t get_num_hats() const noexcept {
+                if (!ptr) return 0;
+                int count = SDL_GetNumJoystickHats(ptr.get());
+                return count > 0 ? static_cast<size_t>(count) : 0;
+            }
 
-	inline
-	std::string joystick::get_serial() const {
-		if (const char* rc = SDL_JoystickGetSerial(const_handle())) {
-			return rc;
-		}
-		return {};
-	}
+            /**
+             * @brief Get the number of buttons on this joystick
+             *
+             * @return Number of buttons, or 0 if invalid
+             */
+            [[nodiscard]] size_t get_num_buttons() const noexcept {
+                if (!ptr) return 0;
+                int count = SDL_GetNumJoystickButtons(ptr.get());
+                return count > 0 ? static_cast<size_t>(count) : 0;
+            }
 
-	inline
-	bool joystick::has_led() const {
-		return SDL_TRUE == SDL_JoystickHasLED(const_handle());
-	}
+            /**
+             * @brief Get the current state of an axis
+             *
+             * @param axis The axis index (0 to get_num_axes()-1)
+             * @return Axis value (-32768 to 32767), or 0 if invalid
+             */
+            [[nodiscard]] int16_t get_axis(size_t axis) const noexcept {
+                return ptr ? SDL_GetJoystickAxis(ptr.get(), static_cast<int>(axis)) : static_cast<int16_t>(0);
+            }
 
-	inline
-	void joystick::set_led(uint8_t r, uint8_t g, uint8_t b) {
-		SAFE_SDL_CALL(SDL_JoystickSetLED, handle (), r, g, b);
-	}
+            /**
+             * @brief Get whether an axis has an initial value
+             *
+             * @param axis The axis index
+             * @param[out] state Set to the initial state if available
+             * @return true if axis has been moved, false otherwise
+             */
+            [[nodiscard]] bool get_axis_initial_state(size_t axis, int16_t& state) const noexcept {
+                return ptr && SDL_GetJoystickAxisInitialState(ptr.get(), static_cast<int>(axis), &state);
+            }
 
-	inline
-	void joystick::set_led(const color& c) {
-		set_led(c.r, c.g, c.b);
-	}
+            /**
+             * @brief Get the ball axis change since the last poll
+             *
+             * @param ball The ball index (0 to get_num_balls()-1)
+             * @param[out] dx The X axis change
+             * @param[out] dy The Y axis change
+             * @return true on success, false if invalid
+             */
+            [[nodiscard]] bool get_ball(size_t ball, int& dx, int& dy) const noexcept {
+                return ptr && SDL_GetJoystickBall(ptr.get(), static_cast<int>(ball), &dx, &dy);
+            }
 
-	inline
-	bool joystick::has_rumble() const {
-		return SDL_TRUE == SDL_JoystickHasRumble(const_handle());
-	}
+            /**
+             * @brief Get the current state of a hat
+             *
+             * @param hat The hat index (0 to get_num_hats()-1)
+             * @return Hat position
+             */
+            [[nodiscard]] hat_position get_hat(size_t hat) const noexcept {
+                return ptr
+                           ? static_cast <hat_position>(SDL_GetJoystickHat(ptr.get(), static_cast<int>(hat)))
+                           : hat_position::centered;
+            }
 
-	inline
-	void joystick::rumble_triggers(uint16_t left, uint16_t right, std::chrono::milliseconds duration) {
-		SAFE_SDL_CALL(SDL_JoystickRumbleTriggers, handle (), left, right, duration.count ());
-	}
+            /**
+             * @brief Get the current state of a button
+             *
+             * @param button The button index (0 to get_num_buttons()-1)
+             * @return true if pressed, false if released
+             */
+            [[nodiscard]] bool get_button(size_t button) const noexcept {
+                return ptr && SDL_GetJoystickButton(ptr.get(), static_cast<int>(button));
+            }
 
-	inline
-	void joystick::send_effect(const void* data, std::size_t size) {
-		SAFE_SDL_CALL(SDL_JoystickSendEffect, handle (), data, static_cast<int>(size));
-	}
+            /**
+             * @brief Start a rumble effect
+             *
+             * @param low_frequency_rumble Low frequency motor intensity (0-65535)
+             * @param high_frequency_rumble High frequency motor intensity (0-65535)
+             * @param duration_ms Duration in milliseconds
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> rumble(uint16_t low_frequency_rumble,
+                                                uint16_t high_frequency_rumble,
+                                                uint32_t duration_ms) {
+                if (!ptr) {
+                    return make_unexpected("Invalid joystick");
+                }
+                if (!SDL_RumbleJoystick(ptr.get(), low_frequency_rumble, high_frequency_rumble, duration_ms)) {
+                    return make_unexpected(get_error());
+                }
+                return {};
+            }
 
-	inline
-	void joystick::set_player_index(joystick_player_index_t idx) {
-		SDL_JoystickSetPlayerIndex(handle(), idx.value_of());
-	}
+            /**
+             * @brief Start a rumble effect on triggers
+             *
+             * @param left_rumble Left trigger motor intensity (0-65535)
+             * @param right_rumble Right trigger motor intensity (0-65535)
+             * @param duration_ms Duration in milliseconds
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> rumble_triggers(uint16_t left_rumble,
+                                                         uint16_t right_rumble,
+                                                         uint32_t duration_ms) {
+                if (!ptr) {
+                    return make_unexpected("Invalid joystick");
+                }
+                if (!SDL_RumbleJoystickTriggers(ptr.get(), left_rumble, right_rumble, duration_ms)) {
+                    return make_unexpected(get_error());
+                }
+                return {};
+            }
 
-	inline
-	void joystick::clear_player_index() {
-		SDL_JoystickSetPlayerIndex(handle(), -1);
-	}
+            /**
+             * @brief Set the LED color
+             *
+             * @param red Red intensity (0-255)
+             * @param green Green intensity (0-255)
+             * @param blue Blue intensity (0-255)
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_led(uint8_t red, uint8_t green, uint8_t blue) {
+                if (!ptr) {
+                    return make_unexpected("Invalid joystick");
+                }
+                if (!SDL_SetJoystickLED(ptr.get(), red, green, blue)) {
+                    return make_unexpected(get_error());
+                }
+                return {};
+            }
 
-	inline
-	object <SDL_Haptic> joystick::as_haptic() const {
-		return {SAFE_SDL_CALL(SDL_HapticOpenFromJoystick, const_handle()), true};
-	}
+            /**
+             * @brief Send an effect packet
+             *
+             * @param data The data to send
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> send_effect(std::span <const uint8_t> data) {
+                if (!ptr) {
+                    return make_unexpected("Invalid joystick");
+                }
+                if (!SDL_SendJoystickEffect(ptr.get(), data.data(), static_cast <int>(data.size()))) {
+                    return make_unexpected(get_error());
+                }
+                return {};
+            }
+    };
 
-	inline
-	bool joystick::is_haptic() const {
-		return SDL_JoystickIsHaptic(const_handle()) == SDL_TRUE;
-	}
+    /**
+     * @brief Check if a joystick is virtual
+     *
+     * @param instance_id The joystick instance ID
+     * @return true if virtual, false otherwise
+     */
+    [[nodiscard]] inline bool is_joystick_virtual(joystick_id instance_id) noexcept {
+        return SDL_IsJoystickVirtual(instance_id);
+    }
 
-	inline
-	joystick_id_t joystick::get_id() const {
-		return joystick_id_t(SDL_JoystickInstanceID(const_handle()));
-	}
+    /**
+     * @brief Virtual joystick descriptor
+     */
+    struct virtual_joystick_desc {
+        uint16_t vendor_id = 0;
+        uint16_t product_id = 0;
+        uint16_t naxes = 0;
+        uint16_t nballs = 0;
+        uint16_t nbuttons = 0;
+        uint16_t nhats = 0;
+        uint16_t padding = 0;
+        uint32_t button_mask = 0;
+        uint32_t axis_mask = 0;
+        const char* name = nullptr;
+        void* userdata = nullptr;
 
-	inline object <SDL_GameController> joystick::as_game_cotroller() const {
-		return {SAFE_SDL_CALL(SDL_GameControllerFromInstanceID, get_id().value_of()), true};
-	}
+        // Callbacks would be added here as function pointers
+        // For now, leaving them out for simplicity
+    };
 
-	inline bool joystick::is_game_cotroller() const {
-		object <SDL_GameController> o(SDL_GameControllerFromInstanceID(get_id().value_of()), true);
-		return !o.is_null();
-	}
+    /**
+     * @brief Attach a virtual joystick
+     *
+     * @param desc Virtual joystick descriptor
+     * @return Expected containing joystick ID, or error message
+     */
+    inline expected <joystick_id, std::string> attach_virtual_joystick(const virtual_joystick_desc& desc) {
+        SDL_VirtualJoystickDesc sdl_desc{};
+        sdl_desc.vendor_id = desc.vendor_id;
+        sdl_desc.product_id = desc.product_id;
+        sdl_desc.naxes = desc.naxes;
+        sdl_desc.nballs = desc.nballs;
+        sdl_desc.nbuttons = desc.nbuttons;
+        sdl_desc.nhats = desc.nhats;
+        sdl_desc.padding = desc.padding;
+        sdl_desc.button_mask = desc.button_mask;
+        sdl_desc.axis_mask = desc.axis_mask;
+        sdl_desc.name = desc.name;
+        sdl_desc.userdata = desc.userdata;
+
+        SDL_JoystickID id = SDL_AttachVirtualJoystick(&sdl_desc);
+        if (id == 0) {
+            return make_unexpected(get_error());
+        }
+        return id;
+    }
+
+    /**
+     * @brief Detach a virtual joystick
+     *
+     * @param instance_id The joystick instance ID
+     * @return Expected<void> - empty on success, error message on failure
+     */
+    inline expected <void, std::string> detach_virtual_joystick(joystick_id instance_id) {
+        if (!SDL_DetachVirtualJoystick(instance_id)) {
+            return make_unexpected(get_error());
+        }
+        return {};
+    }
+
+    /**
+     * @brief Set virtual joystick axis value
+     *
+     * @param joystick The joystick
+     * @param axis The axis index
+     * @param value The axis value (-32768 to 32767)
+     * @return Expected<void> - empty on success, error message on failure
+     */
+    inline expected <void, std::string> set_virtual_joystick_axis(SDL_Joystick* joystick, int axis, int16_t value) {
+        if (!SDL_SetJoystickVirtualAxis(joystick, axis, value)) {
+            return make_unexpected(get_error());
+        }
+        return {};
+    }
+
+    /**
+     * @brief Set virtual joystick ball value
+     *
+     * @param joystick The joystick
+     * @param ball The ball index
+     * @param xrel The X relative motion
+     * @param yrel The Y relative motion
+     * @return Expected<void> - empty on success, error message on failure
+     */
+    inline expected <void, std::string> set_virtual_joystick_ball(SDL_Joystick* joystick, int ball, int16_t xrel,
+                                                                  int16_t yrel) {
+        if (!SDL_SetJoystickVirtualBall(joystick, ball, xrel, yrel)) {
+            return make_unexpected(get_error());
+        }
+        return {};
+    }
+
+    /**
+     * @brief Set virtual joystick button value
+     *
+     * @param joystick The joystick
+     * @param button The button index
+     * @param down true for pressed, false for released
+     * @return Expected<void> - empty on success, error message on failure
+     */
+    inline expected <void, std::string> set_virtual_joystick_button(SDL_Joystick* joystick, int button, bool down) {
+        if (!SDL_SetJoystickVirtualButton(joystick, button, down)) {
+            return make_unexpected(get_error());
+        }
+        return {};
+    }
+
+    /**
+     * @brief Set virtual joystick hat value
+     *
+     * @param joystick The joystick
+     * @param hat The hat index
+     * @param position The hat position
+     * @return Expected<void> - empty on success, error message on failure
+     */
+    inline expected <void, std::string>
+    set_virtual_joystick_hat(SDL_Joystick* joystick, int hat, hat_position position) {
+        if (!SDL_SetJoystickVirtualHat(joystick, hat, static_cast <uint8_t>(position))) {
+            return make_unexpected(get_error());
+        }
+        return {};
+    }
+} // namespace sdlpp
+
+
+// Stream operators for enums
+#include <iosfwd>
+
+namespace sdlpp {
+/**
+ * @brief Stream output operator for power_state
+ */
+SDLPP_EXPORT std::ostream& operator<<(std::ostream& os, power_state value);
+
+/**
+ * @brief Stream input operator for power_state
+ */
+SDLPP_EXPORT std::istream& operator>>(std::istream& is, power_state& value);
+
+/**
+ * @brief Stream output operator for joystick_type
+ */
+SDLPP_EXPORT std::ostream& operator<<(std::ostream& os, joystick_type value);
+
+/**
+ * @brief Stream input operator for joystick_type
+ */
+SDLPP_EXPORT std::istream& operator>>(std::istream& is, joystick_type& value);
+
+/**
+ * @brief Stream output operator for joystick_connection_state
+ */
+SDLPP_EXPORT std::ostream& operator<<(std::ostream& os, joystick_connection_state value);
+
+/**
+ * @brief Stream input operator for joystick_connection_state
+ */
+SDLPP_EXPORT std::istream& operator>>(std::istream& is, joystick_connection_state& value);
+
+/**
+ * @brief Stream output operator for hat_position
+ */
+SDLPP_EXPORT std::ostream& operator<<(std::ostream& os, hat_position value);
+
+/**
+ * @brief Stream input operator for hat_position
+ */
+SDLPP_EXPORT std::istream& operator>>(std::istream& is, hat_position& value);
+
 }
-
-#endif //SDLPP_INCLUDE_SDLPP_INPUT_JOYSTIC_HH_

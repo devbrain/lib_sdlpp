@@ -1,285 +1,631 @@
 //
-// Created by igor on 06/06/2020.
+// Created by igor on 7/14/25.
 //
 
-#ifndef NEUTRINO_SDL_TEXTURE_HH
-#define NEUTRINO_SDL_TEXTURE_HH
+#pragma once
 
-#include <optional>
-#include <array>
-#include <type_traits>
+/**
+ * @file texture.hh
+ * @brief Modern C++ wrapper for SDL3 texture functionality
+ * 
+ * This header provides RAII-managed wrappers around SDL3's texture system,
+ * which represents images in GPU memory for fast rendering.
+ */
 
-#include <sdlpp/detail/call.hh>
-#include <sdlpp/detail/object.hh>
-#include <sdlpp/detail/sdl2.hh>
-#include <sdlpp/video/pixel_format.hh>
-#include <sdlpp/video/blend_mode.hh>
+#include <sdlpp/core/sdl.hh>
+#include <sdlpp/core/error.hh>
+#include <sdlpp/detail/expected.hh>
+#include <sdlpp/detail/pointer.hh>
+#include <sdlpp/utility/geometry.hh>
 #include <sdlpp/video/color.hh>
-#include <sdlpp/video/geometry.hh>
+#include <sdlpp/video/pixels.hh>
+#include <sdlpp/video/blend_mode.hh>
+#include <sdlpp/video/renderer.hh>
 #include <sdlpp/video/surface.hh>
-#include <sdlpp/detail/ostreamops.hh>
+#include <string>
 
-namespace neutrino::sdl {
+namespace sdlpp {
     /**
-     * @class texture
-     *
-     * @brief Represents an SDL texture.
-     *
-     * This class provides functionality to create, modify, and access SDL textures.
-     * It inherits from the object class, which manages the ownership and lifetime of the underlying SDL_Texture.
-     *
+     * @brief Smart pointer type for SDL_Texture with automatic cleanup
      */
-    class texture : public object <SDL_Texture> {
-        public:
-            enum class access : uint32_t {
-                STATIC = SDL_TEXTUREACCESS_STATIC,
-                STREAMING = SDL_TEXTUREACCESS_STREAMING,
-                TARGET = SDL_TEXTUREACCESS_TARGET
-            };
+    using texture_ptr = pointer <SDL_Texture, SDL_DestroyTexture>;
+
+    /**
+     * @brief RAII wrapper for SDL_Texture
+     *
+     * This class provides a safe, RAII-managed interface to SDL's texture
+     * functionality. Textures are GPU-resident images that can be rendered
+     * quickly. The texture is automatically destroyed when the object goes
+     * out of scope.
+     */
+    class texture {
+        private:
+            texture_ptr ptr;
 
         public:
+            /**
+             * @brief Default constructor - creates an empty texture
+             */
             texture() = default;
 
-            texture(const object <SDL_Renderer>& r, const pixel_format& format, unsigned w, unsigned h, access flags);
+            /**
+             * @brief Construct from existing SDL_Texture pointer
+             * @param t Existing SDL_Texture pointer (takes ownership)
+             */
+            explicit texture(SDL_Texture* t)
+                : ptr(t) {
+            }
 
-            texture(const object <SDL_Renderer>& r, const pixel_format& format, area_type dims, access flags);
-            texture(const object <SDL_Renderer>& r, const object <SDL_Surface>& s);
+            /**
+             * @brief Move constructor
+             */
+            texture(texture&&) = default;
 
-            explicit texture(object <SDL_Texture>&& other);
-            texture& operator=(object <SDL_Texture>&& other) noexcept;
+            /**
+             * @brief Move assignment operator
+             */
+            texture& operator=(texture&&) = default;
 
-            // returns: pixel format, texture_access, w, h
-            [[nodiscard]] std::tuple <pixel_format, access, unsigned, unsigned> query() const;
-            [[nodiscard]] area_type get_dimensions() const;
+            // Delete copy operations - textures are move-only
+            texture(const texture&) = delete;
+            texture& operator=(const texture&) = delete;
 
-            [[nodiscard]] uint8_t get_alpha() const;
-            void set_alpha(uint8_t a);
+            /**
+             * @brief Check if the texture is valid
+             */
+            [[nodiscard]] bool is_valid() const { return ptr != nullptr; }
+            [[nodiscard]] explicit operator bool() const { return is_valid(); }
 
-            [[nodiscard]] blend_mode get_blend_mode() const;
-            void set_blend_mode(blend_mode bm);
+            /**
+             * @brief Get the underlying SDL_Texture pointer
+             */
+            [[nodiscard]] SDL_Texture* get() const { return ptr.get(); }
 
-            [[nodiscard]] std::optional <color> get_color_mod() const;
-            void set_color_mod(const color& c);
+            /**
+             * @brief Get texture properties
+             * @return Expected containing properties ID, or error message
+             */
+            [[nodiscard]] expected <SDL_PropertiesID, std::string> get_properties() const {
+                if (!ptr) {
+                    return make_unexpected("Invalid texture");
+                }
 
-            [[nodiscard]] surface convert_to_surface(const object <SDL_Renderer>& r,
-                                                     const pixel_format& format = pixel_format::RGBA32)
-            const;
+                SDL_PropertiesID props = SDL_GetTextureProperties(ptr.get());
+                if (!props) {
+                    return make_unexpected(get_error());
+                }
 
-            /*
-            Use this function to lock whole texture for write-only pixel access.
-            returns: pointer to pixels and pitch, i.e., the length of one row in bytes.
-            */
-            [[nodiscard]] std::pair <void*, std::size_t> lock() const;
-            /*
-            Use this function to lock a portion of the texture for write-only pixel access.
-            returns: pointer to pixels and pitch, i.e., the length of one row in bytes.
-            */
-            [[nodiscard]] std::pair <void*, std::size_t> lock(const rect& r) const;
+                return props;
+            }
 
-            void unlock() const;
+            /**
+             * @brief Get texture size
+             * @return Expected containing size, or error message
+             */
+            [[nodiscard]] expected <size_i, std::string> get_size() const {
+                if (!ptr) {
+                    return make_unexpected("Invalid texture");
+                }
 
-            // slow updates
-            void update(const void* pixels, std::size_t pitch);
-            void update(const rect& area, const void* pixels, std::size_t pitch);
+                float w, h;
+                if (!SDL_GetTextureSize(ptr.get(), &w, &h)) {
+                    return make_unexpected(get_error());
+                }
+
+                return size_i{static_cast <int>(w), static_cast <int>(h)};
+            }
+
+            /**
+             * @brief Set blend mode
+             * @param mode Blend mode to set
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_blend_mode(blend_mode mode) {
+                if (!ptr) {
+                    return make_unexpected("Invalid texture");
+                }
+
+                if (!SDL_SetTextureBlendMode(ptr.get(), static_cast <SDL_BlendMode>(mode))) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get blend mode
+             * @return Expected containing blend mode, or error message
+             */
+            [[nodiscard]] expected <blend_mode, std::string> get_blend_mode() const {
+                if (!ptr) {
+                    return make_unexpected("Invalid texture");
+                }
+
+                SDL_BlendMode mode;
+                if (!SDL_GetTextureBlendMode(ptr.get(), &mode)) {
+                    return make_unexpected(get_error());
+                }
+
+                return static_cast <blend_mode>(mode);
+            }
+
+            /**
+             * @brief Set color modulation
+             * @param c Color for modulation (RGB components used)
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_color_mod(const color& c) {
+                if (!ptr) {
+                    return make_unexpected("Invalid texture");
+                }
+
+                if (!SDL_SetTextureColorMod(ptr.get(), c.r, c.g, c.b)) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get color modulation
+             * @return Expected containing color, or error message
+             */
+            [[nodiscard]] expected <color, std::string> get_color_mod() const {
+                if (!ptr) {
+                    return make_unexpected("Invalid texture");
+                }
+
+                uint8_t r, g, b;
+                if (!SDL_GetTextureColorMod(ptr.get(), &r, &g, &b)) {
+                    return make_unexpected(get_error());
+                }
+
+                return color{r, g, b, 255};
+            }
+
+            /**
+             * @brief Set alpha modulation
+             * @param alpha Alpha value (0-255)
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_alpha_mod(uint8_t alpha) {
+                if (!ptr) {
+                    return make_unexpected("Invalid texture");
+                }
+
+                if (!SDL_SetTextureAlphaMod(ptr.get(), alpha)) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get alpha modulation
+             * @return Expected containing alpha value, or error message
+             */
+            [[nodiscard]] expected <uint8_t, std::string> get_alpha_mod() const {
+                if (!ptr) {
+                    return make_unexpected("Invalid texture");
+                }
+
+                uint8_t alpha;
+                if (!SDL_GetTextureAlphaMod(ptr.get(), &alpha)) {
+                    return make_unexpected(get_error());
+                }
+
+                return alpha;
+            }
+
+            /**
+             * @brief Set scale mode
+             * @param mode Scale mode to use
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_scale_mode(scale_mode mode) {
+                if (!ptr) {
+                    return make_unexpected("Invalid texture");
+                }
+
+                if (!SDL_SetTextureScaleMode(ptr.get(), static_cast <SDL_ScaleMode>(mode))) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get scale mode
+             * @return Expected containing scale mode, or error message
+             */
+            [[nodiscard]] expected <scale_mode, std::string> get_scale_mode() const {
+                if (!ptr) {
+                    return make_unexpected("Invalid texture");
+                }
+
+                SDL_ScaleMode mode;
+                if (!SDL_GetTextureScaleMode(ptr.get(), &mode)) {
+                    return make_unexpected(get_error());
+                }
+
+                return static_cast <scale_mode>(mode);
+            }
+
+            /**
+             * @brief Update texture with new pixel data
+             * @param rect Area to update (nullopt for entire texture)
+             * @param pixels Pixel data
+             * @param pitch Number of bytes per row
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            template<rect_like R = void>
+            expected <void, std::string> update(const std::optional <R>& update_rect,
+                                                const void* pixels, int pitch) {
+                if (!ptr) {
+                    return make_unexpected("Invalid texture");
+                }
+
+                if (!pixels) {
+                    return make_unexpected("Invalid pixel data");
+                }
+
+                if (update_rect) {
+                    SDL_Rect sdl_rect{
+                        static_cast<int>(get_x(*update_rect)),
+                        static_cast<int>(get_y(*update_rect)),
+                        static_cast<int>(get_width(*update_rect)),
+                        static_cast<int>(get_height(*update_rect))
+                    };
+                    if (!SDL_UpdateTexture(ptr.get(), &sdl_rect, pixels, pitch)) {
+                        return make_unexpected(get_error());
+                    }
+                } else {
+                    if (!SDL_UpdateTexture(ptr.get(), nullptr, pixels, pitch)) {
+                        return make_unexpected(get_error());
+                    }
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Lock texture for direct pixel access
+             * @param rect Area to lock (nullopt for entire texture)
+             * @return Expected containing pixels pointer and pitch, or error message
+             * @note Only works for streaming textures
+             */
+            template<rect_like R = void>
+            expected <std::pair <void*, int>, std::string> lock(const std::optional <R>& lock_rect = std::nullopt) {
+                if (!ptr) {
+                    return make_unexpected("Invalid texture");
+                }
+
+                void* pixels;
+                int pitch;
+
+                if (lock_rect) {
+                    SDL_Rect sdl_rect{
+                        static_cast<int>(get_x(*lock_rect)),
+                        static_cast<int>(get_y(*lock_rect)),
+                        static_cast<int>(get_width(*lock_rect)),
+                        static_cast<int>(get_height(*lock_rect))
+                    };
+                    if (!SDL_LockTexture(ptr.get(), &sdl_rect, &pixels, &pitch)) {
+                        return make_unexpected(get_error());
+                    }
+                } else {
+                    if (!SDL_LockTexture(ptr.get(), nullptr, &pixels, &pitch)) {
+                        return make_unexpected(get_error());
+                    }
+                }
+
+                return std::make_pair(pixels, pitch);
+            }
+
+            /**
+             * @brief Unlock texture after pixel access
+             */
+            void unlock() {
+                if (ptr) {
+                    SDL_UnlockTexture(ptr.get());
+                }
+            }
+
+            /**
+             * @brief RAII lock guard for texture pixel access
+             */
+            class lock_guard {
+                private:
+                    texture* tex;
+                    bool locked;
+
+                public:
+                    void* pixels = nullptr;
+                    int pitch = 0;
+
+                    template<rect_like R = void>
+                    explicit lock_guard(texture& t, const std::optional <R>& area = std::nullopt)
+                        : tex(&t), locked(false) {
+                        if (auto lock_result = tex->lock(area)) {
+                            std::tie(pixels, pitch) = *lock_result;
+                            locked = true;
+                        }
+                    }
+
+                    ~lock_guard() {
+                        if (locked) {
+                            tex->unlock();
+                        }
+                    }
+
+                    [[nodiscard]] bool is_locked() const { return locked; }
+
+                    // Non-copyable, non-movable
+                    lock_guard(const lock_guard&) = delete;
+                    lock_guard& operator=(const lock_guard&) = delete;
+                    lock_guard(lock_guard&&) = delete;
+                    lock_guard& operator=(lock_guard&&) = delete;
+            };
+
+            // Static factory methods
+
+            /**
+             * @brief Create a texture
+             * @param renderer Renderer to create texture for
+             * @param format Pixel format
+             * @param access Access pattern
+             * @param width Texture width
+             * @param height Texture height
+             * @return Expected containing new texture, or error message
+             */
+            static expected <texture, std::string> create(
+                const renderer& renderer,
+                pixel_format_enum format,
+                texture_access access,
+                int width, int height) {
+                if (!renderer) {
+                    return make_unexpected("Invalid renderer");
+                }
+
+                SDL_Texture* t = SDL_CreateTexture(
+                    renderer.get(),
+                    static_cast <SDL_PixelFormat>(format),
+                    static_cast <SDL_TextureAccess>(access),
+                    width, height
+                );
+
+                if (!t) {
+                    return make_unexpected(get_error());
+                }
+
+                return texture(t);
+            }
+
+            /**
+             * @brief Create a texture from a surface
+             * @param renderer Renderer to create texture for
+             * @param surface Surface to create texture from
+             * @return Expected containing new texture, or error message
+             */
+            static expected <texture, std::string> create(
+                const renderer& renderer,
+                const surface& surface) {
+                if (!renderer) {
+                    return make_unexpected("Invalid renderer");
+                }
+
+                if (!surface) {
+                    return make_unexpected("Invalid surface");
+                }
+
+                SDL_Texture* t = SDL_CreateTextureFromSurface(renderer.get(), surface.get());
+                if (!t) {
+                    return make_unexpected(get_error());
+                }
+
+                return texture(t);
+            }
     };
 
-    d_SDLPP_OSTREAM(texture::access);
-} // ns sdl
-// =================================================================================================================
-// Implementation
-// =================================================================================================================
-namespace neutrino::sdl {
-    inline
-    texture::texture(const object <SDL_Renderer>& r,
-                     const pixel_format& format,
-                     unsigned w, unsigned h, access flags)
-        : object <SDL_Texture>(SAFE_SDL_CALL(SDL_CreateTexture,
-                                             const_cast<SDL_Renderer*>(r.handle ()),
-                                             format.value (),
-                                             static_cast<std::uint32_t>(flags),
-                                             static_cast<int>(w),
-                                             static_cast<int>(h))                               , true) {
-    }
-
-    inline
-    texture::texture(const object <SDL_Renderer>& r, const pixel_format& format, area_type dims, access flags)
-        : object <SDL_Texture>(SAFE_SDL_CALL(SDL_CreateTexture,
-                                             const_cast<SDL_Renderer*>(r.handle ()),
-                                             format.value (),
-                                             static_cast<std::uint32_t>(flags),
-                                             static_cast<int>(dims.w),
-                                             static_cast<int>(dims.h))                               , true) {
-    }
-
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    texture::texture(const object <SDL_Renderer>& r, const object <SDL_Surface>& s)
-        : object <SDL_Texture>(SAFE_SDL_CALL(SDL_CreateTextureFromSurface,
-                                             const_cast<SDL_Renderer*>(r.handle ()),
-                                             const_cast<SDL_Surface*>(s.handle ())
-        )                               , true) {
-    }
-
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    texture::texture(object <SDL_Texture>&& other)
-        : object <SDL_Texture>(std::move(other)) {
-    }
-
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    texture& texture::operator=(object <SDL_Texture>&& other) noexcept {
-        object <SDL_Texture>::operator=(std::move(other));
-        return *this;
-    }
-
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    surface texture::convert_to_surface(const object <SDL_Renderer>& r, const pixel_format& format) const {
-        const auto dims = get_dimensions();
-        const auto w = dims.w;
-        const auto h = dims.h;
-        texture target(r, format, w, h, access::TARGET);
-        surface srf(dims, format);
-        SDL_Texture* original = SDL_GetRenderTarget(r.const_handle());
-        SAFE_SDL_CALL(SDL_SetRenderTarget, r.const_handle(), target.handle());
-        try {
-            SAFE_SDL_CALL(SDL_RenderCopy, r.const_handle(), this->const_handle(), nullptr, nullptr);
-            const int pitch = srf->pitch;
-            std::vector <char> pixels(h*pitch, 0);
-            SAFE_SDL_CALL(SDL_RenderReadPixels, r.const_handle(), nullptr, format.value(), pixels.data(), pitch);
-            SDL_memcpy(srf->pixels, pixels.data(), pixels.size());
-            SDL_SetRenderTarget (r.const_handle(), original);
-            return srf;
-        } catch (...) {
-            SDL_SetRenderTarget (r.const_handle(), original);
-            throw;
+    // Now add texture-related methods to renderer
+    template<rect_like R>
+    inline expected <void, std::string> renderer::copy(
+        const texture& texture,
+        const std::optional <R>& src_rect,
+        const std::optional <R>& dst_rect) {
+        if (!ptr) {
+            return make_unexpected("Invalid renderer");
         }
-    }
 
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    std::tuple <pixel_format, texture::access, unsigned, unsigned> texture::query() const {
-        uint32_t format;
-        int w;
-        int h;
-        int acc;
-        SAFE_SDL_CALL(SDL_QueryTexture, const_handle (), &format, &acc, &w, &h);
-        return {pixel_format(format), (access)acc, static_cast <unsigned>(w), static_cast <unsigned>(h)};
-    }
-
-    inline
-    area_type texture::get_dimensions() const {
-        int w;
-        int h;
-        SAFE_SDL_CALL(SDL_QueryTexture, const_handle (), nullptr, nullptr, &w, &h);
-        return {static_cast<unsigned int>(w), static_cast<unsigned int>(h)};
-    }
-
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    uint8_t texture::get_alpha() const {
-        uint8_t a;
-        SAFE_SDL_CALL(SDL_GetTextureAlphaMod, const_handle (), &a);
-        return a;
-    }
-
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    void texture::set_alpha(uint8_t a) {
-        SAFE_SDL_CALL(SDL_SetTextureAlphaMod, handle (), a);
-    }
-
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    blend_mode texture::get_blend_mode() const {
-        SDL_BlendMode x;
-        SAFE_SDL_CALL(SDL_GetTextureBlendMode, const_handle (), &x);
-        return static_cast <blend_mode>(x);
-    }
-
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    void texture::set_blend_mode(blend_mode bm) {
-        SAFE_SDL_CALL(SDL_SetTextureBlendMode, handle (), static_cast<SDL_BlendMode>(bm));
-    }
-
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    std::optional <color> texture::get_color_mod() const {
-        color c{0, 0, 0, 0};
-        if (0 == SDL_GetTextureColorMod(const_handle(), &c.r, &c.g, &c.b)) {
-            return c;
+        if (!texture) {
+            return make_unexpected("Invalid texture");
         }
-        return std::nullopt;
+
+        SDL_FRect src, dst;
+        SDL_FRect* src_ptr = nullptr;
+        SDL_FRect* dst_ptr = nullptr;
+
+        if (src_rect) {
+            src = {
+                static_cast <float>(get_x(*src_rect)), static_cast <float>(get_y(*src_rect)),
+                static_cast <float>(get_width(*src_rect)), static_cast <float>(get_height(*src_rect))
+            };
+            src_ptr = &src;
+        }
+
+        if (dst_rect) {
+            dst = {
+                static_cast <float>(get_x(*dst_rect)), static_cast <float>(get_y(*dst_rect)),
+                static_cast <float>(get_width(*dst_rect)), static_cast <float>(get_height(*dst_rect))
+            };
+            dst_ptr = &dst;
+        }
+
+        if (!SDL_RenderTexture(ptr.get(), texture.get(), src_ptr, dst_ptr)) {
+            return make_unexpected(get_error());
+        }
+
+        return {};
     }
 
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    void texture::set_color_mod(const color& c) {
-        SAFE_SDL_CALL(SDL_SetTextureColorMod, handle (), c.r, c.g, c.b);
+    template<rect_like R>
+    requires std::is_floating_point_v<typename R::value_type>
+    inline expected <void, std::string> renderer::copy(
+        const texture& texture,
+        const std::optional <R>& src_rect,
+        const std::optional <R>& dst_rect) {
+        if (!ptr) {
+            return make_unexpected("Invalid renderer");
+        }
+
+        if (!texture) {
+            return make_unexpected("Invalid texture");
+        }
+
+        SDL_FRect src, dst;
+        SDL_FRect* src_ptr = nullptr;
+        SDL_FRect* dst_ptr = nullptr;
+
+        if (src_rect) {
+            src = detail::to_sdl_frect(*src_rect);
+            src_ptr = &src;
+        }
+
+        if (dst_rect) {
+            dst = detail::to_sdl_frect(*dst_rect);
+            dst_ptr = &dst;
+        }
+
+        if (!SDL_RenderTexture(ptr.get(), texture.get(), src_ptr, dst_ptr)) {
+            return make_unexpected(get_error());
+        }
+
+        return {};
     }
 
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    std::pair <void*, std::size_t> texture::lock() const {
-        void* pixels;
-        int pitch;
-        SAFE_SDL_CALL(SDL_LockTexture, const_cast<SDL_Texture*>(handle ()), nullptr, &pixels, &pitch);
-        return {pixels, static_cast <std::size_t>(pitch)};
+    template<rect_like R, point_like P>
+    inline expected <void, std::string> renderer::copy_ex(
+        const texture& texture,
+        const std::optional <R>& src_rect,
+        const std::optional <R>& dst_rect,
+        double angle,
+        const std::optional <P>& center,
+        flip_mode flip) {
+        if (!ptr) {
+            return make_unexpected("Invalid renderer");
+        }
+
+        if (!texture) {
+            return make_unexpected("Invalid texture");
+        }
+
+        SDL_FRect src, dst;
+        SDL_FRect* src_ptr = nullptr;
+        SDL_FRect* dst_ptr = nullptr;
+        SDL_FPoint cnt;
+        SDL_FPoint* cnt_ptr = nullptr;
+
+        if (src_rect) {
+            src = detail::to_sdl_frect(*src_rect);
+            src_ptr = &src;
+        }
+
+        if (dst_rect) {
+            dst = detail::to_sdl_frect(*dst_rect);
+            dst_ptr = &dst;
+        }
+
+        if (center) {
+            cnt = detail::to_sdl_fpoint(*center);
+            cnt_ptr = &cnt;
+        }
+
+        if (!SDL_RenderTextureRotated(ptr.get(), texture.get(),
+                                      src_ptr, dst_ptr,
+                                      angle, cnt_ptr,
+                                      static_cast <SDL_FlipMode>(flip))) {
+            return make_unexpected(get_error());
+        }
+
+        return {};
     }
 
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    std::pair <void*, std::size_t> texture::lock(const rect& r) const {
-        void* pixels;
-        int pitch;
-        SAFE_SDL_CALL(SDL_LockTexture, const_cast<SDL_Texture*>(handle ()), &r, &pixels, &pitch);
-        return {pixels, static_cast <std::size_t>(pitch)};
+    template<rect_like R, point_like P>
+    requires (std::is_floating_point_v<typename R::value_type> && 
+             std::is_floating_point_v<typename P::value_type>)
+    inline expected <void, std::string> renderer::copy_ex(
+        const texture& texture,
+        const std::optional <R>& src_rect,
+        const std::optional <R>& dst_rect,
+        double angle,
+        const std::optional <P>& center,
+        flip_mode flip) {
+        if (!ptr) {
+            return make_unexpected("Invalid renderer");
+        }
+
+        if (!texture) {
+            return make_unexpected("Invalid texture");
+        }
+
+        SDL_FRect src, dst;
+        SDL_FRect* src_ptr = nullptr;
+        SDL_FRect* dst_ptr = nullptr;
+        SDL_FPoint cnt;
+        SDL_FPoint* cnt_ptr = nullptr;
+
+        if (src_rect) {
+            src = detail::to_sdl_frect(*src_rect);
+            src_ptr = &src;
+        }
+
+        if (dst_rect) {
+            dst = detail::to_sdl_frect(*dst_rect);
+            dst_ptr = &dst;
+        }
+
+        if (center) {
+            cnt = detail::to_sdl_fpoint(*center);
+            cnt_ptr = &cnt;
+        }
+
+        if (!SDL_RenderTextureRotated(ptr.get(), texture.get(),
+                                      src_ptr, dst_ptr,
+                                      angle, cnt_ptr,
+                                      static_cast <SDL_FlipMode>(flip))) {
+            return make_unexpected(get_error());
+        }
+
+        return {};
     }
 
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    void texture::unlock() const {
-        SAFE_SDL_CALL(SDL_UnlockTexture, const_handle ());
+    inline expected <texture, std::string> renderer::get_target() const {
+        if (!ptr) {
+            return make_unexpected("Invalid renderer");
+        }
+
+        SDL_Texture* target = SDL_GetRenderTarget(ptr.get());
+        if (!target) {
+            // No target is not an error - it means rendering to default target
+            return texture();
+        }
+
+        // We don't own this texture, but we need to be careful about lifetime
+        return texture(target);
     }
 
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    void texture::update(const void* pixels, std::size_t pitch) {
-        SAFE_SDL_CALL(SDL_UpdateTexture, handle (), nullptr, pixels, static_cast<int>(pitch));
-    }
+    inline expected <void, std::string> renderer::set_target(const texture& target) {
+        if (!ptr) {
+            return make_unexpected("Invalid renderer");
+        }
 
-    // ---------------------------------------------------------------------------------------------------------------
-    inline
-    void texture::update(const rect& area, const void* pixels, std::size_t pitch) {
-        SAFE_SDL_CALL(SDL_UpdateTexture, handle (), &area, pixels, static_cast<int>(pitch));
-    }
+        // nullptr means render to default target (window)
+        SDL_Texture* tex_ptr = target ? target.get() : nullptr;
 
-    namespace detail {
-        static inline constexpr std::array <texture::access, 3> s_vals_of_provides_access = {
-            texture::access::STATIC,
-            texture::access::STREAMING,
-            texture::access::TARGET,
-        };
-    }
+        if (!SDL_SetRenderTarget(ptr.get(), tex_ptr)) {
+            return make_unexpected(get_error());
+        }
 
-    template<typename T>
-    static constexpr const decltype(detail::s_vals_of_provides_access)&
-    values(std::enable_if_t <std::is_same_v <texture::access, T>>* = nullptr) {
-        return detail::s_vals_of_provides_access;
+        return {};
     }
-
-    template<typename T>
-    static constexpr auto
-    begin(std::enable_if_t <std::is_same_v <texture::access, T>>* = nullptr) {
-        return detail::s_vals_of_provides_access.begin();
-    }
-
-    template<typename T>
-    static constexpr auto
-    end(std::enable_if_t <std::is_same_v <texture::access, T>>* = nullptr) {
-        return detail::s_vals_of_provides_access.end();
-    }
-}
-#endif
+} // namespace sdlpp

@@ -1,210 +1,444 @@
 //
-// Created by igor on 01/06/2020.
+// Created by igor on 7/13/25.
 //
 
-#ifndef NEUTRINO_SDL_PALETTE_HH
-#define NEUTRINO_SDL_PALETTE_HH
+#pragma once
 
-#include <sdlpp/detail/sdl2.hh>
-#include <sdlpp/detail/object.hh>
+/**
+ * @file palette.hh
+ * @brief Palette management for SDL3 with proper ownership semantics
+ * 
+ * This header provides palette wrappers that correctly handle the complex
+ * ownership model where palettes can be either owned (created by us) or
+ * borrowed (owned by a surface).
+ */
 
-#include <sdlpp/detail/iterator.hh>
-#include <sdlpp/detail/call.hh>
-#include <sdlpp/detail/rtc.hh>
+#include <sdlpp/core/sdl.hh>
+#include <sdlpp/detail/expected.hh>
+#include <sdlpp/detail/pointer.hh>
 #include <sdlpp/video/color.hh>
+#include <sdlpp/core/error.hh>
+#include <string>
+#include <span>
+#include <memory>
 
-namespace neutrino::sdl {
-	class palette : public object <SDL_Palette> {
-		public:
-			using iterator = detail::raw_iterator <color>;
-			using const_iterator = detail::raw_iterator <const color>;
+namespace sdlpp {
+    /**
+     * @brief Smart pointer type for owned SDL_Palette
+     */
+    using palette_ptr = pointer <SDL_Palette, SDL_DestroyPalette>;
 
-		public:
-			palette();
-			explicit palette(std::size_t num_colors);
-			palette(const color* first, const color* last);
+    /**
+     * @brief Non-owning const reference to a palette
+     *
+     * This class represents a palette that is owned by something else
+     * (typically a surface). It provides read-only access to the palette
+     * without managing its lifetime.
+     */
+    class const_palette_ref {
+        protected:
+            const SDL_Palette* ptr = nullptr;
 
-			explicit palette(const object <SDL_Surface>& surface);
-			explicit palette(const object <SDL_PixelFormat>& format);
+        public:
+            /**
+             * @brief Default constructor - creates null reference
+             */
+            const_palette_ref() = default;
 
-			[[nodiscard]] iterator begin() noexcept;
-			[[nodiscard]] iterator end() noexcept;
+            /**
+             * @brief Construct from SDL_Palette pointer
+             * @param p SDL_Palette pointer (does not take ownership)
+             */
+            explicit const_palette_ref(const SDL_Palette* p)
+                : ptr(p) {
+            }
 
-			[[nodiscard]] const_iterator begin() const noexcept;
-			[[nodiscard]] const_iterator end() const noexcept;
+            /**
+             * @brief Check if reference is valid
+             */
+            [[nodiscard]] bool is_valid() const { return ptr != nullptr; }
+            [[nodiscard]] explicit operator bool() const { return is_valid(); }
 
-			[[nodiscard]] std::size_t size() const noexcept;
-			[[nodiscard]] bool empty() const noexcept;
+            /**
+             * @brief Get the underlying SDL_Palette pointer
+             */
+            [[nodiscard]] const SDL_Palette* get() const { return ptr; }
 
-			[[nodiscard]] color& operator[](std::size_t n);
-			[[nodiscard]] const color& operator[](std::size_t n) const;
+            /**
+             * @brief Get number of colors in the palette
+             */
+            [[nodiscard]] size_t size() const {
+                return ptr ? static_cast<size_t>(ptr->ncolors) : 0;
+            }
 
-			void fill(const color* first, const color* last);
-			void fill(const_iterator first, const_iterator last);
-			void fill(iterator first, iterator last);
+            /**
+             * @brief Get color at index
+             * @param index Color index
+             * @return Color at index, or black if index is out of bounds
+             */
+            [[nodiscard]] color get_color(size_t index) const {
+                if (!ptr || index >= static_cast<size_t>(ptr->ncolors)) {
+                    return color{0, 0, 0, 255};
+                }
+                return color::from_sdl(ptr->colors[index]);
+            }
 
-		private:
-			static SDL_Palette* _get_from_surface(const object <SDL_Surface>& s) {
-				RTC_IN_PALETTE(s && s->format, "Invalid surface");
-				if (!s || !s->format) {
-					return nullptr;
-				}
-				return s->format->palette;
-			}
+            /**
+             * @brief Get all colors as a span
+             * @return Span of SDL_Color entries
+             */
+            [[nodiscard]] std::span <const SDL_Color> colors() const {
+                if (!ptr || !ptr->colors) return {};
+                return {ptr->colors, static_cast <size_t>(ptr->ncolors)};
+            }
 
-			static SDL_Palette* _get_from_format(const object <SDL_PixelFormat>& s) {
-				RTC_IN_PALETTE(s, "Invalid pixel_format");
-				if (!s) {
-					return nullptr;
-				}
-				return s->palette;
-			}
-	};
-}
+            /**
+             * @brief Copy colors to a vector
+             * @return Vector of colors
+             */
+            [[nodiscard]] std::vector <color> to_vector() const {
+                std::vector <color> colors_vec;
+                if (ptr && ptr->colors) {
+                    colors_vec.reserve(static_cast <size_t>(ptr->ncolors));
+                    for (int i = 0; i < ptr->ncolors; ++i) {
+                        colors_vec.push_back(color::from_sdl(ptr->colors[i]));
+                    }
+                }
+                return colors_vec;
+            }
+    };
 
-// ================================================================================================
-// Implementation
-// ================================================================================================
-namespace neutrino::sdl {
-	inline
-	palette::palette()
-		: object <SDL_Palette>(nullptr, false) {
-	}
+    /**
+     * @brief Non-owning mutable reference to a palette
+     *
+     * This class represents a palette that is owned by something else
+     * but allows modification. Use with caution as the palette lifetime
+     * is not managed by this reference.
+     */
+    class palette_ref : public const_palette_ref {
+        public:
+            /**
+             * @brief Default constructor - creates null reference
+             */
+            palette_ref() = default;
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	palette::palette(const color* first, const color* last)
-		: object <SDL_Palette>(SAFE_SDL_CALL(SDL_AllocPalette, static_cast<int>(std::distance (first, last))), true) {
-		if (0 != SDL_SetPaletteColors(handle(), first, 0, static_cast <int>(size()))) {
-			RAISE_SDL_EX();
-		}
-	}
+            /**
+             * @brief Construct from SDL_Palette pointer
+             * @param p SDL_Palette pointer (does not take ownership)
+             */
+            explicit palette_ref(SDL_Palette* p)
+                : const_palette_ref(p) {
+            }
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	palette::palette(std::size_t num_colors)
-		: object <SDL_Palette>(SAFE_SDL_CALL(SDL_AllocPalette, static_cast<int>(num_colors)), true) {
-		auto* colors = reinterpret_cast <color*>(handle()->colors);
-		for (std::size_t i = 0; i < num_colors; i++) {
-			colors[i].r = 0;
-			colors[i].g = 0;
-			colors[i].b = 0;
-		}
-	}
+            /**
+             * @brief Get the underlying SDL_Palette pointer (mutable)
+             */
+            [[nodiscard]] SDL_Palette* get() const {
+                return const_cast <SDL_Palette*>(ptr);
+            }
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	palette::palette(const object <SDL_Surface>& surface)
-		: object <SDL_Palette>(_get_from_surface((surface)), false) {
-	}
+            /**
+             * @brief Set color at index
+             * @param index Color index
+             * @param c Color to set
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_color(size_t index, const color& c) {
+                if (!ptr) {
+                    return make_unexpected("Invalid palette");
+                }
+                if (index >= static_cast<size_t>(ptr->ncolors)) {
+                    return make_unexpected("Index out of bounds");
+                }
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	palette::palette(const object <SDL_PixelFormat>& format)
-		: object <SDL_Palette>(_get_from_format((format)), false) {
-	}
+                SDL_Color colors[1] = {c.to_sdl()};
+                if (!SDL_SetPaletteColors(get(), colors, static_cast<int>(index), 1)) {
+                    return make_unexpected(get_error());
+                }
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	palette::iterator palette::begin() noexcept {
-		if (is_null()) {
-			return iterator(nullptr);
-		}
-		auto* colors = reinterpret_cast <color*>(handle()->colors);
-		return iterator(colors);
-	}
+                return {};
+            }
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	palette::iterator palette::end() noexcept {
-		if (is_null()) {
-			return iterator(nullptr);
-		}
-		auto* colors = reinterpret_cast <color*>(handle()->colors);
-		return iterator(colors + handle()->ncolors);
-	}
+            /**
+             * @brief Set multiple colors
+             * @param colors Colors to set
+             * @param first_index Starting index
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_colors(std::span <const color> colors,
+                                                    int first_index = 0) {
+                if (!ptr) {
+                    return make_unexpected("Invalid palette");
+                }
+                if (first_index < 0 || first_index + static_cast <int>(colors.size()) > ptr->ncolors) {
+                    return make_unexpected("Index out of bounds");
+                }
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	palette::const_iterator palette::begin() const noexcept {
-		if (is_null()) {
-			return const_iterator(nullptr);
-		}
-		auto* colors = reinterpret_cast <color*>(handle()->colors);
-		return const_iterator(colors);
-	}
+                // Convert to SDL_Color array
+                std::vector <SDL_Color> sdl_colors;
+                sdl_colors.reserve(colors.size());
+                for (const auto& c : colors) {
+                    sdl_colors.push_back(c.to_sdl());
+                }
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	palette::const_iterator palette::end() const noexcept {
-		if (is_null()) {
-			return const_iterator(nullptr);
-		}
-		auto* colors = reinterpret_cast <color*>(handle()->colors);
-		return const_iterator(colors + handle()->ncolors);
-	}
+                if (!SDL_SetPaletteColors(get(), sdl_colors.data(),
+                                          first_index, static_cast <int>(colors.size()))) {
+                    return make_unexpected(get_error());
+                }
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	std::size_t palette::size() const noexcept {
-		if (is_null()) {
-			return 0;
-		}
-		return static_cast <std::size_t>(handle()->ncolors);
-	}
+                return {};
+            }
+    };
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	bool palette::empty() const noexcept {
-		return size() == 0;
-	}
+    /**
+     * @brief Owning palette wrapper with RAII semantics
+     *
+     * This class represents a palette that we own and must free.
+     * It provides full read/write access to the palette.
+     */
+    class palette {
+        private:
+            palette_ptr ptr;
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	color& palette::operator[](std::size_t n) {
-		RTC_IN_PALETTE(!is_null (), "Empty palette");
-		RTC_IN_PALETTE(n < size (), "Index", n, "<", size ());
-		RTC_IN_PALETTE(handle ()->colors != nullptr, "Colors are null");
+        public:
+            /**
+             * @brief Default constructor - creates empty palette
+             */
+            palette() = default;
 
-		auto* colors = reinterpret_cast <color*>(handle()->colors);
+            /**
+             * @brief Construct from existing SDL_Palette pointer
+             * @param p SDL_Palette pointer (takes ownership)
+             */
+            explicit palette(SDL_Palette* p)
+                : ptr(p) {
+            }
 
-		return colors[n];
-	}
+            /**
+             * @brief Move constructor
+             */
+            palette(palette&&) = default;
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	const color& palette::operator[](std::size_t n) const {
-		RTC_IN_PALETTE(!is_null (), "Empty palette");
-		RTC_IN_PALETTE(n < size (), "Index", n, "<", size ());
-		RTC_IN_PALETTE(handle ()->colors != nullptr, "Colors are null");
+            /**
+             * @brief Move assignment
+             */
+            palette& operator=(palette&&) = default;
 
-		auto* colors = reinterpret_cast <color*>(handle()->colors);
+            // Delete copy operations
+            palette(const palette&) = delete;
+            palette& operator=(const palette&) = delete;
 
-		return colors[n];
-	}
+            /**
+             * @brief Check if palette is valid
+             */
+            [[nodiscard]] bool is_valid() const { return ptr != nullptr; }
+            [[nodiscard]] explicit operator bool() const { return is_valid(); }
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	void palette::fill(const color* first, const color* last) {
-		const auto n = std::distance(first, last);
-		RTC_IN_PALETTE(
-			static_cast<std::size_t>(n) <= size (), "Palette of size ", size (), "is too small to hold ", n, "entries");
-		if (0 != SDL_SetPaletteColors(handle(), first, 0, static_cast <int>(n))) {
-			RAISE_SDL_EX();
-		}
-	}
+            /**
+             * @brief Get the underlying SDL_Palette pointer
+             */
+            [[nodiscard]] SDL_Palette* get() const { return ptr.get(); }
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	void palette::fill(const_iterator first, const_iterator last) {
-		fill(first.getConstPtr(), last.getConstPtr());
-	}
+            /**
+             * @brief Get a non-owning mutable reference to this palette
+             */
+            [[nodiscard]] palette_ref ref() { return palette_ref(ptr.get()); }
 
-	// -------------------------------------------------------------------------------------------
-	inline
-	void palette::fill(iterator first, iterator last) {
-		fill(first.getConstPtr(), last.getConstPtr());
-	}
-}
+            /**
+             * @brief Get a non-owning const reference to this palette
+             */
+            [[nodiscard]] const_palette_ref ref() const { return const_palette_ref(ptr.get()); }
 
-#endif
+            /**
+             * @brief Get a non-owning const reference to this palette
+             */
+            [[nodiscard]] const_palette_ref cref() const { return const_palette_ref(ptr.get()); }
+
+            /**
+             * @brief Implicit conversion to palette_ref for convenience
+             */
+            [[nodiscard]] operator palette_ref() { return ref(); }
+
+            /**
+             * @brief Implicit conversion to const_palette_ref for convenience
+             */
+            [[nodiscard]] operator const_palette_ref() const { return cref(); }
+
+            /**
+             * @brief Get number of colors in the palette
+             */
+            [[nodiscard]] size_t size() const {
+                return ptr ? static_cast<size_t>(ptr->ncolors) : 0;
+            }
+
+            /**
+             * @brief Get color at index
+             * @param index Color index
+             * @return Color at index, or black if index is out of bounds
+             */
+            [[nodiscard]] color get_color(size_t index) const {
+                if (!ptr || index >= static_cast<size_t>(ptr->ncolors)) {
+                    return color{0, 0, 0, 255};
+                }
+                return color::from_sdl(ptr->colors[index]);
+            }
+
+            /**
+             * @brief Set color at index
+             * @param index Color index
+             * @param c Color to set
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_color(size_t index, const color& c) {
+                if (!ptr) {
+                    return make_unexpected("Invalid palette");
+                }
+                if (index >= static_cast<size_t>(ptr->ncolors)) {
+                    return make_unexpected("Index out of bounds");
+                }
+
+                SDL_Color colors[1] = {c.to_sdl()};
+                if (!SDL_SetPaletteColors(ptr.get(), colors, static_cast<int>(index), 1)) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Set multiple colors
+             * @param colors Colors to set
+             * @param first_index Starting index
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_colors(std::span <const color> colors,
+                                                    int first_index = 0) {
+                if (!ptr) {
+                    return make_unexpected("Invalid palette");
+                }
+                if (first_index < 0 || first_index + static_cast <int>(colors.size()) > ptr->ncolors) {
+                    return make_unexpected("Index out of bounds");
+                }
+
+                // Convert to SDL_Color array
+                std::vector <SDL_Color> sdl_colors;
+                sdl_colors.reserve(colors.size());
+                for (const auto& c : colors) {
+                    sdl_colors.push_back(c.to_sdl());
+                }
+
+                if (!SDL_SetPaletteColors(ptr.get(), sdl_colors.data(),
+                                          first_index, static_cast <int>(colors.size()))) {
+                    return make_unexpected(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get all colors as a span
+             * @return Span of SDL_Color entries
+             */
+            [[nodiscard]] std::span <const SDL_Color> colors() const {
+                if (!ptr || !ptr->colors) return {};
+                return {ptr->colors, static_cast <size_t>(ptr->ncolors)};
+            }
+
+            /**
+             * @brief Copy colors to a vector
+             * @return Vector of colors
+             */
+            [[nodiscard]] std::vector <color> to_vector() const {
+                std::vector <color> colors_vec;
+                if (ptr && ptr->colors) {
+                    colors_vec.reserve(static_cast <size_t>(ptr->ncolors));
+                    for (int i = 0; i < ptr->ncolors; ++i) {
+                        colors_vec.push_back(color::from_sdl(ptr->colors[i]));
+                    }
+                }
+                return colors_vec;
+            }
+
+            /**
+             * @brief Create a palette with specified number of colors
+             * @param ncolors Number of colors (typically 256 for 8-bit)
+             * @return Expected containing palette, or error message
+             */
+            static expected <palette, std::string> create(int ncolors) {
+                SDL_Palette* p = SDL_CreatePalette(ncolors);
+                if (!p) {
+                    return make_unexpected(get_error());
+                }
+                return palette(p);
+            }
+
+            /**
+             * @brief Create a standard grayscale palette
+             * @param bits Bits per pixel (1-8)
+             * @return Expected containing palette, or error message
+             */
+            static expected <palette, std::string> create_grayscale(int bits = 8) {
+                if (bits < 1 || bits > 8) {
+                    return make_unexpected("Bits must be between 1 and 8");
+                }
+
+                int ncolors = 1 << bits;
+                auto pal_result = create(ncolors);
+                if (!pal_result) {
+                    return make_unexpected(pal_result.error());
+                }
+
+                auto& pal = *pal_result;
+                std::vector <color> colors;
+                colors.reserve(static_cast <size_t>(ncolors));
+
+                for (int i = 0; i < ncolors; ++i) {
+                    uint8_t gray = static_cast <uint8_t>((i * 255) / (ncolors - 1));
+                    colors.emplace_back(gray, gray, gray);
+                }
+
+                auto set_result = pal.set_colors(colors);
+                if (!set_result) {
+                    return make_unexpected(set_result.error());
+                }
+
+                return std::move(pal);
+            }
+
+            /**
+             * @brief Create a palette with a color ramp
+             * @param start Start color
+             * @param end End color
+             * @param steps Number of steps (must be >= 2)
+             * @return Expected containing palette, or error message
+             */
+            static expected <palette, std::string> create_ramp(const color& start,
+                                                               const color& end,
+                                                               int steps = 256) {
+                if (steps < 2) {
+                    return make_unexpected("Steps must be at least 2");
+                }
+
+                auto pal_result = create(steps);
+                if (!pal_result) {
+                    return make_unexpected(pal_result.error());
+                }
+
+                auto& pal = *pal_result;
+                std::vector <color> colors;
+                colors.reserve(static_cast <size_t>(steps));
+
+                for (int i = 0; i < steps; ++i) {
+                    float t = static_cast <float>(i) / static_cast <float>(steps - 1);
+                    colors.push_back(lerp(start, end, t));
+                }
+
+                auto set_result = pal.set_colors(colors);
+                if (!set_result) {
+                    return make_unexpected(set_result.error());
+                }
+
+                return std::move(pal);
+            }
+    };
+} // namespace sdlpp
