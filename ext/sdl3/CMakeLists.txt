@@ -16,6 +16,11 @@ if(NOT SDL3_FOUND)
     endif()
     
     set(SDL_LIBURING OFF CACHE INTERNAL "")
+    # SDL_INSTALL must be ON so SDL3 can be found by downstream users
+    set(SDL_INSTALL ON CACHE INTERNAL "")
+    # Disable SDL tests to prevent CTest targets from being created
+    set(SDL_TESTS OFF CACHE INTERNAL "")
+    set(SDL_EXAMPLES OFF CACHE INTERNAL "")
     
     fetchcontent_declare(
             SDL3

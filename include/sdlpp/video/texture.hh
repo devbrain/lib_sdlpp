@@ -117,10 +117,10 @@ namespace sdlpp {
 
             /**
              * @brief Set blend mode
-             * @param mode Blend mode to set
+             * @param mode Blend mode to set (defaults to none)
              * @return Expected<void> - empty on success, error message on failure
              */
-            expected <void, std::string> set_blend_mode(blend_mode mode) {
+            expected <void, std::string> set_blend_mode(blend_mode mode = blend_mode::none) {
                 if (!ptr) {
                     return make_unexpected("Invalid texture");
                 }

@@ -5,8 +5,33 @@ include(CMakeFindDependencyMacro)
 # Find required dependencies
 find_dependency(SDL3 REQUIRED)
 
+# euler might be bundled or external
+if(NOT TARGET euler::euler AND NOT TARGET sdlpp::euler)
+    find_dependency(euler REQUIRED)
+endif()
+
+# Find other dependencies if not already found
+if(NOT TARGET tl::expected AND NOT TARGET thirdparty::expected)
+    find_package(tl-expected QUIET)
+    if(NOT tl-expected_FOUND)
+        # Create interface target for compatibility
+        add_library(tl::expected INTERFACE IMPORTED)
+    endif()
+endif()
+
+if(NOT TARGET failsafe::failsafe AND NOT TARGET thirdparty::failsafe)
+    find_package(failsafe QUIET)
+    if(NOT failsafe_FOUND)
+        # Create interface target for compatibility
+        add_library(failsafe::failsafe INTERFACE IMPORTED)
+    endif()
+endif()
+
 # Include the exported targets
 include("${CMAKE_CURRENT_LIST_DIR}/sdlppTargets.cmake")
+
+# Fix up dependencies
+include("${CMAKE_CURRENT_LIST_DIR}/sdlppTargets-dependencies.cmake")
 
 # Provide variables for compatibility
 set(SDLPP_FOUND TRUE)

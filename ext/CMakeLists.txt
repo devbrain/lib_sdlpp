@@ -25,6 +25,7 @@ add_subdirectory(sdl3)
 add_subdirectory(doctest)
 add_subdirectory(expected)
 add_subdirectory(failsafe)
+add_subdirectory(euler)
 
 # Restore original flags (though subdirectories won't inherit the change back)
 set(CMAKE_CXX_FLAGS ${SAVED_CMAKE_CXX_FLAGS})

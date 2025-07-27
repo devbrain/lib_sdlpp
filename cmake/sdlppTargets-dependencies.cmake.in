@@ -1,0 +1,43 @@
+# Handle dependencies that can't be exported directly
+
+# Expected dependency  
+if(NOT TARGET tl::expected AND NOT TARGET thirdparty::expected)
+    find_package(tl-expected QUIET)
+    if(NOT tl-expected_FOUND)
+        # Create interface target for build compatibility
+        add_library(tl::expected INTERFACE IMPORTED)
+        add_library(thirdparty::expected ALIAS tl::expected)
+    else()
+        add_library(thirdparty::expected ALIAS tl::expected)
+    endif()
+endif()
+
+# Failsafe dependency
+if(NOT TARGET failsafe::failsafe AND NOT TARGET thirdparty::failsafe)
+    find_package(failsafe QUIET)
+    if(NOT failsafe_FOUND)
+        # Create interface target for build compatibility
+        add_library(failsafe::failsafe INTERFACE IMPORTED)
+        add_library(thirdparty::failsafe ALIAS failsafe::failsafe)
+    else()
+        add_library(thirdparty::failsafe ALIAS failsafe::failsafe)
+    endif()
+endif()
+
+# Euler dependency - might be bundled or external
+if(NOT TARGET euler::euler AND NOT TARGET thirdparty::euler)
+    # If sdlpp::euler exists (bundled), create alias
+    if(TARGET sdlpp::euler)
+        add_library(thirdparty::euler ALIAS sdlpp::euler)
+    else()
+        # Try to find external euler
+        find_package(euler QUIET)
+        if(euler_FOUND)
+            add_library(thirdparty::euler ALIAS euler::euler)
+        else()
+            # Create interface target for build compatibility
+            add_library(euler::euler INTERFACE IMPORTED)
+            add_library(thirdparty::euler ALIAS euler::euler)
+        endif()
+    endif()
+endif()

@@ -44,6 +44,7 @@ add_library(sdlpp ${SDLPP_LIBRARY_TYPE}
         ${PROJECT_ROOT}/include/sdlpp/video/texture.hh
         ${PROJECT_ROOT}/include/sdlpp/video/window.hh
         ${PROJECT_ROOT}/include/sdlpp/video/camera.hh
+        ${PROJECT_ROOT}/include/sdlpp/video/surface_renderer.hh
 
         # Audio subsystem
         ${PROJECT_ROOT}/include/sdlpp/audio/audio.hh
@@ -103,6 +104,9 @@ add_library(sdlpp ${SDLPP_LIBRARY_TYPE}
         ${PROJECT_ROOT}/include/sdlpp/utility/geometry_concepts.hh
         ${PROJECT_ROOT}/include/sdlpp/utility/guid.hh
 
+        # Concepts headers
+        ${PROJECT_ROOT}/include/sdlpp/concepts/renderer_concepts.hh
+
 
         # Detail headers
         ${PROJECT_ROOT}/include/sdlpp/detail/expected.hh
@@ -145,6 +149,9 @@ add_library(sdlpp ${SDLPP_LIBRARY_TYPE}
         video/gpu.cc
         video/pixels.cc
         video/renderer.cc
+        video/renderer_dda.cc
+        video/surface.cc
+        video/surface_renderer.cc
 )
 
 include(GenerateExportHeader)
@@ -154,12 +161,31 @@ generate_export_header(sdlpp
 )
 
 target_include_directories(sdlpp PUBLIC 
-        ${PROJECT_ROOT}/include
+        $<BUILD_INTERFACE:${PROJECT_ROOT}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
-target_link_libraries(sdlpp PUBLIC thirdparty::expected thirdparty::failsafe SDL3::SDL3)
+# SDL3 must be PUBLIC since we include SDL3 headers in our public headers
+target_link_libraries(sdlpp 
+    PUBLIC
+        SDL3::SDL3
+        thirdparty::euler
+        thirdparty::expected 
+        thirdparty::failsafe
+)
+
+# If euler is built as part of the project, install it with sdlpp
+if(TARGET euler)
+    # Install euler headers
+    install(DIRECTORY ${euler_SOURCE_DIR}/include/euler
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+    # Install euler target
+    install(TARGETS euler
+        EXPORT sdlppTargets
+    )
+endif()
 
 # Apply warning flags to our library
 target_compile_options(sdlpp PRIVATE ${SDLPP_WARNING_FLAGS})
@@ -225,10 +251,18 @@ if(SDLPP_INSTALL)
         COMPATIBILITY SameMajorVersion
     )
     
+    # Configure and install the dependencies file
+    configure_file(
+        ${PROJECT_ROOT}/cmake/sdlppTargets-dependencies.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/sdlppTargets-dependencies.cmake
+        @ONLY
+    )
+    
     # Install config files
     install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/sdlppConfig.cmake
         ${CMAKE_CURRENT_BINARY_DIR}/sdlppConfigVersion.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/sdlppTargets-dependencies.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/sdlpp
     )
     

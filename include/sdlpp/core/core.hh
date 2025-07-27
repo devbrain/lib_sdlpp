@@ -122,10 +122,10 @@ namespace sdlpp {
 
             /**
              * @brief Check if subsystems are initialized
-             * @param flags Subsystems to check
+             * @param flags Subsystems to check (defaults to none - checks if any subsystem is initialized)
              * @return true if all specified subsystems are initialized
              */
-            [[nodiscard]] bool was_init(init_flags flags) const noexcept {
+            [[nodiscard]] bool was_init(init_flags flags = init_flags::none) const noexcept {
                 auto init_flags = SDL_WasInit(static_cast <SDL_InitFlags>(flags));
                 return init_flags == static_cast <SDL_InitFlags>(flags);
             }

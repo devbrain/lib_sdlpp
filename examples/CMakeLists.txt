@@ -25,6 +25,7 @@ add_example_executable(example_window_renderer video/example_window_renderer.cc)
 add_example_executable(example_gl video/example_gl.cc)
 add_example_executable(example_gpu_triangle video/example_gpu_triangle.cc)
 add_example_executable(example_camera video/example_camera.cc)
+add_example_executable(example_dda_comprehensive video/example_dda_comprehensive.cc)
 
 # Special handling for OpenGL example
 find_package(OpenGL REQUIRED)

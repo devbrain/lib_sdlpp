@@ -17,6 +17,7 @@
 #include <sdlpp/core/error.hh>
 #include <sdlpp/detail/expected.hh>
 #include <sdlpp/detail/pointer.hh>
+#include <sdlpp/detail/export.hh>
 #include <sdlpp/video/pixels.hh>
 #include <sdlpp/utility/geometry.hh>
 #include <sdlpp/io/iostream.hh>
@@ -52,6 +53,12 @@ namespace sdlpp {
     class surface {
         private:
             surface_ptr ptr;
+            
+            // Fast pixel access function pointers
+            void (*put_pixel_fast)(void* pixels, int pitch, int x, int y, uint32_t pixel) = nullptr;
+            uint32_t (*get_pixel_fast)(const void* pixels, int pitch, int x, int y) = nullptr;
+            
+            SDLPP_EXPORT void setup_pixel_functions();
 
         public:
             /**
@@ -65,6 +72,9 @@ namespace sdlpp {
              */
             explicit surface(SDL_Surface* surf)
                 : ptr(surf) {
+                if (ptr) {
+                    setup_pixel_functions();
+                }
             }
 
             /**
@@ -420,10 +430,10 @@ namespace sdlpp {
 
             /**
              * @brief Set blend mode
-             * @param mode Blend mode to set
+             * @param mode Blend mode to set (defaults to none)
              * @return Expected<void> - empty on success, error message on failure
              */
-            expected <void, std::string> set_blend_mode(blend_mode mode) {
+            expected <void, std::string> set_blend_mode(blend_mode mode = blend_mode::none) {
                 if (!ptr) {
                     return make_unexpected("Invalid surface");
                 }
@@ -756,6 +766,38 @@ namespace sdlpp {
                 }
 
                 return surface(surf);
+            }
+            
+            /**
+             * @brief Get fast pixel put function pointer
+             * @return Function pointer for fast pixel writing, or nullptr if not available
+             */
+            [[nodiscard]] auto get_put_pixel_fast() const {
+                return put_pixel_fast;
+            }
+            
+            /**
+             * @brief Get fast pixel get function pointer
+             * @return Function pointer for fast pixel reading, or nullptr if not available
+             */
+            [[nodiscard]] auto get_get_pixel_fast() const {
+                return get_pixel_fast;
+            }
+            
+            /**
+             * @brief Get raw pixel data pointer
+             * @return Pointer to pixel data, or nullptr if surface is invalid
+             */
+            [[nodiscard]] void* get_pixels() const {
+                return ptr ? ptr->pixels : nullptr;
+            }
+            
+            /**
+             * @brief Get pitch (bytes per row)
+             * @return Pitch value, or 0 if surface is invalid
+             */
+            [[nodiscard]] int get_pitch() const {
+                return ptr ? ptr->pitch : 0;
             }
     };
 

@@ -67,9 +67,9 @@ namespace sdlpp {
      *
      * This is typically only used for testing or key simulation.
      *
-     * @param modstate The modifier state to set
+     * @param modstate The modifier state to set (defaults to none)
      */
-    inline void set_mod_state(keymod modstate) noexcept {
+    inline void set_mod_state(keymod modstate = keymod::none) noexcept {
         SDL_SetModState(static_cast <SDL_Keymod>(modstate));
     }
 

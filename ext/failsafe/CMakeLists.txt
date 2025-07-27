@@ -4,6 +4,10 @@ find_package(failsafe QUIET)
 if(NOT failsafe_FOUND)
     message(STATUS "failsafe not found locally, fetching from GitHub...")
     
+    # Disable failsafe tests and examples
+    set(FAILSAFE_BUILD_TESTS OFF CACHE INTERNAL "")
+    set(FAILSAFE_BUILD_EXAMPLES OFF CACHE INTERNAL "")
+    
     fetchcontent_declare(
                 FAILSAFE
                 GIT_REPOSITORY "https://github.com/devbrain/failsafe.git"
