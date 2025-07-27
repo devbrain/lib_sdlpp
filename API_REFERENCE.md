@@ -12,6 +12,8 @@
 8. [Process and Libraries](#process-and-libraries)
 9. [UI Components](#ui-components)
 10. [Utilities](#utilities)
+11. [Concepts](#concepts)
+12. [DDA Rendering](#dda-rendering)
 
 ## Core Components
 
@@ -621,3 +623,246 @@ auto timer = sdlpp::timer_callback::create(
     }
 );
 ```
+
+## Concepts
+
+### Geometry Concepts (`concepts/geometry_concepts.hh`)
+
+SDL++ provides concepts to work with any geometry library:
+
+```cpp
+// Point-like types (must have x, y members)
+template<sdlpp::point_like P>
+void draw_at_point(const P& pos) {
+    auto x = sdlpp::get_x(pos);
+    auto y = sdlpp::get_y(pos);
+    // ...
+}
+
+// Rectangle-like types (must have x, y, w, h or left, top, width, height)
+template<sdlpp::rect_like R>
+void fill_area(const R& rect) {
+    auto w = sdlpp::get_width(rect);
+    auto h = sdlpp::get_height(rect);
+    // ...
+}
+
+// Size-like types (must have width, height members)
+template<sdlpp::size_like S>
+auto calculate_area(const S& size) {
+    return sdlpp::get_area(size);
+}
+
+// Other concepts
+- sdlpp::line_like      // x1, y1, x2, y2
+- sdlpp::circle_like    // x, y, radius
+- sdlpp::triangle_like  // a, b, c (points)
+- sdlpp::polygon_like   // size(), operator[]
+```
+
+### Renderer Concepts (`concepts/renderer_concepts.hh`)
+
+Concepts that generalize renderer and surface_renderer:
+
+```cpp
+// Basic renderer operations
+template<sdlpp::basic_renderer R>
+void clear_screen(R& renderer) {
+    renderer.set_draw_color({0, 0, 0, 255});
+    renderer.clear();
+}
+
+// Primitive drawing
+template<sdlpp::primitive_renderer R>
+void draw_ui(R& renderer) {
+    renderer.draw_line(0, 0, 100, 100);
+    renderer.fill_rect(10, 10, 50, 50);
+    renderer.draw_point(55, 55);
+}
+
+// DDA algorithms
+template<sdlpp::dda_renderer R>
+void draw_smooth_graphics(R& renderer) {
+    renderer.draw_line_aa(0.5f, 0.5f, 99.5f, 99.5f);
+    renderer.draw_circle(50, 50, 30);
+    renderer.fill_ellipse(100, 100, 40, 20);
+    renderer.draw_line_thick(10, 10, 90, 90, 3.0f);
+}
+
+// Full renderer
+template<sdlpp::renderer_like R>
+void render_scene(R& renderer) {
+    // Can use all renderer features
+}
+```
+
+## DDA Rendering
+
+### Software Surface Renderer (`video/surface_renderer.hh`)
+
+A software renderer that operates directly on SDL surfaces using DDA algorithms:
+
+```cpp
+// Create surface renderer
+sdlpp::surface surf(800, 600, SDL_PIXELFORMAT_ARGB8888);
+sdlpp::surface_renderer renderer(surf);
+
+// Basic operations (same as hardware renderer)
+renderer.set_draw_color({255, 0, 0, 255});
+renderer.clear();
+renderer.draw_point({100, 100});
+renderer.draw_line({0, 0}, {100, 100});
+renderer.fill_rect({{10, 10}, {50, 50}});
+```
+
+### DDA Primitives (Hardware & Software)
+
+Both `renderer` and `surface_renderer` support DDA algorithms:
+
+```cpp
+// Antialiased lines
+renderer.draw_line_aa({0.5f, 0.5f}, {99.5f, 99.5f});
+
+// Thick lines
+renderer.draw_line_thick({10, 10}, {90, 90}, 5.0f);
+
+// Circles
+renderer.draw_circle({100, 100}, 50);
+renderer.fill_circle({200, 200}, 30);
+
+// Ellipses
+renderer.draw_ellipse({300, 300}, 60, 40);
+renderer.fill_ellipse({400, 400}, 80, 50);
+
+// Ellipse arcs
+renderer.draw_ellipse_arc({500, 500}, 100, 75, 0.0f, M_PI);
+
+// With euler angles
+renderer.draw_ellipse_arc({600, 600}, 100, 75, 
+                         euler::radian<float>(0.0f), 
+                         euler::radian<float>(M_PI));
+```
+
+### Bezier Curves
+
+```cpp
+// Quadratic Bezier
+renderer.draw_bezier_quad({0, 100}, {50, 0}, {100, 100});
+
+// Cubic Bezier
+renderer.draw_bezier_cubic({0, 0}, {30, 100}, {70, 100}, {100, 0});
+
+// With point-like types
+euler::point2<float> p0{0, 0}, p1{50, 100}, p2{100, 0};
+renderer.draw_bezier_quad(p0, p1, p2);
+```
+
+### Splines
+
+```cpp
+// B-spline
+std::vector<euler::point2<float>> controls = {
+    {0, 0}, {50, 100}, {100, 50}, {150, 100}, {200, 0}
+};
+renderer.draw_bspline(controls, 3); // degree 3 (cubic)
+
+// Catmull-Rom spline
+std::vector<point<float>> points = {
+    {0, 50}, {50, 0}, {100, 100}, {150, 50}
+};
+renderer.draw_catmull_rom(points, 0.5f); // tension
+```
+
+### Parametric Curves
+
+```cpp
+// Any parametric curve
+auto heart = [](float t) -> point<float> {
+    float x = 16 * std::pow(std::sin(t), 3);
+    float y = 13 * std::cos(t) - 5 * std::cos(2*t) - 
+              2 * std::cos(3*t) - std::cos(4*t);
+    return {x * 5 + 400, -y * 5 + 300};
+};
+renderer.draw_curve(heart, 0.0f, 2.0f * M_PI, 200);
+```
+
+### Polygons
+
+```cpp
+// Polygon outline
+std::vector<point<int>> vertices = {
+    {100, 100}, {200, 100}, {250, 200}, {150, 250}, {50, 200}
+};
+renderer.draw_polygon(vertices);
+
+// Filled polygon
+renderer.fill_polygon(vertices);
+
+// Antialiased polygon
+renderer.draw_polygon_aa(vertices);
+```
+
+### Euler Angle Support
+
+SDL++ integrates with the euler library for type-safe angles:
+
+```cpp
+// Using euler angles in rendering
+#include <euler/angles/angle.hh>
+
+// Rotation with type-safe angles
+renderer.copy_ex(texture, src_rect, dst_rect, 
+                euler::degree<double>(45.0), 
+                center, flip_mode::none);
+
+// Arc drawing with radians
+renderer.draw_ellipse_arc(center, 100, 75,
+                         euler::radian<float>(0.0f),
+                         euler::radian<float>(M_PI_2));
+
+// Convert between angle types
+auto deg = euler::degree<float>(90.0f);
+auto rad = euler::to_radians(deg);
+```
+
+### Clipping
+
+Both renderers support clipping:
+
+```cpp
+// Set clip rectangle
+renderer.set_clip_rect({{100, 100}, {400, 300}});
+
+// Check if clipping is enabled
+if (renderer.is_clip_enabled()) {
+    auto clip = renderer.get_clip_rect();
+    // ...
+}
+
+// Disable clipping
+renderer.set_clip_rect(std::nullopt);
+```
+
+### Blending
+
+```cpp
+// Set blend mode
+renderer.set_draw_blend_mode(sdlpp::blend_mode::add);
+renderer.set_draw_blend_mode(sdlpp::blend_mode::blend);
+renderer.set_draw_blend_mode(); // defaults to none
+
+// Surface blending (surface_renderer only)
+surface_renderer src_renderer(source_surface);
+surface_renderer dst_renderer(dest_surface);
+dst_renderer.blend_surface(src_renderer, src_rect, {100, 100}, 
+                          sdlpp::blend_mode::blend);
+```
+
+### Performance Tips
+
+1. **Use batched operations** - The DDA implementations use batched pixel writes
+2. **Prefer integer coordinates** - When possible, use integer coordinates for better performance
+3. **Lock surfaces** - Surface renderer automatically handles locking
+4. **Choose the right renderer**:
+   - Hardware renderer: Fast for simple shapes, texture operations
+   - Surface renderer: Better for complex DDA algorithms, pixel-perfect rendering

@@ -21,6 +21,17 @@ renderer->clear();
 renderer->draw_line({0, 0}, {100, 100});
 renderer->fill_rect({{10, 10}, {50, 50}});
 renderer->present();
+
+// DDA algorithms (hardware & software)
+renderer->draw_line_aa({0.5f, 0.5f}, {99.5f, 99.5f});
+renderer->draw_circle({50, 50}, 30);
+renderer->fill_ellipse({100, 100}, 40, 20);
+renderer->draw_bezier_cubic({0, 0}, {30, 100}, {70, 100}, {100, 0});
+
+// Software renderer
+sdlpp::surface surf(800, 600, SDL_PIXELFORMAT_ARGB8888);
+sdlpp::surface_renderer soft_renderer(surf);
+soft_renderer.draw_polygon(vertices);
 ```
 
 ## Events
@@ -96,6 +107,51 @@ auto result = sdlpp::message_box_builder()
 auto guid = sdlpp::guid::from_string("deadbeef...");
 std::map<sdlpp::guid, Config> configs;
 if (g1 <=> g2 == std::strong_ordering::equal) { }
+```
+
+## Concepts
+```cpp
+// Work with any geometry library
+template<sdlpp::point_like P>
+void draw_at(const P& pos) {
+    auto x = sdlpp::get_x(pos);
+    auto y = sdlpp::get_y(pos);
+}
+
+// Generic renderer code
+template<sdlpp::renderer_like R>
+void render_scene(R& renderer) {
+    renderer.set_draw_color({255, 0, 0, 255});
+    renderer.draw_circle({100, 100}, 50);
+}
+
+// Geometry concepts: point_like, rect_like, size_like, circle_like, triangle_like
+// Renderer concepts: basic_renderer, primitive_renderer, dda_renderer, renderer_like
+```
+
+## Euler Angles
+```cpp
+#include <euler/angles/angle.hh>
+
+// Type-safe angles
+renderer->copy_ex(texture, src, dst, euler::degree<double>(45.0), center, flip);
+renderer->draw_ellipse_arc(center, 100, 75, 
+                          euler::radian<float>(0.0f), 
+                          euler::radian<float>(M_PI));
+
+// Conversions
+auto deg = euler::degree<float>(90.0f);
+auto rad = euler::to_radians(deg);
+```
+
+## Default Parameters
+```cpp
+// Many enums now default to 'none'
+renderer->set_draw_blend_mode();           // defaults to blend_mode::none
+texture->set_blend_mode();                 // defaults to blend_mode::none
+surface->set_blend_mode();                 // defaults to blend_mode::none
+sdlpp::set_mod_state();                    // defaults to keymod::none
+core.was_init();                           // defaults to init_flags::none
 ```
 
 ## Timer

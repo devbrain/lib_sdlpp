@@ -325,6 +325,138 @@ renderer->set_target(std::nullopt);
 renderer->copy(*ui_cache);
 ```
 
+## DDA Rendering
+
+SDL++ includes Digital Differential Analyzer (DDA) algorithms for high-quality 2D graphics:
+
+### Antialiased Lines
+
+```cpp
+// Standard lines
+renderer->draw_line({0, 0}, {100, 100});
+
+// Antialiased lines for smoother appearance
+renderer->draw_line_aa({0.5f, 0.5f}, {99.5f, 99.5f});
+
+// Thick lines with variable width
+renderer->draw_line_thick({10, 10}, {90, 90}, 5.0f);
+```
+
+### Circles and Ellipses
+
+```cpp
+// Circle outline and filled
+renderer->draw_circle({100, 100}, 50);
+renderer->fill_circle({200, 200}, 30);
+
+// Ellipse outline and filled
+renderer->draw_ellipse({300, 300}, 60, 40);
+renderer->fill_ellipse({400, 400}, 80, 50);
+
+// Elliptical arcs (angles in radians)
+renderer->draw_ellipse_arc({500, 500}, 100, 75, 0.0f, M_PI);
+
+// Using Euler angles for type safety
+#include <euler/angles/angle.hh>
+renderer->draw_ellipse_arc({600, 600}, 100, 75,
+                          euler::radian<float>(0.0f),
+                          euler::radian<float>(M_PI_2));
+```
+
+### Bezier Curves
+
+```cpp
+// Quadratic Bezier curve (3 control points)
+renderer->draw_bezier_quad({0, 100}, {50, 0}, {100, 100});
+
+// Cubic Bezier curve (4 control points)
+renderer->draw_bezier_cubic({0, 0}, {30, 100}, {70, 100}, {100, 0});
+
+// Works with any point-like type
+euler::point2<float> p0{0, 0}, p1{50, 100}, p2{100, 0};
+renderer->draw_bezier_quad(p0, p1, p2);
+```
+
+### Splines
+
+```cpp
+// B-spline with control points
+std::vector<euler::point2<float>> controls = {
+    {0, 0}, {50, 100}, {100, 50}, {150, 100}, {200, 0}
+};
+renderer->draw_bspline(controls, 3); // degree 3 (cubic)
+
+// Catmull-Rom spline (passes through all points)
+std::vector<sdlpp::point<float>> points = {
+    {0, 50}, {50, 0}, {100, 100}, {150, 50}
+};
+renderer->draw_catmull_rom(points, 0.5f); // tension parameter
+```
+
+### Parametric Curves
+
+```cpp
+// Draw any parametric curve
+auto spiral = [](float t) -> sdlpp::point<float> {
+    float r = t * 10;
+    return {400 + r * std::cos(t), 300 + r * std::sin(t)};
+};
+renderer->draw_curve(spiral, 0.0f, 4.0f * M_PI, 200); // 200 steps
+
+// Heart shape
+auto heart = [](float t) -> sdlpp::point<float> {
+    float x = 16 * std::pow(std::sin(t), 3);
+    float y = 13 * std::cos(t) - 5 * std::cos(2*t) - 
+              2 * std::cos(3*t) - std::cos(4*t);
+    return {x * 5 + 400, -y * 5 + 300};
+};
+renderer->draw_curve(heart, 0.0f, 2.0f * M_PI, 100);
+```
+
+### Polygons
+
+```cpp
+// Define vertices
+std::vector<sdlpp::point<int>> vertices = {
+    {100, 100}, {200, 100}, {250, 200}, {150, 250}, {50, 200}
+};
+
+// Draw polygon outline
+renderer->draw_polygon(vertices);
+
+// Fill polygon
+renderer->fill_polygon(vertices);
+
+// Antialiased polygon outline
+renderer->draw_polygon_aa(vertices);
+
+// Star polygon
+std::vector<sdlpp::point<float>> star;
+for (int i = 0; i < 10; ++i) {
+    float angle = i * M_PI / 5;
+    float r = (i % 2) ? 50 : 100;
+    star.push_back({400 + r * std::cos(angle), 300 + r * std::sin(angle)});
+}
+renderer->fill_polygon(star);
+```
+
+### DDA Performance
+
+The DDA algorithms use optimized batched pixel writing for performance:
+
+```cpp
+// All DDA operations internally batch pixels
+// This is much faster than individual pixel writes
+renderer->draw_circle({100, 100}, 50);  // Batches ~314 pixels
+
+// For software rendering, use surface_renderer
+sdlpp::surface surf(800, 600, SDL_PIXELFORMAT_ARGB8888);
+sdlpp::surface_renderer sw_renderer(surf);
+
+// Same API, optimized for software rendering
+sw_renderer.draw_circle({100, 100}, 50);
+```
+
 ## Common Patterns
 
 ### Double Buffering

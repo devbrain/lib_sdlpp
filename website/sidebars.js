@@ -32,6 +32,15 @@ const sidebars = {
     'api/overview',
     {
       type: 'category',
+      label: 'Concepts',
+      items: [
+        'concepts/index',
+        'concepts/geometry-concepts',
+        'concepts/renderer-concepts',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Core',
       items: [
         'api/core/initialization',
@@ -54,6 +63,7 @@ const sidebars = {
         'api/video/window',
         'api/video/renderer',
         'api/video/surface',
+        'api/video/surface-renderer',
         'api/video/texture',
         'api/video/gl',
       ],
