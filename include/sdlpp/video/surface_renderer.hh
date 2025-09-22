@@ -204,42 +204,29 @@ public:
         if (!surface_) {
             return make_unexpected("Invalid surface");
         }
-        
-        int x0 = static_cast<int>(get_x(start));
-        int y0 = static_cast<int>(get_y(start));
-        int x1 = static_cast<int>(get_x(end));
-        int y1 = static_cast<int>(get_y(end));
-        
+
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
             return make_unexpected("Failed to lock surface");
         }
-        
-        // Bresenham's line algorithm
-        int dx = std::abs(x1 - x0);
-        int dy = std::abs(y1 - y0);
-        int sx = (x0 < x1) ? 1 : -1;
-        int sy = (y0 < y1) ? 1 : -1;
-        int err = dx - dy;
-        
-        while (true) {
-            if (clip_point(x0, y0)) {
-                put_pixel(x0, y0, mapped_color_);
+
+        // Use euler's line iterator for consistent and optimized line drawing
+        euler::point2f p0{static_cast<float>(get_x(start)), static_cast<float>(get_y(start))};
+        euler::point2f p1{static_cast<float>(get_x(end)), static_cast<float>(get_y(end))};
+
+        auto line = euler::dda::make_line_iterator(p0, p1);
+        while (line != euler::dda::line_iterator<float>::end()) {
+            auto pixel = *line;
+            int x = static_cast<int>(pixel.pos.x);
+            int y = static_cast<int>(pixel.pos.y);
+
+            if (clip_point(x, y)) {
+                put_pixel(x, y, mapped_color_);
             }
-            
-            if (x0 == x1 && y0 == y1) break;
-            
-            int e2 = 2 * err;
-            if (e2 > -dy) {
-                err -= dy;
-                x0 += sx;
-            }
-            if (e2 < dx) {
-                err += dx;
-                y0 += sy;
-            }
+
+            ++line;
         }
-        
+
         return {};
     }
     
@@ -251,50 +238,83 @@ public:
         if (!surface_) {
             return make_unexpected("Invalid surface");
         }
-        
-        int x = static_cast<int>(get_x(rect));
-        int y = static_cast<int>(get_y(rect));
-        int w = static_cast<int>(get_width(rect));
-        int h = static_cast<int>(get_height(rect));
-        
+
+        float x = static_cast<float>(get_x(rect));
+        float y = static_cast<float>(get_y(rect));
+        float w = static_cast<float>(get_width(rect));
+        float h = static_cast<float>(get_height(rect));
+
         if (w <= 0 || h <= 0) {
             return {};
         }
-        
+
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
             return make_unexpected("Failed to lock surface");
         }
-        
-        // Draw four lines
-        // Top
-        for (int i = x; i < x + w; ++i) {
-            if (clip_point(i, y)) {
-                put_pixel(i, y, mapped_color_);
+
+        // Draw four edges using euler's line iterator
+        euler::point2f tl{x, y};
+        euler::point2f tr{x + w - 1, y};
+        euler::point2f bl{x, y + h - 1};
+        euler::point2f br{x + w - 1, y + h - 1};
+
+        // Top edge
+        auto top_line = euler::dda::make_line_iterator(tl, tr);
+        while (top_line != euler::dda::line_iterator<float>::end()) {
+            auto pixel = *top_line;
+            int px = static_cast<int>(pixel.pos.x);
+            int py = static_cast<int>(pixel.pos.y);
+            if (clip_point(px, py)) {
+                put_pixel(px, py, mapped_color_);
+            }
+            ++top_line;
+        }
+
+        // Bottom edge
+        auto bottom_line = euler::dda::make_line_iterator(bl, br);
+        while (bottom_line != euler::dda::line_iterator<float>::end()) {
+            auto pixel = *bottom_line;
+            int px = static_cast<int>(pixel.pos.x);
+            int py = static_cast<int>(pixel.pos.y);
+            if (clip_point(px, py)) {
+                put_pixel(px, py, mapped_color_);
+            }
+            ++bottom_line;
+        }
+
+        // Left edge (skip corners to avoid overdraw)
+        if (h > 2) {
+            euler::point2f left_start{x, y + 1};
+            euler::point2f left_end{x, y + h - 2};
+            auto left_line = euler::dda::make_line_iterator(left_start, left_end);
+            while (left_line != euler::dda::line_iterator<float>::end()) {
+                auto pixel = *left_line;
+                int px = static_cast<int>(pixel.pos.x);
+                int py = static_cast<int>(pixel.pos.y);
+                if (clip_point(px, py)) {
+                    put_pixel(px, py, mapped_color_);
+                }
+                ++left_line;
             }
         }
-        
-        // Bottom
-        for (int i = x; i < x + w; ++i) {
-            if (clip_point(i, y + h - 1)) {
-                put_pixel(i, y + h - 1, mapped_color_);
+
+        // Right edge (skip corners to avoid overdraw)
+        if (h > 2) {
+            euler::point2f right_start{x + w - 1, y + 1};
+            euler::point2f right_end{x + w - 1, y + h - 2};
+            auto right_line = euler::dda::make_line_iterator(right_start, right_end);
+            while (right_line != euler::dda::line_iterator<float>::end()) {
+                auto pixel = *right_line;
+                int px = static_cast<int>(pixel.pos.x);
+                int py = static_cast<int>(pixel.pos.y);
+                if (clip_point(px, py)) {
+                    put_pixel(px, py, mapped_color_);
+                }
+                ++right_line;
             }
         }
-        
-        // Left (skip corners to avoid overdraw)
-        for (int i = y + 1; i < y + h - 1; ++i) {
-            if (clip_point(x, i)) {
-                put_pixel(x, i, mapped_color_);
-            }
-        }
-        
-        // Right (skip corners to avoid overdraw)
-        for (int i = y + 1; i < y + h - 1; ++i) {
-            if (clip_point(x + w - 1, i)) {
-                put_pixel(x + w - 1, i, mapped_color_);
-            }
-        }
-        
+
         return {};
     }
     
@@ -688,13 +708,6 @@ public:
             return make_unexpected("Invalid surface");
         }
         
-        // Convert to euler points
-        std::vector<euler::point2f> control_points{
-            euler::point2f{static_cast<float>(get_x(p0)), static_cast<float>(get_y(p0))},
-            euler::point2f{static_cast<float>(get_x(p1)), static_cast<float>(get_y(p1))},
-            euler::point2f{static_cast<float>(get_x(p2)), static_cast<float>(get_y(p2))}
-        };
-        
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
             return make_unexpected("Failed to lock surface");
@@ -705,7 +718,20 @@ public:
             process_pixel_batch(batch);
         });
         
-        auto bezier = euler::dda::make_bezier(control_points, 0.5f);
+        // Create a simple wrapper that provides begin/end for the points
+        struct point_wrapper {
+            euler::point2f points[3];
+            euler::point2f* begin() { return points; }
+            euler::point2f* end() { return points + 3; }
+            const euler::point2f* begin() const { return points; }
+            const euler::point2f* end() const { return points + 3; }
+        } points_array{
+            euler::point2f{static_cast<float>(get_x(p0)), static_cast<float>(get_y(p0))},
+            euler::point2f{static_cast<float>(get_x(p1)), static_cast<float>(get_y(p1))},
+            euler::point2f{static_cast<float>(get_x(p2)), static_cast<float>(get_y(p2))}
+        };
+
+        auto bezier = euler::dda::make_bezier(points_array, 0.5f);
         while (bezier != euler::dda::bezier_iterator<float>::end()) {
             auto pixel = *bezier;
             euler::dda::pixel<int> int_pixel;
@@ -771,16 +797,9 @@ public:
         if (!surface_) {
             return make_unexpected("Invalid surface");
         }
-        
-        // Convert to euler points
-        std::vector<euler::point2f> euler_points;
-        euler_points.reserve(static_cast<size_t>(std::distance(std::begin(control_points), std::end(control_points))));
-        
-        for (const auto& p : control_points) {
-            euler_points.push_back({static_cast<float>(get_x(p)), static_cast<float>(get_y(p))});
-        }
-        
-        if (euler_points.size() < static_cast<size_t>(degree + 1)) {
+
+        auto points_count = static_cast<size_t>(std::distance(std::begin(control_points), std::end(control_points)));
+        if (points_count < static_cast<size_t>(degree + 1)) {
             return make_unexpected("Not enough control points for specified degree");
         }
         
@@ -794,7 +813,7 @@ public:
             process_pixel_batch(batch);
         });
         
-        auto spline = euler::dda::make_bspline(euler_points, degree, 0.5f);
+        auto spline = euler::dda::make_bspline(control_points, degree, 0.5f);
         while (spline != euler::dda::bspline_iterator<float>::end()) {
             auto pixel = *spline;
             euler::dda::pixel<int> int_pixel;
@@ -824,16 +843,9 @@ public:
         if (!surface_) {
             return make_unexpected("Invalid surface");
         }
-        
-        // Convert to euler points
-        std::vector<euler::point2f> euler_points;
-        euler_points.reserve(static_cast<size_t>(std::distance(std::begin(points), std::end(points))));
-        
-        for (const auto& p : points) {
-            euler_points.push_back({static_cast<float>(get_x(p)), static_cast<float>(get_y(p))});
-        }
-        
-        if (euler_points.size() < 2) {
+
+        auto points_count = static_cast<size_t>(std::distance(std::begin(points), std::end(points)));
+        if (points_count < 2) {
             return make_unexpected("Need at least 2 points for Catmull-Rom spline");
         }
         
@@ -847,7 +859,7 @@ public:
             process_pixel_batch(batch);
         });
         
-        auto catmull = euler::dda::make_catmull_rom(euler_points, tension);
+        auto catmull = euler::dda::make_catmull_rom(points, tension);
         while (catmull != euler::dda::catmull_rom_iterator<float>::end()) {
             auto pixel = *catmull;
             euler::dda::pixel<int> int_pixel;
@@ -1239,13 +1251,13 @@ public:
         // Perform blending using optimized get_pixel method
         for (int y = 0; y < src_bounds.h; ++y) {
             for (int x = 0; x < src_bounds.w; ++x) {
-                int src_x = src_bounds.x + x;
-                int src_y = src_bounds.y + y;
-                int dst_x = dst_bounds.x + x;
-                int dst_y = dst_bounds.y + y;
+                const int src_x = src_bounds.x + x;
+                const int src_y = src_bounds.y + y;
+                const int dst_x = dst_bounds.x + x;
+                const int dst_y = dst_bounds.y + y;
                 
                 // Use the optimized get_pixel method from the source surface_renderer
-                uint32_t src_pixel = src.get_pixel(src_x, src_y);
+                const auto src_pixel = src.get_pixel(src_x, src_y);
                 
                 // Apply blending based on mode
                 apply_blend_mode(dst_x, dst_y, src_pixel);
@@ -1298,20 +1310,20 @@ public:
                 float tx = static_cast<float>(x - r.x) / static_cast<float>(r.w - 1);
                 
                 // Interpolate colors
-                uint8_t r_top = static_cast<uint8_t>(c1.r * (1.0f - tx) + c2.r * tx);
-                uint8_t g_top = static_cast<uint8_t>(c1.g * (1.0f - tx) + c2.g * tx);
-                uint8_t b_top = static_cast<uint8_t>(c1.b * (1.0f - tx) + c2.b * tx);
-                uint8_t a_top = static_cast<uint8_t>(c1.a * (1.0f - tx) + c2.a * tx);
+                auto r_top = static_cast<uint8_t>(c1.r * (1.0f - tx) + c2.r * tx);
+                auto g_top = static_cast<uint8_t>(c1.g * (1.0f - tx) + c2.g * tx);
+                auto b_top = static_cast<uint8_t>(c1.b * (1.0f - tx) + c2.b * tx);
+                auto a_top = static_cast<uint8_t>(c1.a * (1.0f - tx) + c2.a * tx);
                 
-                uint8_t r_bot = static_cast<uint8_t>(c4.r * (1.0f - tx) + c3.r * tx);
-                uint8_t g_bot = static_cast<uint8_t>(c4.g * (1.0f - tx) + c3.g * tx);
-                uint8_t b_bot = static_cast<uint8_t>(c4.b * (1.0f - tx) + c3.b * tx);
-                uint8_t a_bot = static_cast<uint8_t>(c4.a * (1.0f - tx) + c3.a * tx);
+                auto r_bot = static_cast<uint8_t>(c4.r * (1.0f - tx) + c3.r * tx);
+                auto g_bot = static_cast<uint8_t>(c4.g * (1.0f - tx) + c3.g * tx);
+                auto b_bot = static_cast<uint8_t>(c4.b * (1.0f - tx) + c3.b * tx);
+                auto a_bot = static_cast<uint8_t>(c4.a * (1.0f - tx) + c3.a * tx);
                 
-                uint8_t r_final = static_cast<uint8_t>(r_top * (1.0f - ty) + r_bot * ty);
-                uint8_t g_final = static_cast<uint8_t>(g_top * (1.0f - ty) + g_bot * ty);
-                uint8_t b_final = static_cast<uint8_t>(b_top * (1.0f - ty) + b_bot * ty);
-                uint8_t a_final = static_cast<uint8_t>(a_top * (1.0f - ty) + a_bot * ty);
+                auto r_final = static_cast<uint8_t>(r_top * (1.0f - ty) + r_bot * ty);
+                auto g_final = static_cast<uint8_t>(g_top * (1.0f - ty) + g_bot * ty);
+                auto b_final = static_cast<uint8_t>(b_top * (1.0f - ty) + b_bot * ty);
+                auto a_final = static_cast<uint8_t>(a_top * (1.0f - ty) + a_bot * ty);
                 
                 auto details = SDL_GetPixelFormatDetails(surface_->format);
                 uint32_t pixel = SDL_MapRGBA(details, nullptr, r_final, g_final, b_final, a_final);
@@ -1340,9 +1352,9 @@ public:
         surface_lock(surface_lock&& other) noexcept;
         surface_lock& operator=(surface_lock&& other) noexcept;
         
-        void* pixels() const { return surface_->pixels; }
-        int pitch() const { return surface_->pitch; }
-        bool is_locked() const { return locked_; }
+        [[nodiscard]] void* pixels() const { return surface_->pixels; }
+        [[nodiscard]] int pitch() const { return surface_->pitch; }
+        [[nodiscard]] bool is_locked() const { return locked_; }
     };
 
 private:
@@ -1368,13 +1380,13 @@ private:
     // Direct pixel setting (assumes surface is locked)
     // These are internal implementation details that use the surface's fast pixel functions
     SDLPP_EXPORT void put_pixel(int x, int y, uint32_t pixel);
-    SDLPP_EXPORT uint32_t get_pixel(int x, int y) const;
+    [[nodiscard]] SDLPP_EXPORT uint32_t get_pixel(int x, int y) const;
     
     // Blend pixel with alpha (for antialiasing)
     SDLPP_EXPORT void blend_pixel(int x, int y, uint32_t pixel, float alpha);
     
     // Clipping helpers
-    inline bool clip_point(int x, int y) const {
+    [[nodiscard]] inline bool clip_point(int x, int y) const {
         if (!clip_rect_) return true;
         return x >= clip_rect_->x && x < clip_rect_->x + clip_rect_->w &&
                y >= clip_rect_->y && y < clip_rect_->y + clip_rect_->h;
