@@ -14,6 +14,7 @@
 #include <sdlpp/detail/expected.hh>
 #include <chrono>
 #include <string>
+#include <cstring>
 #include <optional>
 #include <ctime>
 #include <iosfwd>
@@ -498,6 +499,17 @@ inline void time_to_windows(const sdl_clock::time_point& tp,
      */
     [[nodiscard]] inline std::string format_date_time(const date_time& dt,
                                                       const std::string& format = "%Y-%m-%d %H:%M:%S") {
+        // Handle %N (nanoseconds) - non-standard extension
+        // Replace before strftime since strftime may alter unknown specifiers
+        static constexpr const char* ns_placeholder = "\x01NS_PLACEHOLDER\x01";
+        std::string modified_format = format;
+        bool has_nanoseconds = false;
+        size_t ns_pos = modified_format.find("%N");
+        if (ns_pos != std::string::npos) {
+            has_nanoseconds = true;
+            modified_format.replace(ns_pos, 2, ns_placeholder);
+        }
+
         // Convert to std::tm
         std::tm tm{};
         tm.tm_year = dt.year - 1900;
@@ -516,7 +528,7 @@ inline void time_to_windows(const sdl_clock::time_point& tp,
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
-        size_t len = std::strftime(buffer, sizeof(buffer), format.c_str(), &tm);
+        size_t len = std::strftime(buffer, sizeof(buffer), modified_format.c_str(), &tm);
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
@@ -525,11 +537,14 @@ inline void time_to_windows(const sdl_clock::time_point& tp,
             return ""; // Format error
         }
 
-        // Add nanoseconds if requested with %N (non-standard)
         std::string formatted(buffer, len);
-        size_t pos = formatted.find("%N");
-        if (pos != std::string::npos) {
-            formatted.replace(pos, 2, std::to_string(dt.nanosecond));
+
+        // Replace placeholder with actual nanoseconds
+        if (has_nanoseconds) {
+            size_t pos = formatted.find(ns_placeholder);
+            if (pos != std::string::npos) {
+                formatted.replace(pos, std::strlen(ns_placeholder), std::to_string(dt.nanosecond));
+            }
         }
 
         return formatted;
