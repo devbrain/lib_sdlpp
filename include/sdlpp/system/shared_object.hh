@@ -261,8 +261,8 @@ namespace sdlpp {
      *
      *     static constexpr auto symbols() {
      *         return std::make_tuple(
-     *             symbol_binding{"init", &MyAPI::init},
-     *             symbol_binding{"process", &MyAPI::process}
+     *             bind("init", &MyAPI::init),
+     *             bind("process", &MyAPI::process)
      *         );
      *     }
      * };
@@ -285,15 +285,16 @@ namespace sdlpp {
             struct symbol_binding {
                 const char* name;
                 T Derived::* member;
-
-                // Constructor for CTAD
-                constexpr symbol_binding(const char* n, T Derived::* m) noexcept
-                    : name(n), member(m) {}
             };
 
-            // Deduction guide for symbol_binding
+            /**
+             * @brief Helper to create symbol_binding with type deduction
+             * @note Use this instead of direct construction for GCC 11 compatibility
+             */
             template<typename T>
-            symbol_binding(const char*, T Derived::*) -> symbol_binding<T>;
+            static constexpr symbol_binding<T> bind(const char* name, T Derived::* member) noexcept {
+                return symbol_binding<T>{name, member};
+            }
 
             /**
              * @brief Load all symbols from a shared object

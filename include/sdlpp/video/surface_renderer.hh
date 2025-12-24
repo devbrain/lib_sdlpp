@@ -20,6 +20,16 @@
 #include <algorithm>
 #include <climits>
 #include <vector>
+
+// Euler DDA includes - suppress warnings from third-party headers
+#if defined(__GNUC__) && !defined(__clang__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wundef"
+#elif defined(__clang__)
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wundef"
+#endif
+
 #include <euler/dda/aa_line_iterator.hh>
 #include <euler/dda/thick_line_iterator.hh>
 #include <euler/dda/circle_iterator.hh>
@@ -29,6 +39,12 @@
 #include <euler/dda/bspline_iterator.hh>
 #include <euler/dda/pixel_batch.hh>
 #include <euler/angles/angle.hh>
+
+#if defined(__GNUC__) && !defined(__clang__)
+# pragma GCC diagnostic pop
+#elif defined(__clang__)
+# pragma clang diagnostic pop
+#endif
 
 namespace sdlpp {
 

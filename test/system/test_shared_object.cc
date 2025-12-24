@@ -193,8 +193,8 @@ TEST_SUITE("shared_object") {
             
             static constexpr auto symbols() {
                 return std::make_tuple(
-                    symbol_binding{"sqrt", &TestAPI::sqrt_fn},
-                    symbol_binding{"cos", &TestAPI::cos_fn}
+                    bind("sqrt", &TestAPI::sqrt_fn),
+                    bind("cos", &TestAPI::cos_fn)
                 );
             }
         };
@@ -227,7 +227,7 @@ TEST_SUITE("shared_object") {
                 
                 static constexpr auto symbols() {
                     return std::make_tuple(
-                        symbol_binding{"this_does_not_exist", &BadAPI::fake_fn}
+                        bind("this_does_not_exist", &BadAPI::fake_fn)
                     );
                 }
             };
