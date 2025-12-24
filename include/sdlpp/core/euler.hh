@@ -25,6 +25,7 @@
 # pragma clang diagnostic ignored "-Wcast-align"
 # pragma clang diagnostic ignored "-Wimplicit-int-conversion"
 # pragma clang diagnostic ignored "-Wfloat-conversion"
+# pragma clang system_header
 #elif defined(__GNUC__)
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wundef"
@@ -34,6 +35,7 @@
 # pragma GCC diagnostic ignored "-Wcast-align"
 # pragma GCC diagnostic ignored "-Wconversion"
 # pragma GCC diagnostic ignored "-Wfloat-conversion"
+# pragma GCC system_header
 #elif defined(_MSC_VER)
 # pragma warning(push)
 # pragma warning(disable: 4244)  // conversion, possible loss of data
