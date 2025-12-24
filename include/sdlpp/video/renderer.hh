@@ -32,9 +32,11 @@
 #if defined(__GNUC__) && !defined(__clang__)
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wundef"
+# pragma GCC diagnostic ignored "-Wold-style-cast"
 #elif defined(__clang__)
 # pragma clang diagnostic push
 # pragma clang diagnostic ignored "-Wundef"
+# pragma clang diagnostic ignored "-Wold-style-cast"
 #endif
 
 #include <euler/dda/line_iterator.hh>
