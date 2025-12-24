@@ -13,19 +13,9 @@
  * with strict compiler flags).
  */
 
-#include <sdlpp/detail/compiler.hh>
-
 // Suppress warnings from euler/xsimd headers
-#if defined(SDLPP_COMPILER_GCC)
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wundef"
-# pragma GCC diagnostic ignored "-Wold-style-cast"
-# pragma GCC diagnostic ignored "-Wsign-conversion"
-# pragma GCC diagnostic ignored "-Wdouble-promotion"
-# pragma GCC diagnostic ignored "-Wcast-align"
-# pragma GCC diagnostic ignored "-Wconversion"
-# pragma GCC diagnostic ignored "-Wfloat-conversion"
-#elif defined(SDLPP_COMPILER_CLANG)
+// Use raw compiler detection to avoid include order issues
+#if defined(__clang__)
 # pragma clang diagnostic push
 # pragma clang diagnostic ignored "-Wundef"
 # pragma clang diagnostic ignored "-Wold-style-cast"
@@ -35,7 +25,16 @@
 # pragma clang diagnostic ignored "-Wcast-align"
 # pragma clang diagnostic ignored "-Wimplicit-int-conversion"
 # pragma clang diagnostic ignored "-Wfloat-conversion"
-#elif defined(SDLPP_COMPILER_MSVC)
+#elif defined(__GNUC__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wundef"
+# pragma GCC diagnostic ignored "-Wold-style-cast"
+# pragma GCC diagnostic ignored "-Wsign-conversion"
+# pragma GCC diagnostic ignored "-Wdouble-promotion"
+# pragma GCC diagnostic ignored "-Wcast-align"
+# pragma GCC diagnostic ignored "-Wconversion"
+# pragma GCC diagnostic ignored "-Wfloat-conversion"
+#elif defined(_MSC_VER)
 # pragma warning(push)
 # pragma warning(disable: 4244)  // conversion, possible loss of data
 # pragma warning(disable: 4267)  // conversion from size_t
@@ -58,10 +57,10 @@
 #include <euler/angles/angle.hh>
 #include <euler/angles/radian.hh>
 
-#if defined(SDLPP_COMPILER_GCC)
-# pragma GCC diagnostic pop
-#elif defined(SDLPP_COMPILER_CLANG)
+#if defined(__clang__)
 # pragma clang diagnostic pop
-#elif defined(SDLPP_COMPILER_MSVC)
+#elif defined(__GNUC__)
+# pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
 # pragma warning(pop)
 #endif
