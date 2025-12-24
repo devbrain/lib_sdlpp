@@ -100,6 +100,7 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
         /W4
         /permissive-
         /Zc:__cplusplus
+        /Zc:preprocessor
     )
 endif()
 

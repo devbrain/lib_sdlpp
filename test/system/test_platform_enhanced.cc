@@ -108,10 +108,16 @@ TEST_SUITE("platform_enhanced") {
         // Test Windows message hook (no-op on non-Windows)
         sdlpp::windows::set_message_hook(nullptr, nullptr);
 
-        // Verify we can create a callback matching the signature
-        // Note: On Windows, the callback receives (void* userdata, MSG* msg) and returns bool
-        // On non-Windows platforms, it's a stub that takes (void*, void*) and returns bool
+        // The hook signature differs between Windows and non-Windows platforms
+        // On Windows: bool (*)(void* userdata, MSG* msg)
+        // On non-Windows: bool (*)(void*, void*) - stub
+#ifdef SDL_PLATFORM_WINDOWS
+        // On Windows, use the actual SDL_WindowsMessageHook signature
+        sdlpp::windows::message_hook hook = [](void*, MSG*) -> bool { return true; };
+#else
+        // On non-Windows, use the stub signature
         sdlpp::windows::message_hook hook = [](void*, void*) -> bool { return true; };
+#endif
         sdlpp::windows::set_message_hook(hook, nullptr);
 
         if (sdlpp::platform::is_windows()) {
