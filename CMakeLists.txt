@@ -1,173 +1,148 @@
+# =============================================================================
+# sdlpp - Modern C++20 wrapper for SDL3
+# =============================================================================
+
 cmake_minimum_required(VERSION 3.20)
+
 project(sdlpp
     VERSION 0.1.0
     DESCRIPTION "Modern C++20 wrapper for SDL3"
     LANGUAGES CXX
 )
 
+# =============================================================================
+# Neutrino CMake Integration
+# =============================================================================
+
+include(FetchContent)
+
+if(NOT DEFINED NEUTRINO_CMAKE_DIR)
+    FetchContent_Declare(
+        neutrino_cmake
+        GIT_REPOSITORY https://github.com/devbrain/neutrino-cmake.git
+        GIT_TAG master
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(neutrino_cmake)
+    set(NEUTRINO_CMAKE_DIR "${neutrino_cmake_SOURCE_DIR}/cmake")
+    list(APPEND CMAKE_MODULE_PATH "${NEUTRINO_CMAKE_DIR}")
+endif()
+
+include(NeutrinoInit)
+
+# =============================================================================
+# Options
+# =============================================================================
+
+neutrino_define_library_options(sdlpp)
+
+neutrino_is_top_level(_sdlpp_is_top_level)
+if(_sdlpp_is_top_level)
+    option(NEUTRINO_SDLPP_BUILD_EXAMPLES "Build example applications" ON)
+else()
+    option(NEUTRINO_SDLPP_BUILD_EXAMPLES "Build example applications" OFF)
+endif()
+
+# =============================================================================
+# C++ Standard
+# =============================================================================
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Build options
-option(SDLPP_BUILD_WITH_TESTS "Build SDL++ tests" ON)
-option(SDLPP_BUILD_WITH_EXAMPLES "Build SDL++ examples" ON)
-option(SDLPP_BUILD_SHARED "Build SDL++ as a shared library" ON)
-option(SDLPP_INSTALL "Generate install targets" ON)
+# Symbol visibility (hide all by default, like Windows)
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
 
-# Include standard install directories
-include(GNUInstallDirs)
+# =============================================================================
+# Output directories
+# =============================================================================
 
-# Set default build type if not specified
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-    message(STATUS "Setting build type to 'Release' as none was specified.")
-    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
-    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
-endif()
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# Build configuration options
-option(SDLPP_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
-option(SDLPP_ENABLE_LTO "Enable link-time optimization" OFF)
-
-# Set visibility settings for shared libraries
-if(SDLPP_BUILD_SHARED)
-    set(CMAKE_CXX_VISIBILITY_PRESET hidden)
-    set(CMAKE_C_VISIBILITY_PRESET hidden)
-    set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)
-    include(GenerateExportHeader)
-endif()
-
-# Define warning flags for our project
-set(SDLPP_WARNING_FLAGS)
+# =============================================================================
+# Compiler Warnings
+# =============================================================================
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     set(SDLPP_WARNING_FLAGS
-        -Wall           # All standard warnings
-        -Wextra         # Extra warnings
-        -Wpedantic      # Strict ISO C++ compliance
-        -Wcast-align    # Warn about potential performance problem casts
-        -Wcast-qual     # Warn about casts that remove qualifiers
-        -Wconversion    # Warn about type conversions that may lose data
-        -Wdouble-promotion  # Warn about float to double promotion
-        -Wformat=2      # Additional format string warnings
-        -Wnon-virtual-dtor  # Warn about non-virtual destructors
-        -Wold-style-cast    # Warn about C-style casts
-        -Woverloaded-virtual # Warn about overloaded virtual functions
-        -Wshadow        # Warn about variable shadowing
-        -Wsign-conversion   # Warn about sign conversions
-        -Wundef         # Warn about undefined identifiers in #if
-        -Wunused        # Warn about unused entities
-        -Wzero-as-null-pointer-constant # Warn about using 0 as nullptr
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wcast-align
+        -Wcast-qual
+        -Wconversion
+        -Wdouble-promotion
+        -Wformat=2
+        -Wnon-virtual-dtor
+        -Wold-style-cast
+        -Woverloaded-virtual
+        -Wshadow
+        -Wsign-conversion
+        -Wundef
+        -Wunused
+        -Wzero-as-null-pointer-constant
     )
-    
+
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         list(APPEND SDLPP_WARNING_FLAGS
-            -Wlogical-op    # Warn about logical operations being used where bitwise were probably wanted
-            -Wuseless-cast  # Warn about useless casts
+            -Wlogical-op
+            -Wuseless-cast
         )
     endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set(SDLPP_WARNING_FLAGS
-        /W4             # Highest warning level
-        /permissive-    # Strict standard conformance
-        /Zc:__cplusplus # Report correct __cplusplus value
+        /W4
+        /permissive-
+        /Zc:__cplusplus
     )
 endif()
 
-# Treat warnings as errors in CI/Release builds (optional)
-# list(APPEND SDLPP_WARNING_FLAGS -Werror)
+# =============================================================================
+# Main Library
+# =============================================================================
 
-# Sanitizer flags
-if(SDLPP_ENABLE_SANITIZERS)
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        set(SDLPP_SANITIZER_FLAGS
-            -fsanitize=address
-            -fsanitize=undefined
-            -fno-omit-frame-pointer
-        )
-        list(APPEND SDLPP_WARNING_FLAGS ${SDLPP_SANITIZER_FLAGS})
-        
-        # Link flags for sanitizers
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address -fsanitize=undefined")
-        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=address -fsanitize=undefined")
-    else()
-        message(WARNING "Sanitizers are only supported with GCC and Clang")
-    endif()
-endif()
+set(PROJECT_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Link-time optimization
-if(SDLPP_ENABLE_LTO)
-    include(CheckIPOSupported)
-    check_ipo_supported(RESULT ipo_supported OUTPUT ipo_output)
-    if(ipo_supported)
-        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-        message(STATUS "Link-time optimization enabled")
-    else()
-        message(WARNING "Link-time optimization not supported: ${ipo_output}")
-    endif()
-endif()
-
-# Output binary to predictable location.
-set(BINARY_OUT_DIR ${CMAKE_BINARY_DIR}/bin)
-set(LIB_OUT_DIR ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BINARY_OUT_DIR})
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BINARY_OUT_DIR})
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${LIB_OUT_DIR})
-
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${BINARY_OUT_DIR})
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${BINARY_OUT_DIR})
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${LIB_OUT_DIR})
-
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${BINARY_OUT_DIR})
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${BINARY_OUT_DIR})
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${LIB_OUT_DIR})
-# ===========================================================================
-set (PROJECT_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
-
-add_subdirectory(ext)
 add_subdirectory(src/sdlpp)
 
-if(SDLPP_BUILD_WITH_TESTS)
+# =============================================================================
+# Unit Tests
+# =============================================================================
+
+if(NEUTRINO_SDLPP_BUILD_TESTS)
+    enable_testing()
     add_subdirectory(test)
 endif()
 
-if(SDLPP_BUILD_WITH_EXAMPLES)
+# =============================================================================
+# Examples
+# =============================================================================
+
+if(NEUTRINO_SDLPP_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-# Feature summary
-include(FeatureSummary)
+# =============================================================================
+# Summary
+# =============================================================================
 
-set_package_properties(SDL3 PROPERTIES
-    TYPE REQUIRED
-    DESCRIPTION "Simple DirectMedia Layer 3"
-    URL "https://www.libsdl.org/"
-)
-
-set_package_properties(doctest PROPERTIES
-    TYPE REQUIRED
-    DESCRIPTION "C++ testing framework"
-    URL "https://github.com/onqtam/doctest"
-)
-
-set_package_properties(failsafe PROPERTIES
-    TYPE REQUIRED
-    DESCRIPTION "C++ error handling library"
-    URL "https://github.com/devbrain/failsafe"
-)
-
-add_feature_info("Shared Library" SDLPP_BUILD_SHARED "Build SDL++ as a shared library")
-add_feature_info("Tests" SDLPP_BUILD_WITH_TESTS "Build unit tests")
-add_feature_info("Examples" SDLPP_BUILD_WITH_EXAMPLES "Build example applications")
-add_feature_info("Install" SDLPP_INSTALL "Generate installation targets")
-add_feature_info("Sanitizers" SDLPP_ENABLE_SANITIZERS "Enable AddressSanitizer and UBSan")
-add_feature_info("LTO" SDLPP_ENABLE_LTO "Enable link-time optimization")
-
-message(STATUS "")
-message(STATUS "SDL++ ${PROJECT_VERSION} Configuration Summary:")
-message(STATUS "================================")
-message(STATUS "Build type:        ${CMAKE_BUILD_TYPE}")
-message(STATUS "Install prefix:    ${CMAKE_INSTALL_PREFIX}")
-message(STATUS "Library type:      ${SDLPP_LIBRARY_TYPE}")
-message(STATUS "")
-
-feature_summary(WHAT ALL)
+neutrino_is_top_level(_sdlpp_is_top_level)
+if(_sdlpp_is_top_level)
+    neutrino_print_options(sdlpp)
+    message(STATUS "")
+    message(STATUS "sdlpp ${PROJECT_VERSION} Configuration:")
+    message(STATUS "  C++ Standard:    20")
+    if(NEUTRINO_SDLPP_BUILD_SHARED)
+        message(STATUS "  Library type:    SHARED")
+    else()
+        message(STATUS "  Library type:    STATIC")
+    endif()
+    message(STATUS "  Build tests:     ${NEUTRINO_SDLPP_BUILD_TESTS}")
+    message(STATUS "  Build examples:  ${NEUTRINO_SDLPP_BUILD_EXAMPLES}")
+    message(STATUS "  Build docs:      ${NEUTRINO_SDLPP_BUILD_DOCS}")
+    message(STATUS "")
+endif()
