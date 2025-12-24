@@ -3,84 +3,26 @@
 # =============================================================================
 
 include(GenerateExportHeader)
-include(FetchContent)
 
 # =============================================================================
-# Dependencies
+# Dependencies via neutrino-cmake
 # =============================================================================
-
-set(FETCHCONTENT_QUIET OFF)
 
 # SDL3
-if(NOT TARGET SDL3::SDL3)
-    find_package(SDL3 QUIET)
-    if(NOT SDL3_FOUND)
-        message(STATUS "SDL3 not found, fetching from GitHub...")
-        FetchContent_Declare(
-            SDL3
-            GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-            GIT_TAG main
-            GIT_SHALLOW TRUE
-            GIT_PROGRESS TRUE
-        )
-        FetchContent_MakeAvailable(SDL3)
-    endif()
-endif()
+include(${NEUTRINO_CMAKE_DIR}/deps/SDL3.cmake)
+neutrino_fetch_sdl3()
 
 # euler - Line rasterization library
-if(NOT TARGET euler::euler)
-    find_package(euler QUIET)
-    if(NOT euler_FOUND)
-        message(STATUS "euler not found, fetching from GitHub...")
-        set(NEUTRINO_EULER_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-        set(NEUTRINO_EULER_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-        set(NEUTRINO_EULER_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
-        FetchContent_Declare(
-            euler
-            GIT_REPOSITORY https://github.com/devbrain/euler.git
-            GIT_TAG master
-            GIT_SHALLOW TRUE
-            GIT_PROGRESS TRUE
-        )
-        FetchContent_MakeAvailable(euler)
-    endif()
-endif()
+include(${NEUTRINO_CMAKE_DIR}/deps/euler.cmake)
+neutrino_fetch_euler()
 
 # failsafe - Error handling library
-if(NOT TARGET failsafe AND NOT TARGET thirdparty::failsafe)
-    find_package(failsafe QUIET)
-    if(NOT failsafe_FOUND)
-        message(STATUS "failsafe not found, fetching from GitHub...")
-        set(FAILSAFE_BUILD_TESTS OFF CACHE INTERNAL "")
-        set(FAILSAFE_BUILD_EXAMPLES OFF CACHE INTERNAL "")
-        FetchContent_Declare(
-            FAILSAFE
-            GIT_REPOSITORY https://github.com/devbrain/failsafe.git
-            GIT_TAG master
-            GIT_PROGRESS TRUE
-            OVERRIDE_FIND_PACKAGE
-        )
-        FetchContent_MakeAvailable(FAILSAFE)
-    endif()
-endif()
+include(${NEUTRINO_CMAKE_DIR}/deps/failsafe.cmake)
+neutrino_fetch_failsafe()
 
 # expected - std::expected backport
-if(NOT TARGET tl::expected)
-    message(STATUS "expected not found, fetching from GitHub...")
-    set(EXPECTED_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    FetchContent_Declare(
-        expected
-        GIT_REPOSITORY https://github.com/TartanLlama/expected.git
-        GIT_TAG v1.1.0
-        GIT_SHALLOW TRUE
-    )
-    FetchContent_MakeAvailable(expected)
-
-    # Create thirdparty::expected alias if it doesn't exist
-    if(NOT TARGET thirdparty::expected)
-        add_library(thirdparty::expected ALIAS expected)
-    endif()
-endif()
+include(${NEUTRINO_CMAKE_DIR}/deps/expected.cmake)
+neutrino_fetch_expected()
 
 # =============================================================================
 # Library Target
@@ -166,7 +108,6 @@ target_link_libraries(sdlpp
         SDL3::SDL3
         euler::euler
         failsafe
-    PRIVATE
         tl::expected
 )
 

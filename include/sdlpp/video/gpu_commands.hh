@@ -127,6 +127,8 @@ namespace sdlpp::gpu {
         class texture* tex{nullptr}; ///< Depth/stencil texture (renamed to avoid conflict)
         float clear_depth{1.0f}; ///< Clear depth value
         Uint8 clear_stencil{0}; ///< Clear stencil value
+        Uint8 mip_level{0}; ///< Mip level to use as depth stencil target
+        Uint8 layer{0}; ///< Layer index to use as depth stencil target
         enum load_op load{load_op::clear}; ///< Depth load operation
         enum store_op store{store_op::store}; ///< Depth store operation
         enum load_op stencil_load{load_op::clear}; ///< Stencil load operation
@@ -143,8 +145,8 @@ namespace sdlpp::gpu {
                 .stencil_store_op = static_cast <SDL_GPUStoreOp>(stencil_store),
                 .cycle = cycle,
                 .clear_stencil = clear_stencil,
-                .padding1 = 0,
-                .padding2 = 0
+                .mip_level = mip_level,
+                .layer = layer
             };
         }
     };
