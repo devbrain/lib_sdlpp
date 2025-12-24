@@ -23,6 +23,8 @@
 # pragma GCC diagnostic ignored "-Wsign-conversion"
 # pragma GCC diagnostic ignored "-Wdouble-promotion"
 # pragma GCC diagnostic ignored "-Wcast-align"
+# pragma GCC diagnostic ignored "-Wconversion"
+# pragma GCC diagnostic ignored "-Wfloat-conversion"
 #elif defined(SDLPP_COMPILER_CLANG)
 # pragma clang diagnostic push
 # pragma clang diagnostic ignored "-Wundef"
@@ -31,6 +33,8 @@
 # pragma clang diagnostic ignored "-Wzero-as-null-pointer-constant"
 # pragma clang diagnostic ignored "-Wdouble-promotion"
 # pragma clang diagnostic ignored "-Wcast-align"
+# pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+# pragma clang diagnostic ignored "-Wfloat-conversion"
 #elif defined(SDLPP_COMPILER_MSVC)
 # pragma warning(push)
 # pragma warning(disable: 4244)  // conversion, possible loss of data
