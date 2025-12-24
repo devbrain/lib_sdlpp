@@ -16,7 +16,7 @@ namespace sdlpp {
         if (SDL_WaitEvent(&e)) {
             return event(std::move(e));
         }
-        return unexpected(get_error());
+        return make_unexpected(get_error());
     }
 
     expected <event, std::string> event_queue::wait_timeout(std::chrono::milliseconds timeout) {
@@ -24,7 +24,7 @@ namespace sdlpp {
         if (SDL_WaitEventTimeout(&e, static_cast <Sint32>(timeout.count()))) {
             return event(std::move(e));
         }
-        return unexpected(get_error());
+        return make_unexpected(get_error());
     }
 
     expected <void, std::string> event_queue::push(const event& e) {
@@ -32,7 +32,7 @@ namespace sdlpp {
         if (SDL_PushEvent(&copy)) {
             return {};
         }
-        return unexpected(get_error());
+        return make_unexpected(get_error());
     }
 
     void event_queue::pump() {
@@ -120,11 +120,11 @@ namespace sdlpp {
     expected <Uint32, std::string> event_registry::register_events(size_t count) {
         auto int_count = detail::size_to_int(count);
         if (!int_count) {
-            return unexpected("Event count too large: " + int_count.error());
+            return make_unexpected("Event count too large: " + int_count.error());
         }
         Uint32 event_id = SDL_RegisterEvents(*int_count);
         if (event_id == static_cast <Uint32>(-1)) {
-            return unexpected("Failed to register events");
+            return make_unexpected("Failed to register events");
         }
         return event_id;
     }
