@@ -52,7 +52,7 @@ namespace sdlpp::gpu {
 
                 SDL_GPUBuffer* buf = SDL_CreateGPUBuffer(device.get(), &sdl_info);
                 if (!buf) {
-                    return tl::unexpected(get_error());
+                    return make_unexpected(get_error());
                 }
 
                 return buffer(device.get(), buf);
@@ -137,7 +137,7 @@ namespace sdlpp::gpu {
 
                 SDL_GPUTransferBuffer* buf = SDL_CreateGPUTransferBuffer(device.get(), &sdl_info);
                 if (!buf) {
-                    return tl::unexpected(get_error());
+                    return make_unexpected(get_error());
                 }
 
                 return transfer_buffer(device.get(), buf);
@@ -237,7 +237,7 @@ namespace sdlpp::gpu {
 
                 SDL_GPUTexture* tex = SDL_CreateGPUTexture(device.get(), &sdl_info);
                 if (!tex) {
-                    return tl::unexpected(get_error());
+                    return make_unexpected(get_error());
                 }
 
                 return texture(device.get(), tex);
@@ -335,7 +335,7 @@ namespace sdlpp::gpu {
 
                 SDL_GPUSampler* samp = SDL_CreateGPUSampler(device.get(), &sdl_info);
                 if (!samp) {
-                    return tl::unexpected(get_error());
+                    return make_unexpected(get_error());
                 }
 
                 return sampler(device.get(), samp);
@@ -417,7 +417,7 @@ namespace sdlpp::gpu {
 
                 SDL_GPUShader* shad = SDL_CreateGPUShader(device.get(), &sdl_info);
                 if (!shad) {
-                    return tl::unexpected(get_error());
+                    return make_unexpected(get_error());
                 }
 
                 return shader(device.get(), shad);
@@ -536,7 +536,7 @@ namespace sdlpp::gpu {
 
                 SDL_GPUGraphicsPipeline* pipe = SDL_CreateGPUGraphicsPipeline(device.get(), &sdl_info);
                 if (!pipe) {
-                    return tl::unexpected(get_error());
+                    return make_unexpected(get_error());
                 }
 
                 return graphics_pipeline(device.get(), pipe);
@@ -630,7 +630,7 @@ namespace sdlpp::gpu {
 
                 SDL_GPUComputePipeline* pipe = SDL_CreateGPUComputePipeline(device.get(), &sdl_info);
                 if (!pipe) {
-                    return tl::unexpected(get_error());
+                    return make_unexpected(get_error());
                 }
 
                 return compute_pipeline(device.get(), pipe);

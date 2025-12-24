@@ -51,7 +51,7 @@ namespace sdlpp {
         if (SDL_OpenURL(std::string(url).c_str())) {
             return {};
         }
-        return tl::unexpected(get_error());
+        return make_unexpected(get_error());
     }
 
     /**

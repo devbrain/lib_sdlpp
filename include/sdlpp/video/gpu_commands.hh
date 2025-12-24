@@ -250,7 +250,7 @@ namespace sdlpp::gpu {
                 const device& device) {
                 SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(device.get());
                 if (!cmd) {
-                    return tl::unexpected(get_error());
+                    return make_unexpected(get_error());
                 }
 
                 return command_buffer(device.get(), cmd);
@@ -288,11 +288,11 @@ namespace sdlpp::gpu {
              */
             [[nodiscard]] tl::expected <void, std::string> submit() {
                 if (!cmd_buffer_) {
-                    return tl::unexpected("Invalid command buffer");
+                    return make_unexpected("Invalid command buffer");
                 }
 
                 if (!SDL_SubmitGPUCommandBuffer(cmd_buffer_)) {
-                    return tl::unexpected(get_error());
+                    return make_unexpected(get_error());
                 }
 
                 cmd_buffer_ = nullptr; // Command buffer consumed
@@ -305,12 +305,12 @@ namespace sdlpp::gpu {
              */
             [[nodiscard]] tl::expected <fence, std::string> submit_and_acquire_fence() {
                 if (!cmd_buffer_) {
-                    return tl::unexpected("Invalid command buffer");
+                    return make_unexpected("Invalid command buffer");
                 }
 
                 SDL_GPUFence* f = SDL_SubmitGPUCommandBufferAndAcquireFence(cmd_buffer_);
                 if (!f) {
-                    return tl::unexpected(get_error());
+                    return make_unexpected(get_error());
                 }
 
                 cmd_buffer_ = nullptr; // Command buffer consumed
@@ -331,7 +331,7 @@ namespace sdlpp::gpu {
                 Uint32* swapchain_texture_width = nullptr,
                 Uint32* swapchain_texture_height = nullptr) {
                 if (!cmd_buffer_) {
-                    return tl::unexpected("Invalid command buffer");
+                    return make_unexpected("Invalid command buffer");
                 }
 
                 if (!SDL_WaitAndAcquireGPUSwapchainTexture(
@@ -340,7 +340,7 @@ namespace sdlpp::gpu {
                     acquired_texture,
                     swapchain_texture_width,
                     swapchain_texture_height)) {
-                    return tl::unexpected(get_error());
+                    return make_unexpected(get_error());
                 }
 
                 return {};

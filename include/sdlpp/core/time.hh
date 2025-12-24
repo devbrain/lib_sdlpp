@@ -181,7 +181,7 @@ namespace sdlpp {
 
         if (!SDL_TimeToDateTime(ns, &dt, true)) {
             // true = adjust for local time
-            return tl::unexpected(get_error());
+            return make_unexpected(get_error());
         }
 
         return date_time(dt);
@@ -198,7 +198,7 @@ namespace sdlpp {
         SDL_DateTime sdl_dt = dt.to_sdl();
 
         if (!SDL_DateTimeToTime(&sdl_dt, &ns)) {
-            return tl::unexpected(get_error());
+            return make_unexpected(get_error());
         }
 
         return sdl_clock::time_point(sdl_clock::duration(ns));
@@ -379,7 +379,7 @@ namespace sdlpp {
         SDL_TimeFormat time_fmt;
 
         if (!SDL_GetDateTimeLocalePreferences(&date_fmt, &time_fmt)) {
-            return tl::unexpected(get_error());
+            return make_unexpected(get_error());
         }
 
         return date_time_format(date_fmt, time_fmt);
