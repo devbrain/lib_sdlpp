@@ -2,6 +2,7 @@
 #include <sdlpp/ui/tray.hh>
 #include <sdlpp/video/surface.hh>
 #include <sdlpp/core/core.hh>
+#include <string_view>
 
 TEST_SUITE("tray") {
     // Note: System tray functionality requires a running desktop environment
@@ -79,24 +80,33 @@ TEST_SUITE("tray") {
         }
         
         SUBCASE("creation would require surface") {
+            // Skip on macOS in headless mode - CGS requires display connection
+#if defined(SDL_PLATFORM_MACOS) || defined(__APPLE__)
+            const char* driver = SDL_GetCurrentVideoDriver();
+            if (!driver || std::string_view(driver) == "dummy") {
+                MESSAGE("Skipping tray test on macOS with dummy driver");
+                return;
+            }
+#endif
+
             // Create a small test surface
             auto surface_result = sdlpp::surface::create_rgb(16, 16, sdlpp::pixel_format_enum::RGBA8888);
             if (surface_result) {
                 auto& surface = surface_result.value();
-                
+
                 // Attempt to create tray (may fail on headless systems)
                 auto tray_result = sdlpp::tray::create(surface, "Test Tray");
-                
+
                 // We can't assert success since it depends on the environment
                 // Just verify the API is callable
                 if (tray_result) {
                     auto& tray = tray_result.value();
                     CHECK(tray.is_valid());
-                    
+
                     // Test setting icon/tooltip
                     auto icon_result = tray.set_icon(surface);
                     auto tooltip_result = tray.set_tooltip("New Tooltip");
-                    
+
                     // Get menu
                     [[maybe_unused]] auto& menu = tray.get_menu();
                     // Menu operations would go here

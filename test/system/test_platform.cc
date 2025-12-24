@@ -6,12 +6,14 @@ TEST_SUITE("platform") {
         SUBCASE("get_platform returns non-empty string") {
             auto platform = sdlpp::platform::get_platform();
             CHECK_FALSE(platform.empty());
-            
+
             // Platform should be one of the known platforms
-            bool is_known = platform == "Windows" || 
-                           platform == "Mac OS X" || 
-                           platform == "Linux" || 
-                           platform == "iOS" || 
+            // SDL3 may return "macOS" instead of "Mac OS X"
+            bool is_known = platform == "Windows" ||
+                           platform == "Mac OS X" ||
+                           platform == "macOS" ||
+                           platform == "Linux" ||
+                           platform == "iOS" ||
                            platform == "Android" ||
                            platform.find("BSD") != std::string_view::npos ||
                            platform == "Emscripten";

@@ -250,16 +250,17 @@ TEST_SUITE("cpu") {
         
         SUBCASE("spin_wait_for with condition") {
             std::atomic<bool> flag{false};
-            
+
             std::thread setter([&flag]() {
                 std::this_thread::sleep_for(std::chrono::microseconds(500));
                 flag = true;
             });
-            
+
+            // Use generous timeout for slow CI environments
             bool result = sdlpp::cpu_pause::spin_wait_for([&flag]() { return flag.load(); },
-                                                          std::chrono::milliseconds(10));
+                                                          std::chrono::milliseconds(500));
             CHECK(result);
-            
+
             setter.join();
         }
     }

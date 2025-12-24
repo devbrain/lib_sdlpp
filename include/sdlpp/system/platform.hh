@@ -132,7 +132,10 @@ namespace sdlpp {
          * @return true if running on Unix-like system
          */
         [[nodiscard]] inline constexpr bool is_unix() noexcept {
-#ifdef SDL_PLATFORM_UNIX
+#if defined(SDL_PLATFORM_UNIX) || defined(SDL_PLATFORM_LINUX) || \
+    defined(SDL_PLATFORM_MACOS) || defined(SDL_PLATFORM_IOS) || \
+    defined(SDL_PLATFORM_FREEBSD) || defined(SDL_PLATFORM_NETBSD) || \
+    defined(SDL_PLATFORM_OPENBSD)
             return true;
 #else
             return false;
