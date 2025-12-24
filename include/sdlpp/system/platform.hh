@@ -742,15 +742,17 @@ namespace sdlpp {
 
 #else // Not X11 - provide stub
 
-    using event_hook = bool(*)(void*, void*);
-    inline void set_event_hook(event_hook, void*) noexcept {}
+        using event_hook = bool(*)(void*, void*);
+        inline void set_event_hook(event_hook, void*) noexcept {}
 
+#endif // X11 platforms
+    } // namespace x11
+} // namespace sdlpp
 
 // Stream operators for enums
 #include <iosfwd>
 
-namespace sdlpp {
-namespace android {
+namespace sdlpp::android {
 /**
  * @brief Stream output operator for external_storage_state
  */
@@ -761,10 +763,9 @@ SDLPP_EXPORT std::ostream& operator<<(std::ostream& os, external_storage_state v
  */
 SDLPP_EXPORT std::istream& operator>>(std::istream& is, external_storage_state& value);
 
-}
-}
-namespace sdlpp {
-namespace directories {
+} // namespace sdlpp::android
+
+namespace sdlpp::directories {
 /**
  * @brief Stream output operator for folder_type
  */
@@ -775,10 +776,9 @@ SDLPP_EXPORT std::ostream& operator<<(std::ostream& os, folder_type value);
  */
 SDLPP_EXPORT std::istream& operator>>(std::istream& is, folder_type& value);
 
-}
-}
-namespace sdlpp {
-namespace platform {
+} // namespace sdlpp::directories
+
+namespace sdlpp::platform {
 /**
  * @brief Stream output operator for platform_category
  */
@@ -789,8 +789,4 @@ SDLPP_EXPORT std::ostream& operator<<(std::ostream& os, platform_category value)
  */
 SDLPP_EXPORT std::istream& operator>>(std::istream& is, platform_category& value);
 
-}
-}
-#endif // X11 platforms
-    }
-} // namespace sdlpp
+} // namespace sdlpp::platform
