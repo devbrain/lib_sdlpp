@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cctype>
 #include <vector>
+#include <unordered_map>
 
 namespace sdlpp {
     std::ostream& operator<<(std::ostream& os, scancode value) {
@@ -287,6 +288,75 @@ namespace sdlpp {
         }
     }
 
+    namespace {
+        const std::unordered_map<std::string, scancode>& get_scancode_map() {
+            static const std::unordered_map<std::string, scancode> map = {
+                {"unknown", scancode::unknown},
+                {"a", scancode::a}, {"b", scancode::b}, {"c", scancode::c},
+                {"d", scancode::d}, {"e", scancode::e}, {"f", scancode::f},
+                {"g", scancode::g}, {"h", scancode::h}, {"i", scancode::i},
+                {"j", scancode::j}, {"k", scancode::k}, {"l", scancode::l},
+                {"m", scancode::m}, {"n", scancode::n}, {"o", scancode::o},
+                {"p", scancode::p}, {"q", scancode::q}, {"r", scancode::r},
+                {"s", scancode::s}, {"t", scancode::t}, {"u", scancode::u},
+                {"v", scancode::v}, {"w", scancode::w}, {"x", scancode::x},
+                {"y", scancode::y}, {"z", scancode::z},
+                {"num_1", scancode::num_1}, {"num_2", scancode::num_2},
+                {"num_3", scancode::num_3}, {"num_4", scancode::num_4},
+                {"num_5", scancode::num_5}, {"num_6", scancode::num_6},
+                {"num_7", scancode::num_7}, {"num_8", scancode::num_8},
+                {"num_9", scancode::num_9}, {"num_0", scancode::num_0},
+                {"f1", scancode::f1}, {"f2", scancode::f2}, {"f3", scancode::f3},
+                {"f4", scancode::f4}, {"f5", scancode::f5}, {"f6", scancode::f6},
+                {"f7", scancode::f7}, {"f8", scancode::f8}, {"f9", scancode::f9},
+                {"f10", scancode::f10}, {"f11", scancode::f11}, {"f12", scancode::f12},
+                {"f13", scancode::f13}, {"f14", scancode::f14}, {"f15", scancode::f15},
+                {"f16", scancode::f16}, {"f17", scancode::f17}, {"f18", scancode::f18},
+                {"f19", scancode::f19}, {"f20", scancode::f20}, {"f21", scancode::f21},
+                {"f22", scancode::f22}, {"f23", scancode::f23}, {"f24", scancode::f24},
+                {"return_key", scancode::return_key}, {"escape", scancode::escape},
+                {"backspace", scancode::backspace}, {"tab", scancode::tab},
+                {"space", scancode::space}, {"minus", scancode::minus},
+                {"equals", scancode::equals}, {"leftbracket", scancode::leftbracket},
+                {"rightbracket", scancode::rightbracket}, {"backslash", scancode::backslash},
+                {"nonushash", scancode::nonushash}, {"semicolon", scancode::semicolon},
+                {"apostrophe", scancode::apostrophe}, {"grave", scancode::grave},
+                {"comma", scancode::comma}, {"period", scancode::period},
+                {"slash", scancode::slash}, {"capslock", scancode::capslock},
+                {"scrolllock", scancode::scrolllock}, {"numlockclear", scancode::numlockclear},
+                {"printscreen", scancode::printscreen}, {"pause", scancode::pause},
+                {"insert", scancode::insert}, {"home", scancode::home},
+                {"pageup", scancode::pageup}, {"delete_key", scancode::delete_key},
+                {"end", scancode::end}, {"pagedown", scancode::pagedown},
+                {"right", scancode::right}, {"left", scancode::left},
+                {"down", scancode::down}, {"up", scancode::up},
+                {"kp_divide", scancode::kp_divide}, {"kp_multiply", scancode::kp_multiply},
+                {"kp_minus", scancode::kp_minus}, {"kp_plus", scancode::kp_plus},
+                {"kp_enter", scancode::kp_enter},
+                {"kp_1", scancode::kp_1}, {"kp_2", scancode::kp_2},
+                {"kp_3", scancode::kp_3}, {"kp_4", scancode::kp_4},
+                {"kp_5", scancode::kp_5}, {"kp_6", scancode::kp_6},
+                {"kp_7", scancode::kp_7}, {"kp_8", scancode::kp_8},
+                {"kp_9", scancode::kp_9}, {"kp_0", scancode::kp_0},
+                {"kp_period", scancode::kp_period},
+                {"lctrl", scancode::lctrl}, {"lshift", scancode::lshift},
+                {"lalt", scancode::lalt}, {"lgui", scancode::lgui},
+                {"rctrl", scancode::rctrl}, {"rshift", scancode::rshift},
+                {"ralt", scancode::ralt}, {"rgui", scancode::rgui},
+                {"application", scancode::application}, {"power", scancode::power},
+                {"execute", scancode::execute}, {"help", scancode::help},
+                {"menu", scancode::menu}, {"select", scancode::select},
+                {"stop", scancode::stop}, {"again", scancode::again},
+                {"undo", scancode::undo}, {"cut", scancode::cut},
+                {"copy", scancode::copy}, {"paste", scancode::paste},
+                {"find", scancode::find}, {"mute", scancode::mute},
+                {"volumeup", scancode::volumeup}, {"volumedown", scancode::volumedown},
+                {"count", scancode::count}
+            };
+            return map;
+        }
+    }
+
     std::istream& operator>>(std::istream& is, scancode& value) {
         std::string str;
         is >> str;
@@ -295,7 +365,7 @@ namespace sdlpp {
         if (is.flags() & std::ios::hex) {
             try {
                 unsigned int int_value = static_cast<unsigned int>(std::stoul(str, nullptr, 16));
-                value = static_cast <scancode>(int_value);
+                value = static_cast<scancode>(int_value);
                 return is;
             } catch (...) {
                 is.setstate(std::ios::failbit);
@@ -306,279 +376,16 @@ namespace sdlpp {
         // Convert to lowercase for case-insensitive comparison
         std::transform(str.begin(), str.end(), str.begin(), ::tolower);
 
-        if (str == "unknown") {
-            value = scancode::unknown;
-        } else if (str == "a") {
-            value = scancode::a;
-        } else if (str == "b") {
-            value = scancode::b;
-        } else if (str == "c") {
-            value = scancode::c;
-        } else if (str == "d") {
-            value = scancode::d;
-        } else if (str == "e") {
-            value = scancode::e;
-        } else if (str == "f") {
-            value = scancode::f;
-        } else if (str == "g") {
-            value = scancode::g;
-        } else if (str == "h") {
-            value = scancode::h;
-        } else if (str == "i") {
-            value = scancode::i;
-        } else if (str == "j") {
-            value = scancode::j;
-        } else if (str == "k") {
-            value = scancode::k;
-        } else if (str == "l") {
-            value = scancode::l;
-        } else if (str == "m") {
-            value = scancode::m;
-        } else if (str == "n") {
-            value = scancode::n;
-        } else if (str == "o") {
-            value = scancode::o;
-        } else if (str == "p") {
-            value = scancode::p;
-        } else if (str == "q") {
-            value = scancode::q;
-        } else if (str == "r") {
-            value = scancode::r;
-        } else if (str == "s") {
-            value = scancode::s;
-        } else if (str == "t") {
-            value = scancode::t;
-        } else if (str == "u") {
-            value = scancode::u;
-        } else if (str == "v") {
-            value = scancode::v;
-        } else if (str == "w") {
-            value = scancode::w;
-        } else if (str == "x") {
-            value = scancode::x;
-        } else if (str == "y") {
-            value = scancode::y;
-        } else if (str == "z") {
-            value = scancode::z;
-        } else if (str == "num_1") {
-            value = scancode::num_1;
-        } else if (str == "num_2") {
-            value = scancode::num_2;
-        } else if (str == "num_3") {
-            value = scancode::num_3;
-        } else if (str == "num_4") {
-            value = scancode::num_4;
-        } else if (str == "num_5") {
-            value = scancode::num_5;
-        } else if (str == "num_6") {
-            value = scancode::num_6;
-        } else if (str == "num_7") {
-            value = scancode::num_7;
-        } else if (str == "num_8") {
-            value = scancode::num_8;
-        } else if (str == "num_9") {
-            value = scancode::num_9;
-        } else if (str == "num_0") {
-            value = scancode::num_0;
-        } else if (str == "f1") {
-            value = scancode::f1;
-        } else if (str == "f2") {
-            value = scancode::f2;
-        } else if (str == "f3") {
-            value = scancode::f3;
-        } else if (str == "f4") {
-            value = scancode::f4;
-        } else if (str == "f5") {
-            value = scancode::f5;
-        } else if (str == "f6") {
-            value = scancode::f6;
-        } else if (str == "f7") {
-            value = scancode::f7;
-        } else if (str == "f8") {
-            value = scancode::f8;
-        } else if (str == "f9") {
-            value = scancode::f9;
-        } else if (str == "f10") {
-            value = scancode::f10;
-        } else if (str == "f11") {
-            value = scancode::f11;
-        } else if (str == "f12") {
-            value = scancode::f12;
-        } else if (str == "f13") {
-            value = scancode::f13;
-        } else if (str == "f14") {
-            value = scancode::f14;
-        } else if (str == "f15") {
-            value = scancode::f15;
-        } else if (str == "f16") {
-            value = scancode::f16;
-        } else if (str == "f17") {
-            value = scancode::f17;
-        } else if (str == "f18") {
-            value = scancode::f18;
-        } else if (str == "f19") {
-            value = scancode::f19;
-        } else if (str == "f20") {
-            value = scancode::f20;
-        } else if (str == "f21") {
-            value = scancode::f21;
-        } else if (str == "f22") {
-            value = scancode::f22;
-        } else if (str == "f23") {
-            value = scancode::f23;
-        } else if (str == "f24") {
-            value = scancode::f24;
-        } else if (str == "return_key") {
-            value = scancode::return_key;
-        } else if (str == "escape") {
-            value = scancode::escape;
-        } else if (str == "backspace") {
-            value = scancode::backspace;
-        } else if (str == "tab") {
-            value = scancode::tab;
-        } else if (str == "space") {
-            value = scancode::space;
-        } else if (str == "minus") {
-            value = scancode::minus;
-        } else if (str == "equals") {
-            value = scancode::equals;
-        } else if (str == "leftbracket") {
-            value = scancode::leftbracket;
-        } else if (str == "rightbracket") {
-            value = scancode::rightbracket;
-        } else if (str == "backslash") {
-            value = scancode::backslash;
-        } else if (str == "nonushash") {
-            value = scancode::nonushash;
-        } else if (str == "semicolon") {
-            value = scancode::semicolon;
-        } else if (str == "apostrophe") {
-            value = scancode::apostrophe;
-        } else if (str == "grave") {
-            value = scancode::grave;
-        } else if (str == "comma") {
-            value = scancode::comma;
-        } else if (str == "period") {
-            value = scancode::period;
-        } else if (str == "slash") {
-            value = scancode::slash;
-        } else if (str == "capslock") {
-            value = scancode::capslock;
-        } else if (str == "scrolllock") {
-            value = scancode::scrolllock;
-        } else if (str == "numlockclear") {
-            value = scancode::numlockclear;
-        } else if (str == "printscreen") {
-            value = scancode::printscreen;
-        } else if (str == "pause") {
-            value = scancode::pause;
-        } else if (str == "insert") {
-            value = scancode::insert;
-        } else if (str == "home") {
-            value = scancode::home;
-        } else if (str == "pageup") {
-            value = scancode::pageup;
-        } else if (str == "delete_key") {
-            value = scancode::delete_key;
-        } else if (str == "end") {
-            value = scancode::end;
-        } else if (str == "pagedown") {
-            value = scancode::pagedown;
-        } else if (str == "right") {
-            value = scancode::right;
-        } else if (str == "left") {
-            value = scancode::left;
-        } else if (str == "down") {
-            value = scancode::down;
-        } else if (str == "up") {
-            value = scancode::up;
-        } else if (str == "kp_divide") {
-            value = scancode::kp_divide;
-        } else if (str == "kp_multiply") {
-            value = scancode::kp_multiply;
-        } else if (str == "kp_minus") {
-            value = scancode::kp_minus;
-        } else if (str == "kp_plus") {
-            value = scancode::kp_plus;
-        } else if (str == "kp_enter") {
-            value = scancode::kp_enter;
-        } else if (str == "kp_1") {
-            value = scancode::kp_1;
-        } else if (str == "kp_2") {
-            value = scancode::kp_2;
-        } else if (str == "kp_3") {
-            value = scancode::kp_3;
-        } else if (str == "kp_4") {
-            value = scancode::kp_4;
-        } else if (str == "kp_5") {
-            value = scancode::kp_5;
-        } else if (str == "kp_6") {
-            value = scancode::kp_6;
-        } else if (str == "kp_7") {
-            value = scancode::kp_7;
-        } else if (str == "kp_8") {
-            value = scancode::kp_8;
-        } else if (str == "kp_9") {
-            value = scancode::kp_9;
-        } else if (str == "kp_0") {
-            value = scancode::kp_0;
-        } else if (str == "kp_period") {
-            value = scancode::kp_period;
-        } else if (str == "lctrl") {
-            value = scancode::lctrl;
-        } else if (str == "lshift") {
-            value = scancode::lshift;
-        } else if (str == "lalt") {
-            value = scancode::lalt;
-        } else if (str == "lgui") {
-            value = scancode::lgui;
-        } else if (str == "rctrl") {
-            value = scancode::rctrl;
-        } else if (str == "rshift") {
-            value = scancode::rshift;
-        } else if (str == "ralt") {
-            value = scancode::ralt;
-        } else if (str == "rgui") {
-            value = scancode::rgui;
-        } else if (str == "application") {
-            value = scancode::application;
-        } else if (str == "power") {
-            value = scancode::power;
-        } else if (str == "execute") {
-            value = scancode::execute;
-        } else if (str == "help") {
-            value = scancode::help;
-        } else if (str == "menu") {
-            value = scancode::menu;
-        } else if (str == "select") {
-            value = scancode::select;
-        } else if (str == "stop") {
-            value = scancode::stop;
-        } else if (str == "again") {
-            value = scancode::again;
-        } else if (str == "undo") {
-            value = scancode::undo;
-        } else if (str == "cut") {
-            value = scancode::cut;
-        } else if (str == "copy") {
-            value = scancode::copy;
-        } else if (str == "paste") {
-            value = scancode::paste;
-        } else if (str == "find") {
-            value = scancode::find;
-        } else if (str == "mute") {
-            value = scancode::mute;
-        } else if (str == "volumeup") {
-            value = scancode::volumeup;
-        } else if (str == "volumedown") {
-            value = scancode::volumedown;
-        } else if (str == "count") {
-            value = scancode::count;
+        // Use lookup table for O(1) lookup instead of O(n) if-else chain
+        const auto& map = get_scancode_map();
+        auto it = map.find(str);
+        if (it != map.end()) {
+            value = it->second;
         } else {
             // Try to parse as integer
             try {
                 int int_value = std::stoi(str);
-                value = static_cast <scancode>(int_value);
+                value = static_cast<scancode>(int_value);
             } catch (...) {
                 is.setstate(std::ios::failbit);
             }
