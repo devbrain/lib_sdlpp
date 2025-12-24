@@ -50,7 +50,10 @@ jobs:
         if: runner.os == 'Linux' && matrix.compiler == 'gcc'
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++-${{ matrix.version }}
+          sudo apt-get install -y g++-${{ matrix.version }} \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
+            libxkbcommon-dev libwayland-dev libpulse-dev libasound2-dev libdbus-1-dev \
+            libudev-dev libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev
           echo "CC=gcc-${{ matrix.version }}" >> $GITHUB_ENV
           echo "CXX=g++-${{ matrix.version }}" >> $GITHUB_ENV
 
@@ -59,7 +62,10 @@ jobs:
         run: |
           LLVM_VERSION=${{ matrix.version }}
           sudo apt-get update
-          sudo apt-get install -y lsb-release wget software-properties-common gnupg
+          sudo apt-get install -y lsb-release wget software-properties-common gnupg \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
+            libxkbcommon-dev libwayland-dev libpulse-dev libasound2-dev libdbus-1-dev \
+            libudev-dev libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
           sudo bash ./llvm.sh "${LLVM_VERSION}" all
@@ -122,7 +128,10 @@ jobs:
       - name: Install compiler
         run: |
           sudo apt-get update
-          sudo apt-get install -y g++-13
+          sudo apt-get install -y g++-13 \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
+            libxkbcommon-dev libwayland-dev libpulse-dev libasound2-dev libdbus-1-dev \
+            libudev-dev libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev
           echo "CC=gcc-13" >> $GITHUB_ENV
           echo "CXX=g++-13" >> $GITHUB_ENV
 
