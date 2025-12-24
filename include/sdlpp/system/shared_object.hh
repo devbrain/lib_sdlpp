@@ -285,7 +285,15 @@ namespace sdlpp {
             struct symbol_binding {
                 const char* name;
                 T Derived::* member;
+
+                // Constructor for CTAD
+                constexpr symbol_binding(const char* n, T Derived::* m) noexcept
+                    : name(n), member(m) {}
             };
+
+            // Deduction guide for symbol_binding
+            template<typename T>
+            symbol_binding(const char*, T Derived::*) -> symbol_binding<T>;
 
             /**
              * @brief Load all symbols from a shared object

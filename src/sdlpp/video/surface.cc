@@ -59,7 +59,7 @@ void put_pixel_24_le(void* pixels, int pitch, int x, int y, uint32_t pixel) {
 
 uint32_t get_pixel_24_le(const void* pixels, int pitch, int x, int y) {
     const uint8_t* p = static_cast<const uint8_t*>(pixels) + y * pitch + x * 3;
-    return p[0] | (p[1] << 8) | (p[2] << 16);
+    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) | (static_cast<uint32_t>(p[2]) << 16);
 }
 #endif
 

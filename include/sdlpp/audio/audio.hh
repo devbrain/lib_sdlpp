@@ -173,8 +173,10 @@ namespace sdlpp {
 # pragma GCC diagnostic ignored "-Wuseless-cast"
 #elif defined(SDLPP_COMPILER_CLANG)
 # pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wold-style-cast"
 #elif defined(SDLPP_COMPILER_WASM)
 # pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wold-style-cast"
 #endif
     /**
      * @brief Get default playback device

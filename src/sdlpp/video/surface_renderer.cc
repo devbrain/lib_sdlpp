@@ -217,9 +217,9 @@ uint32_t surface_renderer::get_pixel(int x, int y) const {
             return *reinterpret_cast<const uint16_t*>(p);
         case 3:
             #if SDL_BYTEORDER == SDL_BIG_ENDIAN
-            return (p[0] << 16) | (p[1] << 8) | p[2];
+            return (static_cast<uint32_t>(p[0]) << 16) | (static_cast<uint32_t>(p[1]) << 8) | static_cast<uint32_t>(p[2]);
             #else
-            return p[0] | (p[1] << 8) | (p[2] << 16);
+            return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) | (static_cast<uint32_t>(p[2]) << 16);
             #endif
         case 4:
             return *reinterpret_cast<const uint32_t*>(p);

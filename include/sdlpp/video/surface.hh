@@ -322,9 +322,9 @@ namespace sdlpp {
                         break;
                     case 3:
                         if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
-                            pixel = p[0] << 16 | p[1] << 8 | p[2];
+                            pixel = static_cast<uint32_t>(p[0]) << 16 | static_cast<uint32_t>(p[1]) << 8 | static_cast<uint32_t>(p[2]);
                         } else {
-                            pixel = p[0] | p[1] << 8 | p[2] << 16;
+                            pixel = static_cast<uint32_t>(p[0]) | static_cast<uint32_t>(p[1]) << 8 | static_cast<uint32_t>(p[2]) << 16;
                         }
                         break;
                     case 4:

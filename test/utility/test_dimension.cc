@@ -114,8 +114,8 @@ TEST_SUITE("dimension") {
     TEST_CASE("integration with SDL wrappers") {
         SUBCASE("window creation with dimensions") {
             // Type-safe dimension creation
-            window_dimensions dims(800, 600);
-            
+            [[maybe_unused]] window_dimensions dims(800, 600);
+
             // This would work in a real SDL environment
             // auto window = window::create("Test", dims);
             

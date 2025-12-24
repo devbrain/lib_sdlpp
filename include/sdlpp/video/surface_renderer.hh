@@ -1012,8 +1012,8 @@ public:
                     int x1 = points[j].first;
                     
                     // Calculate intersection x coordinate
-                    float t = static_cast<float>(y - y0) / (y1 - y0);
-                    int x = static_cast<int>(x0 + t * (x1 - x0));
+                    float t = static_cast<float>(y - y0) / static_cast<float>(y1 - y0);
+                    int x = static_cast<int>(static_cast<float>(x0) + t * static_cast<float>(x1 - x0));
                     intersections.push_back(x);
                 }
             }
@@ -1160,14 +1160,14 @@ public:
             return make_unexpected("Failed to lock surface");
         }
         
-        float dt = (t_end - t_start) / (steps - 1);
-        
+        float dt = (t_end - t_start) / static_cast<float>(steps - 1);
+
         // Evaluate first point
         auto prev_point = curve(t_start);
-        
+
         // Draw line segments between evaluated points
         for (int i = 1; i < steps; ++i) {
-            float t = t_start + i * dt;
+            float t = t_start + static_cast<float>(i) * dt;
             auto curr_point = curve(t);
             
             // Draw line from prev to current

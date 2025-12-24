@@ -228,13 +228,13 @@ TEST_SUITE("properties") {
         
         SUBCASE("concurrent access") {
             const int num_threads = 4;
-            const int iterations = 100;
-            
+            constexpr int iterations = 100;
+
             CHECK(props.set_number("shared_counter", 0));
-            
+
             std::vector<std::thread> threads;
             for (int i = 0; i < num_threads; ++i) {
-                threads.emplace_back([&props, iterations]() {
+                threads.emplace_back([&props]() {
                     for (int j = 0; j < iterations; ++j) {
                         properties::lock_guard lock(props);
                         auto current = props.get_number("shared_counter");

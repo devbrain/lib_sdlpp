@@ -299,11 +299,11 @@ TEST_SUITE("failsafe_backend") {
             capture.clear();
             
             const int thread_count = 4;
-            const int messages_per_thread = 10;
+            constexpr int messages_per_thread = 10;
             std::vector<std::thread> threads;
-            
+
             for (int i = 0; i < thread_count; ++i) {
-                threads.emplace_back([i, messages_per_thread]() {
+                threads.emplace_back([i]() {
                     for (int j = 0; j < messages_per_thread; ++j) {
                         LOG_INFO("Thread ", i, " message ", j);
                         std::this_thread::sleep_for(std::chrono::milliseconds(1));

@@ -33,6 +33,19 @@
 namespace sdlpp {
 #ifndef SDL_HIDAPI_DISABLED
 
+// Suppress deprecation warnings for std::codecvt_utf8 and std::wstring_convert
+// These are deprecated in C++17 but no standard replacement exists yet
+#if defined(__clang__)
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+# pragma warning(push)
+# pragma warning(disable: 4996)
+#endif
+
     namespace detail {
         /**
          * @brief Convert wide string to UTF-8 string
@@ -43,7 +56,7 @@ namespace sdlpp {
             if (wide_str.empty()) {
                 return {};
             }
-            
+
             // Use std::codecvt_utf8 for the conversion
             std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
             return converter.to_bytes(wide_str);
@@ -393,7 +406,7 @@ namespace sdlpp {
                 auto ms = std::chrono::duration_cast <std::chrono::milliseconds>(timeout).count();
                 int timeout_ms = timeout.count() < 0 ? -1 : static_cast <int>(ms);
 
-                int bytes_read = SDL_hid_read_timeout(ptr.get(), buffer.data(), *int_size, timeout_ms);
+                int bytes_read = SDL_hid_read_timeout(ptr.get(), buffer.data(), static_cast<size_t>(*int_size), timeout_ms);
                 if (bytes_read < 0) {
                     return make_unexpected(get_error());
                 }
@@ -768,5 +781,14 @@ SDLPP_EXPORT std::ostream& operator<<(std::ostream& os, hid_bus_type value);
 SDLPP_EXPORT std::istream& operator>>(std::istream& is, hid_bus_type& value);
 
 }
+
+#if defined(__clang__)
+# pragma clang diagnostic pop
+#elif defined(__GNUC__)
+# pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+# pragma warning(pop)
+#endif
+
 #endif // SDL_HIDAPI_DISABLED
 } // namespace sdlpp

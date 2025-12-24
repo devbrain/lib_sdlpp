@@ -19,11 +19,13 @@
 # pragma GCC diagnostic ignored "-Wuseless-cast"
 #elif defined(SDLPP_COMPILER_CLANG)
 # pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wold-style-cast"
+# pragma clang diagnostic ignored "-Wundef"
 #elif defined(SDLPP_COMPILER_WASM)
 # pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wold-style-cast"
+# pragma clang diagnostic ignored "-Wundef"
 #endif
-
-
 
 #include <SDL3/SDL.h>
 #if defined(SDL_MAIN_USE_CALLBACKS)
