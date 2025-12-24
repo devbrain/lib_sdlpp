@@ -695,13 +695,14 @@ namespace sdlpp {
 
     /**
      * @brief Windows message hook function type
+     * @note The callback receives a pointer to the Win32 MSG structure
+     * @return true to continue processing the message, false to drop it
      */
-    using message_hook = void(*)(void* userdata, void* hwnd, unsigned int message,
-                                Uint64 wparam, Sint64 lparam);
+    using message_hook = SDL_WindowsMessageHook;
 
     /**
      * @brief Set Windows message hook
-     * @param callback Message hook callback
+     * @param callback Message hook callback (receives userdata and MSG*)
      * @param userdata User data passed to callback
      */
     inline void set_message_hook(message_hook callback, void* userdata) noexcept {
@@ -710,7 +711,7 @@ namespace sdlpp {
 
 #else // Not Windows - provide stub
 
-        using message_hook = void(*)(void*, void*, unsigned int, Uint64, Sint64);
+        using message_hook = bool(*)(void*, void*);
 
         inline void set_message_hook(message_hook, void*) noexcept {
         }

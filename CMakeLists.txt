@@ -90,7 +90,9 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         list(APPEND SDLPP_WARNING_FLAGS
             -Wlogical-op
-            -Wuseless-cast
+            # Note: -Wuseless-cast is intentionally omitted because we use
+            # explicit casts for cross-platform compatibility (e.g., size_t)
+            # that may be "useless" on some platforms but necessary on others
         )
     endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")

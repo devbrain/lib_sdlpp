@@ -107,11 +107,13 @@ TEST_SUITE("platform_enhanced") {
     TEST_CASE("windows namespace") {
         // Test Windows message hook (no-op on non-Windows)
         sdlpp::windows::set_message_hook(nullptr, nullptr);
-        
-        // Verify we can create a lambda matching the signature
-        sdlpp::windows::message_hook hook = [](void*, void*, unsigned int, Uint64, Sint64) {};
+
+        // Verify we can create a callback matching the signature
+        // Note: On Windows, the callback receives (void* userdata, MSG* msg) and returns bool
+        // On non-Windows platforms, it's a stub that takes (void*, void*) and returns bool
+        sdlpp::windows::message_hook hook = [](void*, void*) -> bool { return true; };
         sdlpp::windows::set_message_hook(hook, nullptr);
-        
+
         if (sdlpp::platform::is_windows()) {
             INFO("Running on Windows");
         }
