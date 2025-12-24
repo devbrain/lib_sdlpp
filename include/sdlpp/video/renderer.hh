@@ -28,35 +28,8 @@
 #include <array>
 #include <limits>
 
-// Euler DDA includes - suppress warnings from third-party headers
-#if defined(__GNUC__) && !defined(__clang__)
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wundef"
-# pragma GCC diagnostic ignored "-Wold-style-cast"
-#elif defined(__clang__)
-# pragma clang diagnostic push
-# pragma clang diagnostic ignored "-Wundef"
-# pragma clang diagnostic ignored "-Wold-style-cast"
-#endif
-
-#include <euler/dda/line_iterator.hh>
-#include <euler/dda/aa_line_iterator.hh>
-#include <euler/dda/thick_line_iterator.hh>
-#include <euler/dda/circle_iterator.hh>
-#include <euler/dda/ellipse_iterator.hh>
-#include <euler/dda/arc_iterator.hh>
-#include <euler/dda/bezier_iterator.hh>
-#include <euler/dda/batched_line_iterator.hh>
-#include <euler/dda/batched_bezier_iterator.hh>
-#include <euler/dda/bspline_iterator.hh>
-#include <euler/dda/pixel_batch.hh>
-#include <euler/angles/angle.hh>
-
-#if defined(__GNUC__) && !defined(__clang__)
-# pragma GCC diagnostic pop
-#elif defined(__clang__)
-# pragma clang diagnostic pop
-#endif
+// Euler DDA includes (with warning suppression)
+#include <sdlpp/core/euler.hh>
 
 // Forward declarations
 namespace sdlpp {

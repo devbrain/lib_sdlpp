@@ -18,25 +18,8 @@
 #include <sdlpp/video/color.hh>
 #include <sdlpp/video/blend_mode.hh>
 
-// Euler includes - suppress warnings from third-party headers
-#if defined(__GNUC__) && !defined(__clang__)
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wundef"
-# pragma GCC diagnostic ignored "-Wold-style-cast"
-#elif defined(__clang__)
-# pragma clang diagnostic push
-# pragma clang diagnostic ignored "-Wundef"
-# pragma clang diagnostic ignored "-Wold-style-cast"
-#endif
-
-#include <euler/angles/angle.hh>
-#include <euler/angles/radian.hh>
-
-#if defined(__GNUC__) && !defined(__clang__)
-# pragma GCC diagnostic pop
-#elif defined(__clang__)
-# pragma clang diagnostic pop
-#endif
+// Euler includes (with warning suppression)
+#include <sdlpp/core/euler.hh>
 
 #include <concepts>
 #include <optional>
