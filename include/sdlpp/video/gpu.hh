@@ -675,14 +675,13 @@ namespace sdlpp::gpu {
         enum sample_count sample_count{sample_count::count_1}; ///< Number of samples
         Uint32 sample_mask{0xFFFFFFFF}; ///< Sample mask
         bool enable_mask{false}; ///< Enable sample mask
-        bool enable_alpha_to_coverage{false}; ///< Enable alpha-to-coverage
 
         [[nodiscard]] SDL_GPUMultisampleState to_sdl() const noexcept {
             return SDL_GPUMultisampleState{
                 .sample_count = static_cast <SDL_GPUSampleCount>(sample_count),
                 .sample_mask = sample_mask,
                 .enable_mask = enable_mask,
-                .enable_alpha_to_coverage = enable_alpha_to_coverage,
+                .padding1 = 0,
                 .padding2 = 0,
                 .padding3 = 0
             };
