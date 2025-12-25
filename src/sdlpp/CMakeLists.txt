@@ -88,6 +88,11 @@ target_sources(sdlpp PRIVATE
 
 target_compile_features(sdlpp PUBLIC cxx_std_20)
 
+# MSVC requires conformant preprocessor for __VA_OPT__ support (C++20 feature)
+if(MSVC)
+    target_compile_options(sdlpp PUBLIC /Zc:preprocessor)
+endif()
+
 generate_export_header(sdlpp
     BASE_NAME SDLPP
     EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/sdlpp_export.h
