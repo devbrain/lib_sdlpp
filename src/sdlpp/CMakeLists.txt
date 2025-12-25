@@ -137,16 +137,6 @@ set_target_properties(sdlpp PROPERTIES
 # Installation
 # =============================================================================
 
-if(NEUTRINO_SDLPP_INSTALL)
-    include(NeutrinoInstall)
-
-    # Install generated export header
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/sdlpp_export.h
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/sdlpp
-    )
-
-    neutrino_install_library(sdlpp
-        NAMESPACE neutrino::
-        COMPATIBILITY SameMajorVersion
-    )
-endif()
+# Note: Full CMake export/install is not supported when sdlpp is built with
+# FetchContent dependencies (SDL3, euler, failsafe). Those targets cannot be
+# exported. For installation, build sdlpp against system-installed dependencies.
