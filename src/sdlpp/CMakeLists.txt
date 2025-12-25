@@ -112,7 +112,7 @@ target_link_libraries(sdlpp
 )
 
 # Apply warning flags
-target_compile_options(sdlpp PRIVATE ${SDLPP_WARNING_FLAGS})
+neutrino_target_warnings(sdlpp)
 
 # =============================================================================
 # Library Properties
@@ -138,25 +138,15 @@ set_target_properties(sdlpp PROPERTIES
 # =============================================================================
 
 if(NEUTRINO_SDLPP_INSTALL)
-    include(GNUInstallDirs)
-    include(CMakePackageConfigHelpers)
-
-    # Install the library
-    install(TARGETS sdlpp
-        EXPORT sdlppTargets
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
-
-    # Install headers
-    install(DIRECTORY ${PROJECT_ROOT}/include/sdlpp
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        FILES_MATCHING PATTERN "*.hh"
-    )
+    include(NeutrinoInstall)
 
     # Install generated export header
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/sdlpp_export.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/sdlpp
+    )
+
+    neutrino_install_library(sdlpp
+        NAMESPACE neutrino::
+        COMPATIBILITY SameMajorVersion
     )
 endif()
