@@ -51,8 +51,8 @@ bool font_cache::store_glyph(char32_t codepoint) {
         return false;
     }
 
-    // Create surface for glyph
-    auto surf_result = surface::create_rgb(width, height, pixel_format_enum::RGBA8888);
+    // Create surface for glyph - use ABGR8888 which stores bytes as R,G,B,A on little-endian
+    auto surf_result = surface::create_rgb(width, height, pixel_format_enum::ABGR8888);
     if (!surf_result) {
         return false;
     }

@@ -338,8 +338,9 @@ expected<surface, std::string> font::render_text(
         return make_unexpected("Invalid text dimensions");
     }
 
-    // Create surface
-    auto surf_result = surface::create_rgb(width, height, pixel_format_enum::RGBA8888);
+    // Create surface - use ABGR8888 which stores bytes as R,G,B,A on little-endian
+    // This matches surface_raster_target::put_pixel's byte order expectations
+    auto surf_result = surface::create_rgb(width, height, pixel_format_enum::ABGR8888);
     if (!surf_result) {
         return make_unexpected("Failed to create surface: " + surf_result.error());
     }
