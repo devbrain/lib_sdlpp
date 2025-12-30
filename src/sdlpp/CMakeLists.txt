@@ -25,6 +25,20 @@ include(${NEUTRINO_CMAKE_DIR}/deps/expected.cmake)
 neutrino_fetch_expected()
 
 # =============================================================================
+# Optional Dependencies
+# =============================================================================
+
+if(SDLPP_WITH_IMAGE)
+    include(${NEUTRINO_CMAKE_DIR}/deps/onyx_image.cmake)
+    neutrino_fetch_onyx_image()
+endif()
+
+if(SDLPP_WITH_FONT)
+    include(${NEUTRINO_CMAKE_DIR}/deps/onyx_font.cmake)
+    neutrino_fetch_onyx_font()
+endif()
+
+# =============================================================================
 # Library Target
 # =============================================================================
 
@@ -83,6 +97,25 @@ target_sources(sdlpp PRIVATE
 )
 
 # =============================================================================
+# Optional Module Sources
+# =============================================================================
+
+if(SDLPP_WITH_IMAGE)
+    target_sources(sdlpp PRIVATE
+        image/sdl_surface_adapter.cc
+        image/image.cc
+    )
+endif()
+
+if(SDLPP_WITH_FONT)
+    target_sources(sdlpp PRIVATE
+        font/sdl_raster_target.cc
+        font/font.cc
+        font/font_cache.cc
+    )
+endif()
+
+# =============================================================================
 # Target Configuration
 # =============================================================================
 
@@ -115,6 +148,20 @@ target_link_libraries(sdlpp
         failsafe
         tl::expected
 )
+
+# =============================================================================
+# Optional Module Dependencies
+# =============================================================================
+
+if(SDLPP_WITH_IMAGE)
+    target_link_libraries(sdlpp PUBLIC neutrino::onyx_image)
+    target_compile_definitions(sdlpp PUBLIC SDLPP_HAS_IMAGE=1)
+endif()
+
+if(SDLPP_WITH_FONT)
+    target_link_libraries(sdlpp PUBLIC neutrino::onyx_font)
+    target_compile_definitions(sdlpp PUBLIC SDLPP_HAS_FONT=1)
+endif()
 
 # Apply warning flags
 neutrino_target_warnings(sdlpp)

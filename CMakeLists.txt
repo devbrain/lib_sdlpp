@@ -25,9 +25,9 @@ if(NOT DEFINED NEUTRINO_CMAKE_DIR)
     )
     FetchContent_MakeAvailable(neutrino_cmake)
     set(NEUTRINO_CMAKE_DIR "${neutrino_cmake_SOURCE_DIR}/cmake")
-    list(APPEND CMAKE_MODULE_PATH "${NEUTRINO_CMAKE_DIR}")
 endif()
 
+list(APPEND CMAKE_MODULE_PATH "${NEUTRINO_CMAKE_DIR}")
 include(NeutrinoInit)
 
 # =============================================================================
@@ -42,6 +42,13 @@ if(_sdlpp_is_top_level)
 else()
     option(NEUTRINO_SDLPP_BUILD_EXAMPLES "Build example applications" OFF)
 endif()
+
+# =============================================================================
+# Optional Integrations
+# =============================================================================
+
+option(SDLPP_WITH_IMAGE "Enable onyx_image integration for image loading" ON)
+option(SDLPP_WITH_FONT  "Enable onyx_font integration for text rendering" ON)
 
 # =============================================================================
 # C++ Standard
@@ -107,5 +114,7 @@ if(_sdlpp_is_top_level)
     message(STATUS "  Build tests:     ${NEUTRINO_SDLPP_BUILD_TESTS}")
     message(STATUS "  Build examples:  ${NEUTRINO_SDLPP_BUILD_EXAMPLES}")
     message(STATUS "  Build docs:      ${NEUTRINO_SDLPP_BUILD_DOCS}")
+    message(STATUS "  Image support:   ${SDLPP_WITH_IMAGE}")
+    message(STATUS "  Font support:    ${SDLPP_WITH_FONT}")
     message(STATUS "")
 endif()
