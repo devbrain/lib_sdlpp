@@ -204,9 +204,14 @@ namespace sdlpp {
              */
             std::string format_timestamp() const {
                 auto now = std::chrono::system_clock::now();
-                auto time_t = std::chrono::system_clock::to_time_t(now);
-                std::tm tm = *std::localtime(&time_t);
-                
+                auto time_t_val = std::chrono::system_clock::to_time_t(now);
+                std::tm tm{};
+#if defined(_MSC_VER)
+                localtime_s(&tm, &time_t_val);
+#else
+                localtime_r(&time_t_val, &tm);
+#endif
+
                 std::ostringstream oss;
                 oss << std::put_time(&tm, config_.timestamp_format.c_str());
                 
