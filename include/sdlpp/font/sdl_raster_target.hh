@@ -61,6 +61,13 @@ public:
             dst[1] = m_color.g;
             dst[2] = m_color.b;
             dst[3] = 255;
+        } else if (dst[3] == 0) {
+            // Destination is transparent - write color directly (for glyph caching)
+            // This ensures color mod works correctly later
+            dst[0] = m_color.r;
+            dst[1] = m_color.g;
+            dst[2] = m_color.b;
+            dst[3] = alpha;
         } else {
             // Alpha blend using Porter-Duff "over"
             std::uint32_t inv_alpha = 255 - alpha;
