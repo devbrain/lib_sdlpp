@@ -116,20 +116,19 @@ void windows_specific_example() {
     std::cout << "Windows message hook available for intercepting messages\n";
     std::cout << "Use set_message_hook() to install a custom message handler\n";
     
+#ifdef SDL_PLATFORM_WINDOWS
     // Example message hook
-    auto message_handler = [](void* userdata, void* hwnd, unsigned int message, 
-                            Uint64 wparam, Sint64 lparam) {
+    auto message_handler = [](void* userdata, MSG* msg) -> bool {
         (void)userdata;
-        (void)hwnd;
-        (void)lparam;
-        // Log interesting messages
-        if (message == 0x0100) { // WM_KEYDOWN
-            std::cout << "Key down: wparam=" << wparam << "\n";
-        }
+        (void)msg;
+        return true;
     };
     
     std::cout << "\nInstalling example message hook...\n";
     sdlpp::windows::set_message_hook(message_handler, nullptr);
+#else
+    std::cout << "\nMessage hook is only available on Windows builds.\n";
+#endif
 }
 
 void x11_specific_example() {

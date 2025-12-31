@@ -202,7 +202,7 @@ namespace sdlpp {
      */
     inline expected <void, std::string> warp_mouse_global(int x, int y) {
         if (!SDL_WarpMouseGlobal(static_cast <float>(x), static_cast <float>(y))) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return {};
     }
@@ -231,11 +231,11 @@ namespace sdlpp {
      */
     inline expected <void, std::string> set_window_relative_mouse_mode(const window& win, bool enabled) {
         if (!win.get()) {
-            return make_unexpected("Invalid window");
+            return make_unexpectedf("Invalid window");
         }
 
         if (!SDL_SetWindowRelativeMouseMode(win.get(), enabled)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return {};
@@ -330,7 +330,7 @@ namespace sdlpp {
      */
     inline expected <void, std::string> capture_mouse(bool enable) {
         if (!SDL_CaptureMouse(enable)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return {};
     }
@@ -420,7 +420,7 @@ namespace sdlpp {
                 int w, int h, int hot_x, int hot_y) {
                 auto* c = SDL_CreateCursor(data, mask, w, h, hot_x, hot_y);
                 if (!c) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return cursor(c);
             }
@@ -436,12 +436,12 @@ namespace sdlpp {
             static expected <cursor, std::string> create_color(
                 const surface& surf, int hot_x, int hot_y) {
                 if (!surf.get()) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 auto* c = SDL_CreateColorCursor(surf.get(), hot_x, hot_y);
                 if (!c) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return cursor(c);
             }
@@ -455,7 +455,7 @@ namespace sdlpp {
             static expected <cursor, std::string> create_system(system_cursor id) {
                 auto* c = SDL_CreateSystemCursor(static_cast <SDL_SystemCursor>(id));
                 if (!c) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return cursor(c);
             }
@@ -467,11 +467,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid cursor");
+                    return make_unexpectedf("Invalid cursor");
                 }
 
                 if (!SDL_SetCursor(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -503,7 +503,7 @@ namespace sdlpp {
      */
     inline expected <void, std::string> show_cursor() {
         if (!SDL_ShowCursor()) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return {};
     }
@@ -515,7 +515,7 @@ namespace sdlpp {
      */
     inline expected <void, std::string> hide_cursor() {
         if (!SDL_HideCursor()) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return {};
     }

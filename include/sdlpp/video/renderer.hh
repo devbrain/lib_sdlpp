@@ -142,7 +142,7 @@ namespace sdlpp {
              */
             expected <void, std::string> clear() {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 SDL_RenderClear(ptr.get());
@@ -156,7 +156,7 @@ namespace sdlpp {
              */
             expected <void, std::string> present() {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 SDL_RenderPresent(ptr.get());
@@ -171,7 +171,7 @@ namespace sdlpp {
              */
             expected <void, std::string> set_draw_color(const color& c) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 SDL_SetRenderDrawColor(ptr.get(), c.r, c.g, c.b, c.a);
@@ -185,12 +185,12 @@ namespace sdlpp {
              */
             expected <color, std::string> get_draw_color() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 uint8_t r, g, b, a;
                 if (!SDL_GetRenderDrawColor(ptr.get(), &r, &g, &b, &a)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return color{r, g, b, a};
@@ -203,11 +203,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_draw_blend_mode(blend_mode mode = blend_mode::none) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (!SDL_SetRenderDrawBlendMode(ptr.get(), static_cast <SDL_BlendMode>(mode))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -219,12 +219,12 @@ namespace sdlpp {
              */
             expected <blend_mode, std::string> get_draw_blend_mode() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 SDL_BlendMode mode;
                 if (!SDL_GetRenderDrawBlendMode(ptr.get(), &mode)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return static_cast <blend_mode>(mode);
@@ -238,11 +238,11 @@ namespace sdlpp {
              */
             expected <void, std::string> draw_point(int x, int y) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (!SDL_RenderPoint(ptr.get(), static_cast <float>(x), static_cast <float>(y))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -266,11 +266,11 @@ namespace sdlpp {
              */
             expected <void, std::string> draw_point(float x, float y) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (!SDL_RenderPoint(ptr.get(), x, y)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -303,7 +303,7 @@ namespace sdlpp {
             }
             expected <void, std::string> draw_points(const Container& points) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (std::begin(points) == std::end(points)) {
@@ -318,12 +318,12 @@ namespace sdlpp {
                 }
 
                 if (sdl_points.size() > static_cast <size_t>(std::numeric_limits <int>::max())) {
-                    return make_unexpected("Too many points for SDL API");
+                    return make_unexpectedf("Too many points for SDL API");
                 }
 
                 if (!SDL_RenderPoints(ptr.get(), sdl_points.data(),
                                       static_cast <int>(sdl_points.size()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -339,13 +339,13 @@ namespace sdlpp {
              */
             expected <void, std::string> draw_line(int x1, int y1, int x2, int y2) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (!SDL_RenderLine(ptr.get(),
                                     static_cast <float>(x1), static_cast <float>(y1),
                                     static_cast <float>(x2), static_cast <float>(y2))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -373,11 +373,11 @@ namespace sdlpp {
              */
             expected <void, std::string> draw_line(float x1, float y1, float x2, float y2) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (!SDL_RenderLine(ptr.get(), x1, y1, x2, y2)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -398,7 +398,7 @@ namespace sdlpp {
             }
             expected <void, std::string> draw_lines(const Container& points) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 auto count = std::distance(std::begin(points), std::end(points));
@@ -414,12 +414,12 @@ namespace sdlpp {
                 }
 
                 if (sdl_points.size() > static_cast <size_t>(std::numeric_limits <int>::max())) {
-                    return make_unexpected("Too many points for SDL API");
+                    return make_unexpectedf("Too many points for SDL API");
                 }
 
                 if (!SDL_RenderLines(ptr.get(), sdl_points.data(),
                                      static_cast <int>(sdl_points.size()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -433,7 +433,7 @@ namespace sdlpp {
             template<rect_like R>
             expected <void, std::string> draw_rect(const R& r) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 SDL_FRect sdl_rect{
@@ -442,7 +442,7 @@ namespace sdlpp {
                 };
 
                 if (!SDL_RenderRect(ptr.get(), &sdl_rect)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -458,7 +458,7 @@ namespace sdlpp {
             requires std::is_floating_point_v<typename R::value_type>
             expected <void, std::string> draw_rect(const R& r) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 SDL_FRect sdl_rect{
@@ -467,7 +467,7 @@ namespace sdlpp {
                 };
 
                 if (!SDL_RenderRect(ptr.get(), &sdl_rect)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -488,7 +488,7 @@ namespace sdlpp {
             }
             expected <void, std::string> draw_rects(const Container& rects) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (std::begin(rects) == std::end(rects)) {
@@ -506,12 +506,12 @@ namespace sdlpp {
                 }
 
                 if (sdl_rects.size() > static_cast <size_t>(std::numeric_limits <int>::max())) {
-                    return make_unexpected("Too many rectangles for SDL API");
+                    return make_unexpectedf("Too many rectangles for SDL API");
                 }
 
                 if (!SDL_RenderRects(ptr.get(), sdl_rects.data(),
                                      static_cast <int>(sdl_rects.size()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -525,7 +525,7 @@ namespace sdlpp {
             template<rect_like R>
             expected <void, std::string> fill_rect(const R& r) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 SDL_FRect sdl_rect{
@@ -534,7 +534,7 @@ namespace sdlpp {
                 };
 
                 if (!SDL_RenderFillRect(ptr.get(), &sdl_rect)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -550,7 +550,7 @@ namespace sdlpp {
             requires std::is_floating_point_v<typename R::value_type>
             expected <void, std::string> fill_rect(const R& r) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 SDL_FRect sdl_rect{
@@ -559,7 +559,7 @@ namespace sdlpp {
                 };
 
                 if (!SDL_RenderFillRect(ptr.get(), &sdl_rect)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -580,7 +580,7 @@ namespace sdlpp {
             }
             expected <void, std::string> fill_rects(const Container& rects) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (std::begin(rects) == std::end(rects)) {
@@ -598,12 +598,12 @@ namespace sdlpp {
                 }
 
                 if (sdl_rects.size() > static_cast <size_t>(std::numeric_limits <int>::max())) {
-                    return make_unexpected("Too many rectangles for SDL API");
+                    return make_unexpectedf("Too many rectangles for SDL API");
                 }
 
                 if (!SDL_RenderFillRects(ptr.get(), sdl_rects.data(),
                                          static_cast <int>(sdl_rects.size()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -618,7 +618,7 @@ namespace sdlpp {
             template<rect_like R = void>
             expected <void, std::string> set_viewport(const std::optional <R>& viewport) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (viewport) {
@@ -629,11 +629,11 @@ namespace sdlpp {
                         static_cast<int>(get_height(*viewport))
                     };
                     if (!SDL_SetRenderViewport(ptr.get(), &sdl_rect)) {
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
                 } else {
                     if (!SDL_SetRenderViewport(ptr.get(), nullptr)) {
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
                 }
 
@@ -655,12 +655,12 @@ namespace sdlpp {
             expected <R, std::string> get_viewport() const
                 requires (!std::is_void_v<R>) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 SDL_Rect viewport;
                 if (!SDL_GetRenderViewport(ptr.get(), &viewport)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return R{viewport.x, viewport.y, viewport.w, viewport.h};
@@ -675,7 +675,7 @@ namespace sdlpp {
             template<rect_like R = void>
             expected <void, std::string> set_clip_rect(const std::optional <R>& clip) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (clip) {
@@ -686,11 +686,11 @@ namespace sdlpp {
                         static_cast<int>(get_height(*clip))
                     };
                     if (!SDL_SetRenderClipRect(ptr.get(), &sdl_rect)) {
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
                 } else {
                     if (!SDL_SetRenderClipRect(ptr.get(), nullptr)) {
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
                 }
 
@@ -712,12 +712,12 @@ namespace sdlpp {
             expected <std::optional <R>, std::string> get_clip_rect() const
                 requires (!std::is_void_v<R>) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 SDL_Rect clip;
                 if (!SDL_GetRenderClipRect(ptr.get(), &clip)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 // Check if clipping is enabled (SDL returns non-zero rect)
@@ -744,11 +744,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_scale(float scale_x, float scale_y) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (!SDL_SetRenderScale(ptr.get(), scale_x, scale_y)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -769,12 +769,12 @@ namespace sdlpp {
             expected <P, std::string> get_scale() const
                 requires (!std::is_void_v<P>) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 float scale_x, scale_y;
                 if (!SDL_GetRenderScale(ptr.get(), &scale_x, &scale_y)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return P{static_cast<typename P::value_type>(scale_x), static_cast<typename P::value_type>(scale_y)};
@@ -795,12 +795,12 @@ namespace sdlpp {
             expected <S, std::string> get_output_size() const
                 requires (!std::is_void_v<S>) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 int w, h;
                 if (!SDL_GetRenderOutputSize(ptr.get(), &w, &h)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return S{w, h};
@@ -821,12 +821,12 @@ namespace sdlpp {
             expected <S, std::string> get_current_output_size() const
                 requires (!std::is_void_v<S>) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 int w, h;
                 if (!SDL_GetCurrentRenderOutputSize(ptr.get(), &w, &h)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return S{w, h};
@@ -839,11 +839,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_vsync(int vsync) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (!SDL_SetRenderVSync(ptr.get(), vsync)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -855,12 +855,12 @@ namespace sdlpp {
              */
             expected <int, std::string> get_vsync() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 int vsync;
                 if (!SDL_GetRenderVSync(ptr.get(), &vsync)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return vsync;
@@ -872,11 +872,11 @@ namespace sdlpp {
              */
             expected <void, std::string> flush() {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (!SDL_FlushRenderer(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -1068,7 +1068,7 @@ namespace sdlpp {
                 std::span <const SDL_Vertex> vertices,
                 std::span <const int> indices) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (vertices.empty() || indices.empty()) {
@@ -1076,26 +1076,26 @@ namespace sdlpp {
                 }
 
                 if (indices.size() % 3 != 0) {
-                    return make_unexpected("Index count must be multiple of 3 for triangles");
+                    return make_unexpectedf("Index count must be multiple of 3 for triangles");
                 }
 
                 // Check for size limits
                 if (vertices.size() > static_cast <size_t>(std::numeric_limits <int>::max()) ||
                     indices.size() > static_cast <size_t>(std::numeric_limits <int>::max())) {
-                    return make_unexpected("Too many vertices or indices for SDL API");
+                    return make_unexpectedf("Too many vertices or indices for SDL API");
                 }
 
                 // Validate indices are within bounds
                 for (const auto& idx : indices) {
                     if (idx < 0 || idx >= static_cast <int>(vertices.size())) {
-                        return make_unexpected("Index out of bounds");
+                        return make_unexpectedf("Index out of bounds");
                     }
                 }
 
                 if (!SDL_RenderGeometry(ptr.get(), texture,
                                         vertices.data(), static_cast <int>(vertices.size()),
                                         indices.data(), static_cast <int>(indices.size()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -1220,12 +1220,12 @@ namespace sdlpp {
             static expected <renderer, std::string> create(const window& window,
                                                            const char* driver_name = nullptr) {
                 if (!window) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 SDL_Renderer* r = SDL_CreateRenderer(window.get(), driver_name);
                 if (!r) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return renderer(r);
@@ -1240,12 +1240,12 @@ namespace sdlpp {
             static expected <renderer, std::string> create(SDL_Window* window,
                                                            const char* driver_name = nullptr) {
                 if (!window) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 SDL_Renderer* r = SDL_CreateRenderer(window, driver_name);
                 if (!r) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return renderer(r);
@@ -1258,12 +1258,12 @@ namespace sdlpp {
              */
             static expected <renderer, std::string> create_software(SDL_Surface* surface) {
                 if (!surface) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 SDL_Renderer* r = SDL_CreateSoftwareRenderer(surface);
                 if (!r) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return renderer(r);
@@ -1602,7 +1602,7 @@ namespace sdlpp {
             }
             expected<void, std::string> draw_polygon(const Container& vertices, bool close = true) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
                 
                 auto count = std::distance(std::begin(vertices), std::end(vertices));
@@ -1624,7 +1624,7 @@ namespace sdlpp {
                 }
                 
                 if (!SDL_RenderLines(ptr.get(), sdl_points.data(), static_cast<int>(sdl_points.size()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 
                 return {};
@@ -1646,7 +1646,7 @@ namespace sdlpp {
             }
             expected<void, std::string> fill_polygon(const Container& vertices) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
                 
                 auto count = std::distance(std::begin(vertices), std::end(vertices));
@@ -1657,7 +1657,7 @@ namespace sdlpp {
                 // Get current draw color
                 auto color_result = get_draw_color();
                 if (!color_result) {
-                    return make_unexpected(color_result.error());
+                    return make_unexpectedf(color_result.error());
                 }
                 color draw_color = color_result.value();
                 
@@ -1698,7 +1698,7 @@ namespace sdlpp {
             }
             expected<void, std::string> draw_polygon_aa(const Container& vertices, bool close = true) {
                 if (!ptr) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
                 
                 auto it = std::begin(vertices);

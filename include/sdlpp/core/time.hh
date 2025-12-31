@@ -111,7 +111,7 @@ namespace sdlpp {
         [[nodiscard]] expected<unsigned, std::string> day_of_year() const {
             int day_num = SDL_GetDayOfYear(year, month, day);
             if (day_num < 0) {
-                return make_unexpected("Invalid date");
+                return make_unexpectedf("Invalid date");
             }
             return static_cast<unsigned>(day_num);
         }
@@ -182,7 +182,7 @@ namespace sdlpp {
 
         if (!SDL_TimeToDateTime(ns, &dt, true)) {
             // true = adjust for local time
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return date_time(dt);
@@ -199,7 +199,7 @@ namespace sdlpp {
         SDL_DateTime sdl_dt = dt.to_sdl();
 
         if (!SDL_DateTimeToTime(&sdl_dt, &ns)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return sdl_clock::time_point(sdl_clock::duration(ns));
@@ -380,7 +380,7 @@ namespace sdlpp {
         SDL_TimeFormat time_fmt;
 
         if (!SDL_GetDateTimeLocalePreferences(&date_fmt, &time_fmt)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return date_time_format(date_fmt, time_fmt);

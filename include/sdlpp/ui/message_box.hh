@@ -278,7 +278,7 @@ namespace sdlpp {
 
                     int button_id = 0;
                     if (!SDL_ShowMessageBox(&data, &button_id)) {
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
                     return button_id;
                 }
@@ -309,7 +309,7 @@ namespace sdlpp {
 
                 int button_id = 0;
                 if (!SDL_ShowMessageBox(&data, &button_id)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return button_id;
@@ -336,7 +336,7 @@ namespace sdlpp {
             title.c_str(),
             message.c_str(),
             parent_window)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return {};

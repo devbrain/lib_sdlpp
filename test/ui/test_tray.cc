@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 #include <sdlpp/ui/tray.hh>
 #include <sdlpp/video/surface.hh>
+#include <sdlpp/video/display.hh>
 #include <sdlpp/core/core.hh>
 #include <string_view>
 
@@ -80,14 +81,26 @@ TEST_SUITE("tray") {
         }
         
         SUBCASE("creation would require surface") {
-            // Skip on macOS in headless mode - CGS requires display connection
-#if defined(SDL_PLATFORM_MACOS) || defined(__APPLE__)
-            const char* driver = SDL_GetCurrentVideoDriver();
-            if (!driver || std::string_view(driver) == "dummy") {
-                MESSAGE("Skipping tray test on macOS with dummy driver");
+            sdlpp::init* init_guard = nullptr;
+            try {
+                static sdlpp::init init(sdlpp::init_flags::video);
+                init_guard = &init;
+            } catch (const std::exception& ex) {
+                MESSAGE("Skipping tray test: SDL video init failed: " << ex.what());
                 return;
             }
-#endif
+
+            const char* driver = SDL_GetCurrentVideoDriver();
+            if (!driver || std::string_view(driver) == "dummy") {
+                MESSAGE("Skipping tray test with dummy video driver");
+                return;
+            }
+
+            if (sdlpp::display_manager::get_display_count() == 0) {
+                MESSAGE("Skipping tray test with no video displays");
+                return;
+            }
+            (void)init_guard;
 
             // Create a small test surface
             auto surface_result = sdlpp::surface::create_rgb(16, 16, sdlpp::pixel_format_enum::RGBA8888);

@@ -121,7 +121,7 @@ namespace sdlpp {
                 const char* path = override.empty() ? nullptr : override.data();
                 auto* raw = SDL_OpenTitleStorage(path, props);
                 if (!raw) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return storage{storage_ptr{raw}};
             }
@@ -139,7 +139,7 @@ namespace sdlpp {
                 SDL_PropertiesID props = 0) noexcept {
                 auto* raw = SDL_OpenUserStorage(org.data(), app.data(), props);
                 if (!raw) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return storage{storage_ptr{raw}};
             }
@@ -153,7 +153,7 @@ namespace sdlpp {
                 const std::filesystem::path& path) noexcept {
                 auto* raw = SDL_OpenFileStorage(path.string().c_str());
                 if (!raw) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return storage{storage_ptr{raw}};
             }
@@ -170,7 +170,7 @@ namespace sdlpp {
                 auto sdl_iface = iface.to_sdl();
                 auto* raw = SDL_OpenStorage(&sdl_iface, userdata);
                 if (!raw) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return storage{storage_ptr{raw}};
             }
@@ -211,12 +211,12 @@ namespace sdlpp {
             [[nodiscard]] expected <std::uint64_t, std::string> get_file_size(
                 const std::string_view& path) const noexcept {
                 if (!ptr_) {
-                    return make_unexpected("Storage not initialized");
+                    return make_unexpectedf("Storage not initialized");
                 }
 
                 std::uint64_t size = 0;
                 if (!SDL_GetStorageFileSize(ptr_.get(), path.data(), &size)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return size;
             }
@@ -230,13 +230,13 @@ namespace sdlpp {
                 const std::string_view& path) const noexcept {
                 auto size_result = get_file_size(path);
                 if (!size_result) {
-                    return make_unexpected(size_result.error());
+                    return make_unexpectedf(size_result.error());
                 }
 
                 std::vector <std::uint8_t> buffer(size_result.value());
                 if (!buffer.empty()) {
                     if (!SDL_ReadStorageFile(ptr_.get(), path.data(), buffer.data(), buffer.size())) {
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
                 }
                 return buffer;
@@ -337,7 +337,7 @@ namespace sdlpp {
                 });
 
                 if (!success) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return entries;
             }
@@ -354,7 +354,7 @@ namespace sdlpp {
                 const std::string_view& pattern,
                 glob_flags flags = glob_flags::none) const noexcept {
                 if (!ptr_) {
-                    return make_unexpected("Storage not initialized");
+                    return make_unexpectedf("Storage not initialized");
                 }
 
                 int count = 0;
@@ -362,7 +362,7 @@ namespace sdlpp {
                                                         static_cast <SDL_GlobFlags>(flags), &count);
 
                 if (!paths && count < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 std::vector <std::string> glob_results;
@@ -389,12 +389,12 @@ namespace sdlpp {
             [[nodiscard]] expected <path_info, std::string> get_path_info(
                 const std::string_view& path) const noexcept {
                 if (!ptr_) {
-                    return make_unexpected("Storage not initialized");
+                    return make_unexpectedf("Storage not initialized");
                 }
 
                 SDL_PathInfo info{};
                 if (!SDL_GetStoragePathInfo(ptr_.get(), path.data(), &info)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return path_info::from_sdl(info);
             }

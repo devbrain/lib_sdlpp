@@ -116,11 +116,11 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <Sint64, std::string> size() const {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 Sint64 io_size = SDL_GetIOSize(stream.get());
                 if (io_size < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return io_size;
             }
@@ -131,11 +131,11 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <Sint64, std::string> tell() const {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 Sint64 position = SDL_TellIO(stream.get());
                 if (position < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return position;
             }
@@ -148,11 +148,11 @@ namespace sdlpp {
              */
             expected <Sint64, std::string> seek(Sint64 offset, io_seek_pos whence) {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 Sint64 new_position = SDL_SeekIO(stream.get(), offset, static_cast <SDL_IOWhence>(whence));
                 if (new_position < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return new_position;
             }
@@ -165,14 +165,14 @@ namespace sdlpp {
              */
             expected <size_t, std::string> read(void* buffer, size_t num_bytes) {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 size_t bytes_read = SDL_ReadIO(stream.get(), buffer, num_bytes);
                 if (bytes_read == 0 && num_bytes > 0) {
                     // Check if it's an error or EOF
                     auto status = SDL_GetIOStatus(stream.get());
                     if (status == SDL_IO_STATUS_ERROR) {
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
                 }
                 return bytes_read;
@@ -187,7 +187,7 @@ namespace sdlpp {
                 std::vector <uint8_t> buffer(num_bytes);
                 auto read_result = read(buffer.data(), num_bytes);
                 if (!read_result) {
-                    return make_unexpected(read_result.error());
+                    return make_unexpectedf(read_result.error());
                 }
                 buffer.resize(*read_result);
                 return buffer;
@@ -201,13 +201,13 @@ namespace sdlpp {
              */
             expected <size_t, std::string> write(const void* buffer, size_t num_bytes) {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 size_t bytes_written = SDL_WriteIO(stream.get(), buffer, num_bytes);
                 if (bytes_written < num_bytes) {
                     auto status = SDL_GetIOStatus(stream.get());
                     if (status == SDL_IO_STATUS_ERROR) {
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
                 }
                 return bytes_written;
@@ -229,10 +229,10 @@ namespace sdlpp {
              */
             expected <void, std::string> flush() {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 if (!SDL_FlushIO(stream.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -254,11 +254,11 @@ namespace sdlpp {
              */
             expected <uint8_t, std::string> read_u8() {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 Uint8 value;
                 if (!SDL_ReadU8(stream.get(), &value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return value;
             }
@@ -270,10 +270,10 @@ namespace sdlpp {
              */
             expected <void, std::string> write_u8(uint8_t value) {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 if (!SDL_WriteU8(stream.get(), value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -281,66 +281,66 @@ namespace sdlpp {
             // Additional read methods for different types
             expected <uint16_t, std::string> read_u16_le() {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 Uint16 value;
                 if (!SDL_ReadU16LE(stream.get(), &value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return value;
             }
 
             expected <uint16_t, std::string> read_u16_be() {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 Uint16 value;
                 if (!SDL_ReadU16BE(stream.get(), &value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return value;
             }
 
             expected <uint32_t, std::string> read_u32_le() {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 Uint32 value;
                 if (!SDL_ReadU32LE(stream.get(), &value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return value;
             }
 
             expected <uint32_t, std::string> read_u32_be() {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 Uint32 value;
                 if (!SDL_ReadU32BE(stream.get(), &value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return value;
             }
 
             expected <uint64_t, std::string> read_u64_le() {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 Uint64 value;
                 if (!SDL_ReadU64LE(stream.get(), &value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return value;
             }
 
             expected <uint64_t, std::string> read_u64_be() {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 Uint64 value;
                 if (!SDL_ReadU64BE(stream.get(), &value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return value;
             }
@@ -348,60 +348,60 @@ namespace sdlpp {
             // Write methods for different types
             expected <void, std::string> write_u16_le(uint16_t value) {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 if (!SDL_WriteU16LE(stream.get(), value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
 
             expected <void, std::string> write_u16_be(uint16_t value) {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 if (!SDL_WriteU16BE(stream.get(), value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
 
             expected <void, std::string> write_u32_le(uint32_t value) {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 if (!SDL_WriteU32LE(stream.get(), value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
 
             expected <void, std::string> write_u32_be(uint32_t value) {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 if (!SDL_WriteU32BE(stream.get(), value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
 
             expected <void, std::string> write_u64_le(uint64_t value) {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 if (!SDL_WriteU64LE(stream.get(), value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
 
             expected <void, std::string> write_u64_be(uint64_t value) {
                 if (!stream) {
-                    return make_unexpected("Invalid stream");
+                    return make_unexpectedf("Invalid stream");
                 }
                 if (!SDL_WriteU64BE(stream.get(), value)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -577,7 +577,7 @@ namespace sdlpp {
     inline expected <iostream, std::string> from_memory(const void* mem, size_t mem_size) {
         SDL_IOStream* io = SDL_IOFromConstMem(mem, mem_size);
         if (!io) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return iostream(io);
     }
@@ -591,7 +591,7 @@ namespace sdlpp {
     inline expected <iostream, std::string> from_memory(void* mem, size_t mem_size) {
         SDL_IOStream* io = SDL_IOFromMem(mem, mem_size);
         if (!io) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return iostream(io);
     }
@@ -603,7 +603,7 @@ namespace sdlpp {
     inline expected <iostream, std::string> from_dynamic_memory() {
         SDL_IOStream* io = SDL_IOFromDynamicMem();
         if (!io) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return iostream(io);
     }
@@ -619,7 +619,7 @@ namespace sdlpp {
 
         SDL_IOStream* io = SDL_OpenIO(&iface, &stream);
         if (!io) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return iostream(io);
@@ -636,7 +636,7 @@ namespace sdlpp {
 
         SDL_IOStream* io = SDL_OpenIO(&iface, &stream);
         if (!io) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return iostream(io);
@@ -693,7 +693,7 @@ namespace sdlpp {
 
         SDL_IOStream* io = SDL_OpenIO(&iface, &stream);
         if (!io) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return iostream(io);
@@ -708,7 +708,7 @@ namespace sdlpp {
     inline expected <iostream, std::string> open_file(const std::filesystem::path& path, file_mode mode) {
         SDL_IOStream* io = SDL_IOFromFile(path.string().c_str(), to_string(mode));
         if (!io) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return iostream(io);
     }
@@ -732,7 +732,7 @@ namespace sdlpp {
         size_t datasize;
         void* data = SDL_LoadFile(file.c_str(), &datasize);
         if (!data) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         // Create vector and copy data
@@ -752,7 +752,7 @@ namespace sdlpp {
     inline expected <void, std::string> save_file(const std::string& file,
                                                   const void* data, size_t data_size) {
         if (!SDL_SaveFile(file.c_str(), data, data_size)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return {};
     }

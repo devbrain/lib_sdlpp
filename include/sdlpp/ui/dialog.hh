@@ -20,6 +20,8 @@
 #include <functional>
 #include <filesystem>
 #include <optional>
+#include <exception>
+#include <new>
 
 namespace sdlpp {
     /**
@@ -92,19 +94,22 @@ namespace sdlpp {
             if (!userdata) return;
 
             auto* callback = static_cast <dialog_callback*>(userdata);
-            dialog_result result;
+            try {
+                dialog_result result;
 
-            if (filelist) {
-                result.accepted = true;
-                // Convert file list to paths
-                for (int i = 0; filelist[i] != nullptr; ++i) {
-                    result.paths.emplace_back(filelist[i]);
+                if (filelist) {
+                    result.accepted = true;
+                    // Convert file list to paths
+                    for (int i = 0; filelist[i] != nullptr; ++i) {
+                        result.paths.emplace_back(filelist[i]);
+                    }
+                } else {
+                    result.accepted = false;
                 }
-            } else {
-                result.accepted = false;
-            }
 
-            (*callback)(result);
+                (*callback)(result);
+            } catch (...) {
+            }
             delete callback;
         }
     } // namespace detail
@@ -254,11 +259,12 @@ namespace sdlpp {
              * @note The callback will be invoked asynchronously when the user completes the dialog
              */
             [[nodiscard]] expected <void, std::string> show(dialog_callback callback) const noexcept {
-                // Create properties
-                SDL_PropertiesID props = SDL_CreateProperties();
-                if (props == 0) {
-                    return make_unexpected(get_error());
-                }
+                try {
+                    // Create properties
+                    SDL_PropertiesID props = SDL_CreateProperties();
+                    if (props == 0) {
+                        return make_unexpectedf(get_error());
+                    }
 
                 // Auto-cleanup properties
                 struct PropertiesGuard {
@@ -326,7 +332,14 @@ namespace sdlpp {
                                                  callback_ptr,
                                                  props);
 
-                return {};
+                    return {};
+                } catch (const std::bad_alloc&) {
+                    return make_unexpectedf("Out of memory");
+                } catch (const std::exception& e) {
+                    return make_unexpectedf(e.what());
+                } catch (...) {
+                    return make_unexpectedf("Unknown error");
+                }
             }
     };
 
@@ -343,29 +356,37 @@ namespace sdlpp {
         window* parent = nullptr,
         const std::vector <dialog_file_filter>& filters = {},
         bool allow_multiple = false) noexcept {
-        // Create callback wrapper
-        auto* callback_ptr = new dialog_callback(std::move(callback));
+        try {
+            // Create callback wrapper
+            auto* callback_ptr = new dialog_callback(std::move(callback));
 
-        // Convert filters
-        std::vector <SDL_DialogFileFilter> sdl_filters;
-        if (!filters.empty()) {
-            sdl_filters.reserve(filters.size());
-            for (const auto& filter : filters) {
-                sdl_filters.push_back(filter.to_sdl());
+            // Convert filters
+            std::vector <SDL_DialogFileFilter> sdl_filters;
+            if (!filters.empty()) {
+                sdl_filters.reserve(filters.size());
+                for (const auto& filter : filters) {
+                    sdl_filters.push_back(filter.to_sdl());
+                }
             }
+
+            SDL_ShowOpenFileDialog(
+                detail::dialog_callback_wrapper,
+                callback_ptr,
+                parent ? parent->get() : nullptr,
+                sdl_filters.empty() ? nullptr : sdl_filters.data(),
+                static_cast <int>(sdl_filters.size()),
+                nullptr, // default location
+                allow_multiple
+            );
+
+            return {};
+        } catch (const std::bad_alloc&) {
+            return make_unexpectedf("Out of memory");
+        } catch (const std::exception& e) {
+            return make_unexpectedf(e.what());
+        } catch (...) {
+            return make_unexpectedf("Unknown error");
         }
-
-        SDL_ShowOpenFileDialog(
-            detail::dialog_callback_wrapper,
-            callback_ptr,
-            parent ? parent->get() : nullptr,
-            sdl_filters.empty() ? nullptr : sdl_filters.data(),
-            static_cast <int>(sdl_filters.size()),
-            nullptr, // default location
-            allow_multiple
-        );
-
-        return {};
     }
 
     /**
@@ -381,28 +402,36 @@ namespace sdlpp {
         window* parent = nullptr,
         const std::vector <dialog_file_filter>& filters = {},
         const std::string& default_name = "") noexcept {
-        // Create callback wrapper
-        auto* callback_ptr = new dialog_callback(std::move(callback));
+        try {
+            // Create callback wrapper
+            auto* callback_ptr = new dialog_callback(std::move(callback));
 
-        // Convert filters
-        std::vector <SDL_DialogFileFilter> sdl_filters;
-        if (!filters.empty()) {
-            sdl_filters.reserve(filters.size());
-            for (const auto& filter : filters) {
-                sdl_filters.push_back(filter.to_sdl());
+            // Convert filters
+            std::vector <SDL_DialogFileFilter> sdl_filters;
+            if (!filters.empty()) {
+                sdl_filters.reserve(filters.size());
+                for (const auto& filter : filters) {
+                    sdl_filters.push_back(filter.to_sdl());
+                }
             }
+
+            SDL_ShowSaveFileDialog(
+                detail::dialog_callback_wrapper,
+                callback_ptr,
+                parent ? parent->get() : nullptr,
+                sdl_filters.empty() ? nullptr : sdl_filters.data(),
+                static_cast <int>(sdl_filters.size()),
+                default_name.empty() ? nullptr : default_name.c_str()
+            );
+
+            return {};
+        } catch (const std::bad_alloc&) {
+            return make_unexpectedf("Out of memory");
+        } catch (const std::exception& e) {
+            return make_unexpectedf(e.what());
+        } catch (...) {
+            return make_unexpectedf("Unknown error");
         }
-
-        SDL_ShowSaveFileDialog(
-            detail::dialog_callback_wrapper,
-            callback_ptr,
-            parent ? parent->get() : nullptr,
-            sdl_filters.empty() ? nullptr : sdl_filters.data(),
-            static_cast <int>(sdl_filters.size()),
-            default_name.empty() ? nullptr : default_name.c_str()
-        );
-
-        return {};
     }
 
     /**
@@ -416,18 +445,26 @@ namespace sdlpp {
         dialog_callback callback,
         window* parent = nullptr,
         bool allow_multiple = false) noexcept {
-        // Create callback wrapper
-        auto* callback_ptr = new dialog_callback(std::move(callback));
+        try {
+            // Create callback wrapper
+            auto* callback_ptr = new dialog_callback(std::move(callback));
 
-        SDL_ShowOpenFolderDialog(
-            detail::dialog_callback_wrapper,
-            callback_ptr,
-            parent ? parent->get() : nullptr,
-            nullptr, // default location
-            allow_multiple
-        );
+            SDL_ShowOpenFolderDialog(
+                detail::dialog_callback_wrapper,
+                callback_ptr,
+                parent ? parent->get() : nullptr,
+                nullptr, // default location
+                allow_multiple
+            );
 
-        return {};
+            return {};
+        } catch (const std::bad_alloc&) {
+            return make_unexpectedf("Out of memory");
+        } catch (const std::exception& e) {
+            return make_unexpectedf(e.what());
+        } catch (...) {
+            return make_unexpectedf("Unknown error");
+        }
     }
 } // namespace sdlpp
 

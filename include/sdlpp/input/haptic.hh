@@ -439,7 +439,7 @@ namespace sdlpp {
             static expected <haptic, std::string> open(haptic_id instance_id) {
                 SDL_Haptic* h = SDL_OpenHaptic(instance_id);
                 if (!h) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return haptic(h);
             }
@@ -452,7 +452,7 @@ namespace sdlpp {
             static expected <haptic, std::string> open_from_mouse() {
                 SDL_Haptic* h = SDL_OpenHapticFromMouse();
                 if (!h) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return haptic(h);
             }
@@ -465,11 +465,11 @@ namespace sdlpp {
              */
             static expected <haptic, std::string> open_from_joystick(const joystick& joy) {
                 if (!joy.is_valid()) {
-                    return make_unexpected("Invalid joystick");
+                    return make_unexpectedf("Invalid joystick");
                 }
                 SDL_Haptic* h = SDL_OpenHapticFromJoystick(joy.get());
                 if (!h) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return haptic(h);
             }
@@ -510,10 +510,10 @@ namespace sdlpp {
              * @return Maximum effects
              */
             [[nodiscard]] expected<size_t, std::string> get_max_effects() const {
-                if (!ptr) return make_unexpected("Invalid haptic device");
+                if (!ptr) return make_unexpectedf("Invalid haptic device");
                 int max = SDL_GetMaxHapticEffects(ptr.get());
                 if (max < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return static_cast<size_t>(max);
             }
@@ -524,10 +524,10 @@ namespace sdlpp {
              * @return Maximum simultaneous effects
              */
             [[nodiscard]] expected<size_t, std::string> get_max_effects_playing() const {
-                if (!ptr) return make_unexpected("Invalid haptic device");
+                if (!ptr) return make_unexpectedf("Invalid haptic device");
                 int max = SDL_GetMaxHapticEffectsPlaying(ptr.get());
                 if (max < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return static_cast<size_t>(max);
             }
@@ -574,12 +574,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <effect_id, std::string> create_effect(const haptic_effect& effect) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid haptic device");
+                    return make_unexpectedf("Invalid haptic device");
                 }
                 SDL_HapticEffect sdl_effect = detail::to_sdl_effect(effect);
                 int id = SDL_CreateHapticEffect(ptr.get(), &sdl_effect);
                 if (id < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return id;
             }
@@ -593,11 +593,11 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> update_effect(effect_id id, const haptic_effect& effect) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid haptic device");
+                    return make_unexpectedf("Invalid haptic device");
                 }
                 SDL_HapticEffect sdl_effect = detail::to_sdl_effect(effect);
                 if (!SDL_UpdateHapticEffect(ptr.get(), id, &sdl_effect)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -611,10 +611,10 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> run_effect(effect_id id, uint32_t iterations = 1) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid haptic device");
+                    return make_unexpectedf("Invalid haptic device");
                 }
                 if (!SDL_RunHapticEffect(ptr.get(), id, iterations)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -627,10 +627,10 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> stop_effect(effect_id id) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid haptic device");
+                    return make_unexpectedf("Invalid haptic device");
                 }
                 if (!SDL_StopHapticEffect(ptr.get(), id)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -664,10 +664,10 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> set_gain(int gain) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid haptic device");
+                    return make_unexpectedf("Invalid haptic device");
                 }
                 if (!SDL_SetHapticGain(ptr.get(), gain)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -680,10 +680,10 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> set_autocenter(int autocenter) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid haptic device");
+                    return make_unexpectedf("Invalid haptic device");
                 }
                 if (!SDL_SetHapticAutocenter(ptr.get(), autocenter)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -695,10 +695,10 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> pause() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid haptic device");
+                    return make_unexpectedf("Invalid haptic device");
                 }
                 if (!SDL_PauseHaptic(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -710,10 +710,10 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> resume() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid haptic device");
+                    return make_unexpectedf("Invalid haptic device");
                 }
                 if (!SDL_ResumeHaptic(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -725,10 +725,10 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> stop_all_effects() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid haptic device");
+                    return make_unexpectedf("Invalid haptic device");
                 }
                 if (!SDL_StopHapticEffects(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -749,10 +749,10 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> init_rumble() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid haptic device");
+                    return make_unexpectedf("Invalid haptic device");
                 }
                 if (!SDL_InitHapticRumble(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -766,10 +766,10 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> play_rumble(float strength, uint32_t length) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid haptic device");
+                    return make_unexpectedf("Invalid haptic device");
                 }
                 if (!SDL_PlayHapticRumble(ptr.get(), strength, length)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -795,10 +795,10 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> stop_rumble() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid haptic device");
+                    return make_unexpectedf("Invalid haptic device");
                 }
                 if (!SDL_StopHapticRumble(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -857,14 +857,14 @@ namespace sdlpp {
 
             [[nodiscard]] expected <void, std::string> run(uint32_t iterations = 1) const {
                 if (!device || id < 0) {
-                    return make_unexpected("Invalid effect handle");
+                    return make_unexpectedf("Invalid effect handle");
                 }
                 return device->run_effect(id, iterations);
             }
 
             [[nodiscard]] expected <void, std::string> stop() const {
                 if (!device || id < 0) {
-                    return make_unexpected("Invalid effect handle");
+                    return make_unexpectedf("Invalid effect handle");
                 }
                 return device->stop_effect(id);
             }

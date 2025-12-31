@@ -240,7 +240,7 @@ namespace sdlpp {
 
                 SDL_Camera* cam = SDL_OpenCamera(instance_id, sdl_spec_ptr);
                 if (!cam) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return camera(cam);
             }
@@ -283,12 +283,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <camera_spec, std::string> get_format() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid camera");
+                    return make_unexpectedf("Invalid camera");
                 }
 
                 SDL_CameraSpec spec;
                 if (!SDL_GetCameraFormat(ptr.get(), &spec)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return camera_spec::from_sdl(spec);

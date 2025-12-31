@@ -9,6 +9,7 @@
 #include <sdlpp/video/renderer.hh>
 #include <sdlpp/video/color.hh>
 #include <sdlpp/detail/expected.hh>
+#include <failsafe/detail/string_utils.hh>
 
 #include <onyx_font/font_factory.hh>
 #include <onyx_font/text/font_source.hh>
@@ -19,6 +20,8 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <type_traits>
 #include <span>
 #include <vector>
 
@@ -225,6 +228,34 @@ public:
         const color& fg,
         const color& bg = {0, 0, 0, 0}) const;
 
+    template<typename... Args>
+    requires (sizeof...(Args) > 0)
+             && !(sizeof...(Args) == 1
+                  && std::is_convertible_v<std::remove_cvref_t<
+                         std::tuple_element_t<0, std::tuple<Args...>>>,
+                     std::string_view>)
+    [[nodiscard]] expected<surface, std::string> render_text(
+        const color& fg,
+        const color& bg,
+        Args&&... args) const {
+        return render_text(
+            failsafe::detail::build_message(std::forward<Args>(args)...),
+            fg,
+            bg);
+    }
+
+    template<typename... Args>
+    requires (sizeof...(Args) > 0)
+             && !(sizeof...(Args) == 1
+                  && std::is_convertible_v<std::remove_cvref_t<
+                         std::tuple_element_t<0, std::tuple<Args...>>>,
+                     std::string_view>)
+    [[nodiscard]] expected<surface, std::string> render_text(
+        const color& fg,
+        Args&&... args) const {
+        return render_text(fg, {0, 0, 0, 0}, std::forward<Args>(args)...);
+    }
+
     /**
      * @brief Render text directly to a texture.
      *
@@ -237,6 +268,22 @@ public:
         renderer& renderer,
         std::string_view text,
         const color& fg) const;
+
+    template<typename... Args>
+    requires (sizeof...(Args) > 0)
+             && !(sizeof...(Args) == 1
+                  && std::is_convertible_v<std::remove_cvref_t<
+                         std::tuple_element_t<0, std::tuple<Args...>>>,
+                     std::string_view>)
+    [[nodiscard]] expected<texture, std::string> render_texture(
+        renderer& renderer,
+        const color& fg,
+        Args&&... args) const {
+        return render_texture(
+            renderer,
+            failsafe::detail::build_message(std::forward<Args>(args)...),
+            fg);
+    }
 
     /**
      * @brief Render text onto an existing surface.

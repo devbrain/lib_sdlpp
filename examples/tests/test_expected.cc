@@ -8,7 +8,7 @@
 // Test function that returns expected
 sdlpp::expected<int, std::string> divide(int a, int b) {
     if (b == 0) {
-        return sdlpp::make_unexpected("Division by zero");
+        return sdlpp::make_unexpectedf("Division by zero");
     }
     return a / b;
 }
@@ -16,7 +16,7 @@ sdlpp::expected<int, std::string> divide(int a, int b) {
 // Test function that returns void expected
 sdlpp::result do_something(bool should_fail) {
     if (should_fail) {
-        return sdlpp::make_unexpected("Operation failed");
+        return sdlpp::make_unexpectedf("Operation failed");
     }
     return {};  // Success
 }

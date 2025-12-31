@@ -87,12 +87,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <SDL_PropertiesID, std::string> get_properties() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid texture");
+                    return make_unexpectedf("Invalid texture");
                 }
 
                 SDL_PropertiesID props = SDL_GetTextureProperties(ptr.get());
                 if (!props) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return props;
@@ -104,12 +104,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <size_i, std::string> get_size() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid texture");
+                    return make_unexpectedf("Invalid texture");
                 }
 
                 float w, h;
                 if (!SDL_GetTextureSize(ptr.get(), &w, &h)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return size_i{static_cast <int>(w), static_cast <int>(h)};
@@ -122,11 +122,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_blend_mode(blend_mode mode = blend_mode::none) {
                 if (!ptr) {
-                    return make_unexpected("Invalid texture");
+                    return make_unexpectedf("Invalid texture");
                 }
 
                 if (!SDL_SetTextureBlendMode(ptr.get(), static_cast <SDL_BlendMode>(mode))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -138,12 +138,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <blend_mode, std::string> get_blend_mode() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid texture");
+                    return make_unexpectedf("Invalid texture");
                 }
 
                 SDL_BlendMode mode;
                 if (!SDL_GetTextureBlendMode(ptr.get(), &mode)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return static_cast <blend_mode>(mode);
@@ -156,11 +156,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_color_mod(const color& c) {
                 if (!ptr) {
-                    return make_unexpected("Invalid texture");
+                    return make_unexpectedf("Invalid texture");
                 }
 
                 if (!SDL_SetTextureColorMod(ptr.get(), c.r, c.g, c.b)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -172,12 +172,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <color, std::string> get_color_mod() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid texture");
+                    return make_unexpectedf("Invalid texture");
                 }
 
                 uint8_t r, g, b;
                 if (!SDL_GetTextureColorMod(ptr.get(), &r, &g, &b)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return color{r, g, b, 255};
@@ -190,11 +190,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_alpha_mod(uint8_t alpha) {
                 if (!ptr) {
-                    return make_unexpected("Invalid texture");
+                    return make_unexpectedf("Invalid texture");
                 }
 
                 if (!SDL_SetTextureAlphaMod(ptr.get(), alpha)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -206,12 +206,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <uint8_t, std::string> get_alpha_mod() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid texture");
+                    return make_unexpectedf("Invalid texture");
                 }
 
                 uint8_t alpha;
                 if (!SDL_GetTextureAlphaMod(ptr.get(), &alpha)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return alpha;
@@ -224,11 +224,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_scale_mode(scale_mode mode) {
                 if (!ptr) {
-                    return make_unexpected("Invalid texture");
+                    return make_unexpectedf("Invalid texture");
                 }
 
                 if (!SDL_SetTextureScaleMode(ptr.get(), static_cast <SDL_ScaleMode>(mode))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -240,12 +240,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <scale_mode, std::string> get_scale_mode() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid texture");
+                    return make_unexpectedf("Invalid texture");
                 }
 
                 SDL_ScaleMode mode;
                 if (!SDL_GetTextureScaleMode(ptr.get(), &mode)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return static_cast <scale_mode>(mode);
@@ -262,11 +262,11 @@ namespace sdlpp {
             expected <void, std::string> update(const std::optional <R>& update_rect,
                                                 const void* pixels, int pitch) {
                 if (!ptr) {
-                    return make_unexpected("Invalid texture");
+                    return make_unexpectedf("Invalid texture");
                 }
 
                 if (!pixels) {
-                    return make_unexpected("Invalid pixel data");
+                    return make_unexpectedf("Invalid pixel data");
                 }
 
                 if (update_rect) {
@@ -277,11 +277,11 @@ namespace sdlpp {
                         static_cast<int>(get_height(*update_rect))
                     };
                     if (!SDL_UpdateTexture(ptr.get(), &sdl_rect, pixels, pitch)) {
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
                 } else {
                     if (!SDL_UpdateTexture(ptr.get(), nullptr, pixels, pitch)) {
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
                 }
 
@@ -297,7 +297,7 @@ namespace sdlpp {
             template<rect_like R = void>
             expected <std::pair <void*, int>, std::string> lock(const std::optional <R>& lock_rect = std::nullopt) {
                 if (!ptr) {
-                    return make_unexpected("Invalid texture");
+                    return make_unexpectedf("Invalid texture");
                 }
 
                 void* pixels;
@@ -311,11 +311,11 @@ namespace sdlpp {
                         static_cast<int>(get_height(*lock_rect))
                     };
                     if (!SDL_LockTexture(ptr.get(), &sdl_rect, &pixels, &pitch)) {
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
                 } else {
                     if (!SDL_LockTexture(ptr.get(), nullptr, &pixels, &pitch)) {
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
                 }
 
@@ -384,7 +384,7 @@ namespace sdlpp {
                 texture_access access,
                 int width, int height) {
                 if (!renderer) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 SDL_Texture* t = SDL_CreateTexture(
@@ -395,7 +395,7 @@ namespace sdlpp {
                 );
 
                 if (!t) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return texture(t);
@@ -411,16 +411,16 @@ namespace sdlpp {
                 const renderer& renderer,
                 const surface& surface) {
                 if (!renderer) {
-                    return make_unexpected("Invalid renderer");
+                    return make_unexpectedf("Invalid renderer");
                 }
 
                 if (!surface) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 SDL_Texture* t = SDL_CreateTextureFromSurface(renderer.get(), surface.get());
                 if (!t) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return texture(t);
@@ -434,11 +434,11 @@ namespace sdlpp {
         const std::optional <R>& src_rect,
         const std::optional <R>& dst_rect) {
         if (!ptr) {
-            return make_unexpected("Invalid renderer");
+            return make_unexpectedf("Invalid renderer");
         }
 
         if (!texture) {
-            return make_unexpected("Invalid texture");
+            return make_unexpectedf("Invalid texture");
         }
 
         SDL_FRect src, dst;
@@ -462,7 +462,7 @@ namespace sdlpp {
         }
 
         if (!SDL_RenderTexture(ptr.get(), texture.get(), src_ptr, dst_ptr)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return {};
@@ -475,11 +475,11 @@ namespace sdlpp {
         const std::optional <R>& src_rect,
         const std::optional <R>& dst_rect) {
         if (!ptr) {
-            return make_unexpected("Invalid renderer");
+            return make_unexpectedf("Invalid renderer");
         }
 
         if (!texture) {
-            return make_unexpected("Invalid texture");
+            return make_unexpectedf("Invalid texture");
         }
 
         SDL_FRect src, dst;
@@ -497,7 +497,7 @@ namespace sdlpp {
         }
 
         if (!SDL_RenderTexture(ptr.get(), texture.get(), src_ptr, dst_ptr)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return {};
@@ -512,11 +512,11 @@ namespace sdlpp {
         const std::optional <P>& center,
         flip_mode flip) {
         if (!ptr) {
-            return make_unexpected("Invalid renderer");
+            return make_unexpectedf("Invalid renderer");
         }
 
         if (!texture) {
-            return make_unexpected("Invalid texture");
+            return make_unexpectedf("Invalid texture");
         }
 
         SDL_FRect src, dst;
@@ -544,7 +544,7 @@ namespace sdlpp {
                                       src_ptr, dst_ptr,
                                       angle, cnt_ptr,
                                       static_cast <SDL_FlipMode>(flip))) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return {};
@@ -561,11 +561,11 @@ namespace sdlpp {
         const std::optional <P>& center,
         flip_mode flip) {
         if (!ptr) {
-            return make_unexpected("Invalid renderer");
+            return make_unexpectedf("Invalid renderer");
         }
 
         if (!texture) {
-            return make_unexpected("Invalid texture");
+            return make_unexpectedf("Invalid texture");
         }
 
         SDL_FRect src, dst;
@@ -593,7 +593,7 @@ namespace sdlpp {
                                       src_ptr, dst_ptr,
                                       angle, cnt_ptr,
                                       static_cast <SDL_FlipMode>(flip))) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return {};
@@ -601,7 +601,7 @@ namespace sdlpp {
 
     inline expected <texture, std::string> renderer::get_target() const {
         if (!ptr) {
-            return make_unexpected("Invalid renderer");
+            return make_unexpectedf("Invalid renderer");
         }
 
         SDL_Texture* target = SDL_GetRenderTarget(ptr.get());
@@ -616,14 +616,14 @@ namespace sdlpp {
 
     inline expected <void, std::string> renderer::set_target(const texture& target) {
         if (!ptr) {
-            return make_unexpected("Invalid renderer");
+            return make_unexpectedf("Invalid renderer");
         }
 
         // nullptr means render to default target (window)
         SDL_Texture* tex_ptr = target ? target.get() : nullptr;
 
         if (!SDL_SetRenderTarget(ptr.get(), tex_ptr)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return {};

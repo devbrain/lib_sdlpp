@@ -172,7 +172,7 @@ namespace sdlpp {
     inline expected <palette_ptr, std::string> make_palette(int ncolors) {
         SDL_Palette* raw = SDL_CreatePalette(ncolors);
         if (!raw) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return palette_ptr(raw);
     }
@@ -202,7 +202,7 @@ namespace sdlpp {
                    SDL_PixelFormat dst_format, void* dst, int dst_pitch) {
         if (!SDL_ConvertPixels(w, h, src_format, src, src_pitch,
                                dst_format, dst, dst_pitch)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return {};
     }

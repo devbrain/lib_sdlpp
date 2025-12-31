@@ -171,7 +171,7 @@ public:
     template<point_like P>
     expected<void, std::string> draw_point(const P& p) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         int x = static_cast<int>(get_x(p));
@@ -183,7 +183,7 @@ public:
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         put_pixel(x, y, mapped_color_);
@@ -196,12 +196,12 @@ public:
     template<point_like P1, point_like P2>
     expected<void, std::string> draw_line(const P1& start, const P2& end) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
 
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
 
         // Use euler's line iterator for consistent and optimized line drawing
@@ -230,7 +230,7 @@ public:
     template<rect_like R>
     expected<void, std::string> draw_rect(const R& rect) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
 
         float x = static_cast<float>(get_x(rect));
@@ -244,7 +244,7 @@ public:
 
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
 
         // Draw four edges using euler's line iterator
@@ -318,7 +318,7 @@ public:
     template<rect_like R>
     expected<void, std::string> fill_rect(const R& r) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         rect<int> rect_to_fill{
@@ -340,7 +340,7 @@ public:
         // Use SDL's efficient fill function
         SDL_Rect sdl_rect{rect_to_fill.x, rect_to_fill.y, rect_to_fill.w, rect_to_fill.h};
         if (SDL_FillSurfaceRect(surface_, &sdl_rect, mapped_color_) != 0) {
-            return make_unexpected(std::string(SDL_GetError()));
+            return make_unexpectedf(std::string(SDL_GetError()));
         }
         
         return {};
@@ -357,7 +357,7 @@ public:
     template<point_like P1, point_like P2>
     expected<void, std::string> draw_line_aa(const P1& start, const P2& end) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         // Convert to euler points
@@ -366,7 +366,7 @@ public:
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Use euler's antialiased line iterator with batch writer for better performance
@@ -401,11 +401,11 @@ public:
     template<point_like P1, point_like P2>
     expected<void, std::string> draw_line_thick(const P1& start, const P2& end, float width) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         if (width <= 0) {
-            return make_unexpected("Line width must be positive");
+            return make_unexpectedf("Line width must be positive");
         }
         
         // Convert to euler points
@@ -414,7 +414,7 @@ public:
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Use euler's thick line iterator with batch writer for better performance
@@ -446,11 +446,11 @@ public:
     template<point_like P>
     expected<void, std::string> draw_circle(const P& center, int radius) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         if (radius <= 0) {
-            return make_unexpected("Circle radius must be positive");
+            return make_unexpectedf("Circle radius must be positive");
         }
         
         // Convert to euler point
@@ -458,7 +458,7 @@ public:
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Use euler's circle iterator with batch writer for better performance
@@ -488,11 +488,11 @@ public:
     template<point_like P>
     expected<void, std::string> fill_circle(const P& center, int radius) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         if (radius <= 0) {
-            return make_unexpected("Circle radius must be positive");
+            return make_unexpectedf("Circle radius must be positive");
         }
         
         // Convert to euler point
@@ -500,7 +500,7 @@ public:
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Use euler's filled circle iterator
@@ -540,11 +540,11 @@ public:
     template<point_like P>
     expected<void, std::string> draw_ellipse(const P& center, int rx, int ry) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         if (rx <= 0 || ry <= 0) {
-            return make_unexpected("Ellipse radii must be positive");
+            return make_unexpectedf("Ellipse radii must be positive");
         }
         
         // Convert to euler point
@@ -552,7 +552,7 @@ public:
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Use euler's ellipse iterator with batch writer for better performance
@@ -583,11 +583,11 @@ public:
     template<point_like P>
     expected<void, std::string> fill_ellipse(const P& center, int rx, int ry) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         if (rx <= 0 || ry <= 0) {
-            return make_unexpected("Ellipse radii must be positive");
+            return make_unexpectedf("Ellipse radii must be positive");
         }
         
         // Convert to euler point
@@ -595,7 +595,7 @@ public:
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Use euler's filled ellipse iterator
@@ -637,11 +637,11 @@ public:
     template<point_like P>
     expected<void, std::string> draw_ellipse_arc(const P& center, int rx, int ry, float start_angle, float end_angle) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         if (rx <= 0 || ry <= 0) {
-            return make_unexpected("Ellipse radii must be positive");
+            return make_unexpectedf("Ellipse radii must be positive");
         }
         
         // Convert to euler point
@@ -649,7 +649,7 @@ public:
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Use euler's ellipse arc iterator with batch writer
@@ -699,12 +699,12 @@ public:
     template<point_like P1, point_like P2, point_like P3>
     expected<void, std::string> draw_bezier_quad(const P1& p0, const P2& p1, const P3& p2) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Use bezier iterator with batch writer
@@ -749,7 +749,7 @@ public:
     template<point_like P1, point_like P2, point_like P3, point_like P4>
     expected<void, std::string> draw_bezier_cubic(const P1& p0, const P2& p1, const P3& p2, const P4& p3) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         // Convert to euler points
@@ -760,7 +760,7 @@ public:
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Use batched cubic bezier for better performance
@@ -789,17 +789,17 @@ public:
     }
     expected<void, std::string> draw_bspline(const Container& control_points, int degree = 3) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
 
         auto points_count = static_cast<size_t>(std::distance(std::begin(control_points), std::end(control_points)));
         if (points_count < static_cast<size_t>(degree + 1)) {
-            return make_unexpected("Not enough control points for specified degree");
+            return make_unexpectedf("Not enough control points for specified degree");
         }
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Use B-spline iterator with batch writer
@@ -835,17 +835,17 @@ public:
     }
     expected<void, std::string> draw_catmull_rom(const Container& points, float tension = 0.5f) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
 
         auto points_count = static_cast<size_t>(std::distance(std::begin(points), std::end(points)));
         if (points_count < 2) {
-            return make_unexpected("Need at least 2 points for Catmull-Rom spline");
+            return make_unexpectedf("Need at least 2 points for Catmull-Rom spline");
         }
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Use Catmull-Rom iterator with batch writer
@@ -883,17 +883,17 @@ public:
     }
     expected<void, std::string> draw_polygon(const Container& vertices, bool close = true) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         auto count = std::distance(std::begin(vertices), std::end(vertices));
         if (count < 2) {
-            return make_unexpected("Polygon needs at least 2 vertices");
+            return make_unexpectedf("Polygon needs at least 2 vertices");
         }
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Draw edges
@@ -964,12 +964,12 @@ public:
     }
     expected<void, std::string> fill_polygon(const Container& vertices) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         auto count = std::distance(std::begin(vertices), std::end(vertices));
         if (count < 3) {
-            return make_unexpected("Polygon needs at least 3 vertices to fill");
+            return make_unexpectedf("Polygon needs at least 3 vertices to fill");
         }
         
         // Convert vertices to vector for easier access
@@ -987,7 +987,7 @@ public:
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Scanline fill algorithm
@@ -1055,17 +1055,17 @@ public:
     }
     expected<void, std::string> draw_polygon_aa(const Container& vertices, bool close = true) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         auto count = std::distance(std::begin(vertices), std::end(vertices));
         if (count < 2) {
-            return make_unexpected("Polygon needs at least 2 vertices");
+            return make_unexpectedf("Polygon needs at least 2 vertices");
         }
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Draw antialiased edges
@@ -1142,16 +1142,16 @@ public:
     }
     expected<void, std::string> draw_curve(CurveFunc&& curve, float t_start = 0.0f, float t_end = 1.0f, int steps = 100) {
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         if (steps <= 1) {
-            return make_unexpected("Need at least 2 steps for curve");
+            return make_unexpectedf("Need at least 2 steps for curve");
         }
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         float dt = (t_end - t_start) / static_cast<float>(steps - 1);
@@ -1204,7 +1204,7 @@ public:
         blend_mode mode = blend_mode::blend) {
         
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         // Get actual source rectangle
@@ -1235,7 +1235,7 @@ public:
         surface_lock src_lock(const_cast<SDL_Surface*>(src.surface_));
         
         if (!dst_lock.is_locked() || !src_lock.is_locked()) {
-            return make_unexpected("Failed to lock surfaces");
+            return make_unexpectedf("Failed to lock surfaces");
         }
         
         // Store current blend mode and restore it later
@@ -1277,7 +1277,7 @@ public:
         const color& c3, const color& c4) {
         
         if (!surface_) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
         
         sdlpp::rect<int> r{
@@ -1293,7 +1293,7 @@ public:
         
         surface_lock lock(surface_);
         if (!lock.is_locked()) {
-            return make_unexpected("Failed to lock surface");
+            return make_unexpectedf("Failed to lock surface");
         }
         
         // Bilinear interpolation for gradient

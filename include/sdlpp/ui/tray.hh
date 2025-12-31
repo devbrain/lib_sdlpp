@@ -57,7 +57,10 @@ namespace sdlpp {
                 if (!userdata) return;
                 auto* callback = static_cast <tray_entry_callback*>(userdata);
                 tray_entry wrapper(entry);
-                (*callback)(wrapper);
+                try {
+                    (*callback)(wrapper);
+                } catch (...) {
+                }
             }
 
         public:
@@ -102,7 +105,7 @@ namespace sdlpp {
              * @return Expected<void> - empty on success, error on failure
              */
             expected <void, std::string> set_label(const std::string& label) noexcept {
-                if (!entry_) return make_unexpected("Invalid entry");
+                if (!entry_) return make_unexpectedf("Invalid entry");
                 SDL_SetTrayEntryLabel(entry_, label.c_str());
                 return {};
             }
@@ -122,7 +125,7 @@ namespace sdlpp {
              * @return Expected<void> - empty on success, error on failure
              */
             expected <void, std::string> set_checked(bool checked) noexcept {
-                if (!entry_) return make_unexpected("Invalid entry");
+                if (!entry_) return make_unexpectedf("Invalid entry");
                 SDL_SetTrayEntryChecked(entry_, checked);
                 return {};
             }
@@ -142,7 +145,7 @@ namespace sdlpp {
              * @return Expected<void> - empty on success, error on failure
              */
             expected <void, std::string> set_enabled(bool enabled) noexcept {
-                if (!entry_) return make_unexpected("Invalid entry");
+                if (!entry_) return make_unexpectedf("Invalid entry");
                 SDL_SetTrayEntryEnabled(entry_, enabled);
                 return {};
             }
@@ -153,7 +156,7 @@ namespace sdlpp {
              * @return Expected<void> - empty on success, error on failure
              */
             expected <void, std::string> set_callback(tray_entry_callback callback) noexcept {
-                if (!entry_) return make_unexpected("Invalid entry");
+                if (!entry_) return make_unexpectedf("Invalid entry");
 
                 callback_ = std::make_unique <tray_entry_callback>(std::move(callback));
                 SDL_SetTrayEntryCallback(entry_, entry_callback_wrapper, callback_.get());
@@ -165,7 +168,7 @@ namespace sdlpp {
              * @return Expected<void> - empty on success, error on failure
              */
             expected <void, std::string> click() noexcept {
-                if (!entry_) return make_unexpected("Invalid entry");
+                if (!entry_) return make_unexpectedf("Invalid entry");
                 SDL_ClickTrayEntry(entry_);
                 return {};
             }
@@ -249,7 +252,7 @@ namespace sdlpp {
             [[nodiscard]] static expected <tray_menu, std::string> create(SDL_Tray* tray) noexcept {
                 SDL_TrayMenu* menu = SDL_CreateTrayMenu(tray);
                 if (!menu) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return tray_menu(menu, true);
             }
@@ -286,12 +289,12 @@ namespace sdlpp {
                 const std::string& label,
                 std::optional <tray_entry_callback> callback = std::nullopt,
                 tray_entry_flags flags = tray_entry_flags::none) noexcept {
-                if (!menu_) return make_unexpected("Invalid menu");
+                if (!menu_) return make_unexpectedf("Invalid menu");
 
                 SDL_TrayEntry* entry = SDL_InsertTrayEntryAt(menu_, -1, label.c_str(),
                                                              static_cast <Uint32>(flags));
                 if (!entry) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 tray_entry entry_wrapper(entry);
@@ -301,7 +304,7 @@ namespace sdlpp {
                     auto cb_result = entry_wrapper.set_callback(*callback);
                     if (!cb_result) {
                         SDL_RemoveTrayEntry(entry);
-                        return make_unexpected(cb_result.error());
+                        return make_unexpectedf(cb_result.error());
                     }
 
                     // Store the callback to keep it alive
@@ -316,11 +319,11 @@ namespace sdlpp {
              * @return Expected<void> - empty on success, error on failure
              */
             expected <void, std::string> add_separator() noexcept {
-                if (!menu_) return make_unexpected("Invalid menu");
+                if (!menu_) return make_unexpectedf("Invalid menu");
 
                 SDL_TrayEntry* entry = SDL_InsertTrayEntryAt(menu_, -1, nullptr, 0);
                 if (!entry) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -333,11 +336,11 @@ namespace sdlpp {
              */
             expected <tray_menu, std::string> add_submenu(
                 [[maybe_unused]] const std::string& label) noexcept {
-                if (!menu_) return make_unexpected("Invalid menu");
+                if (!menu_) return make_unexpectedf("Invalid menu");
 
                 // Note: SDL_CreateTraySubmenu API may vary between SDL3 versions
                 // For now, return an error until we can determine the correct API
-                return make_unexpected("Submenu creation not yet implemented");
+                return make_unexpectedf("Submenu creation not yet implemented");
             }
 
             /**
@@ -367,8 +370,8 @@ namespace sdlpp {
              * @return Expected<void> - empty on success, error on failure
              */
             expected <void, std::string> remove_entry(const tray_entry& entry) noexcept {
-                if (!menu_) return make_unexpected("Invalid menu");
-                if (!entry.is_valid()) return make_unexpected("Invalid entry");
+                if (!menu_) return make_unexpectedf("Invalid menu");
+                if (!entry.is_valid()) return make_unexpectedf("Invalid entry");
 
                 SDL_RemoveTrayEntry(entry.get());
                 return {};
@@ -458,7 +461,7 @@ namespace sdlpp {
                 SDL_Tray* sdl_tray = SDL_CreateTray(icon.get(),
                                                     tooltip.empty() ? nullptr : tooltip.c_str());
                 if (!sdl_tray) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 tray tray_instance;
@@ -519,7 +522,7 @@ namespace sdlpp {
              * @return Expected<void> - empty on success, error on failure
              */
             expected <void, std::string> set_icon(const surface& icon) noexcept {
-                if (!tray_) return make_unexpected("Invalid tray");
+                if (!tray_) return make_unexpectedf("Invalid tray");
                 SDL_SetTrayIcon(tray_, icon.get());
                 return {};
             }
@@ -530,7 +533,7 @@ namespace sdlpp {
              * @return Expected<void> - empty on success, error on failure
              */
             expected <void, std::string> set_tooltip(const std::string& tooltip) noexcept {
-                if (!tray_) return make_unexpected("Invalid tray");
+                if (!tray_) return make_unexpectedf("Invalid tray");
                 SDL_SetTrayTooltip(tray_, tooltip.c_str());
                 return {};
             }

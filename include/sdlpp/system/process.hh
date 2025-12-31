@@ -236,14 +236,14 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <size_t, std::string> write_stdin(const std::string& str) noexcept {
                 if (!stdin_) {
-                    return make_unexpected("stdin not redirected to pipe");
+                    return make_unexpectedf("stdin not redirected to pipe");
                 }
 
                 size_t bytes_written = SDL_WriteIO(stdin_.get(), str.data(), str.size());
                 if (bytes_written < str.size()) {
                     auto status = SDL_GetIOStatus(stdin_.get());
                     if (status == SDL_IO_STATUS_ERROR) {
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
                 }
                 return bytes_written;
@@ -255,7 +255,7 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <std::string, std::string> read_stdout_all() noexcept {
                 if (!stdout_) {
-                    return make_unexpected("stdout not redirected to pipe");
+                    return make_unexpectedf("stdout not redirected to pipe");
                 }
 
                 std::string output_data;
@@ -269,7 +269,7 @@ namespace sdlpp {
                         // Check if it's EOF or error
                         auto status = SDL_GetIOStatus(stream);
                         if (status == SDL_IO_STATUS_ERROR) {
-                            return make_unexpected(get_error());
+                            return make_unexpectedf(get_error());
                         }
                         // Otherwise it's EOF
                         break;
@@ -287,7 +287,7 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <std::string, std::string> read_stderr_all() noexcept {
                 if (!stderr_) {
-                    return make_unexpected("stderr not redirected to pipe");
+                    return make_unexpectedf("stderr not redirected to pipe");
                 }
 
                 std::string output_data;
@@ -301,7 +301,7 @@ namespace sdlpp {
                         // Check if it's EOF or error
                         auto status = SDL_GetIOStatus(stream);
                         if (status == SDL_IO_STATUS_ERROR) {
-                            return make_unexpected(get_error());
+                            return make_unexpectedf(get_error());
                         }
                         // Otherwise it's EOF
                         break;
@@ -492,7 +492,13 @@ namespace sdlpp {
              * @return Reference to this builder
              */
             process_builder& set_env(const std::string& key, const std::string& value) {
-                env_[key] = value;
+                if (!env_) {
+                    env_.reset(SDL_CreateEnvironment(!env_cleared_));
+                    env_cleared_ = false;
+                }
+                if (env_) {
+                    SDL_SetEnvironmentVariable(env_.get(), key.c_str(), value.c_str(), true);
+                }
                 return *this;
             }
 
@@ -501,7 +507,7 @@ namespace sdlpp {
              * @return Reference to this builder
              */
             process_builder& clear_env() {
-                env_.clear();
+                env_.reset(SDL_CreateEnvironment(false));
                 env_cleared_ = true;
                 return *this;
             }
@@ -517,7 +523,8 @@ namespace sdlpp {
             process_io stdin_mode_ = process_io::inherited;
             process_io stdout_mode_ = process_io::inherited;
             process_io stderr_mode_ = process_io::inherited;
-            std::unordered_map <std::string, std::string> env_;
+            using env_ptr = std::unique_ptr <SDL_Environment, decltype(&SDL_DestroyEnvironment)>;
+            env_ptr env_{nullptr, SDL_DestroyEnvironment};
             bool env_cleared_ = false;
     };
 
@@ -527,7 +534,7 @@ namespace sdlpp {
         const std::vector <std::string>& args,
         bool pipe_stdio) noexcept {
         if (args.empty()) {
-            return make_unexpected("No command specified");
+            return make_unexpectedf("No command specified");
         }
 
         // Convert arguments to C-style array
@@ -542,7 +549,7 @@ namespace sdlpp {
         SDL_Process* handle = SDL_CreateProcess(argv.data(), pipe_stdio);
 
         if (!handle) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         process proc;
@@ -568,149 +575,133 @@ namespace sdlpp {
     }
 
     inline expected <process, std::string> process_builder::spawn() noexcept {
-        if (args_.empty()) {
-            return make_unexpected("No command specified");
-        }
-
-        // Convert arguments to C-style array
-        std::vector <const char*> argv;
-        argv.reserve(args_.size() + 1);
-        for (const auto& arg : args_) {
-            argv.push_back(arg.c_str());
-        }
-        argv.push_back(nullptr);
-
-        // Set up process properties
-        SDL_PropertiesID props = SDL_CreateProperties();
-        if (props == 0) {
-            return make_unexpected(get_error());
-        }
-
-        // Auto-cleanup properties
-        struct PropertiesGuard {
-            SDL_PropertiesID id;
-            ~PropertiesGuard() { SDL_DestroyProperties(id); }
-        } guard{props};
-
-        // Set command arguments
-        SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER,
-                               argv.data());
-
-        // Configure I/O redirection
-        SDL_IOStream* stdin_stream = nullptr;
-        SDL_IOStream* stdout_stream = nullptr;
-
-        // Configure stdin
-        switch (stdin_mode_) {
-            case process_io::null:
-                SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER,
-                                      SDL_PROCESS_STDIO_NULL);
-                break;
-            case process_io::app:
-                SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER,
-                                      SDL_PROCESS_STDIO_APP);
-                break;
-            default:
-                // Inherited (default)
-                break;
-        }
-
-        // Configure stdout
-        switch (stdout_mode_) {
-            case process_io::null:
-                SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER,
-                                      SDL_PROCESS_STDIO_NULL);
-                break;
-            case process_io::app:
-                SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER,
-                                      SDL_PROCESS_STDIO_APP);
-                break;
-            default:
-                // Inherited (default)
-                break;
-        }
-
-        // Configure stderr
-        switch (stderr_mode_) {
-            case process_io::null:
-                SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER,
-                                      SDL_PROCESS_STDIO_NULL);
-                break;
-            case process_io::app:
-                SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER,
-                                      SDL_PROCESS_STDIO_APP);
-                break;
-            case process_io::redirect:
-                SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER,
-                                      SDL_PROCESS_STDIO_REDIRECT);
-                break;
-            default:
-                // Inherited (default)
-                break;
-        }
-
-        // Set environment variables
-        std::vector <std::string> env_strings; // Move outside to keep strings alive
-        if (!env_.empty() || env_cleared_) {
-            std::vector <const char*> env_array;
-
-            if (!env_cleared_) {
-                // Start with current environment
-                // Note: SDL will copy the current environment by default
+        try {
+            if (args_.empty()) {
+                return make_unexpectedf("No command specified");
             }
 
-            // Add custom environment variables
-            env_strings.reserve(env_.size());
+            // Convert arguments to C-style array
+            std::vector <const char*> argv;
+            argv.reserve(args_.size() + 1);
+            for (const auto& arg : args_) {
+                argv.push_back(arg.c_str());
+            }
+            argv.push_back(nullptr);
 
-            for (const auto& [key, value] : env_) {
-                env_strings.push_back(key + "=" + value);
+            // Set up process properties
+            SDL_PropertiesID props = SDL_CreateProperties();
+            if (props == 0) {
+                return make_unexpectedf(get_error());
             }
 
-            for (const auto& env_str : env_strings) {
-                env_array.push_back(env_str.c_str());
-            }
-            env_array.push_back(nullptr);
+            // Auto-cleanup properties
+            struct PropertiesGuard {
+                SDL_PropertiesID id;
+                ~PropertiesGuard() { SDL_DestroyProperties(id); }
+            } guard{props};
 
-            if (env_array.size() > 1) {
-                // More than just the null terminator
+            // Set command arguments
+            SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER,
+                                   argv.data());
+
+            // Configure I/O redirection
+            SDL_IOStream* stdin_stream = nullptr;
+            SDL_IOStream* stdout_stream = nullptr;
+
+            // Configure stdin
+            switch (stdin_mode_) {
+                case process_io::null:
+                    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER,
+                                          SDL_PROCESS_STDIO_NULL);
+                    break;
+                case process_io::app:
+                    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER,
+                                          SDL_PROCESS_STDIO_APP);
+                    break;
+                default:
+                    // Inherited (default)
+                    break;
+            }
+
+            // Configure stdout
+            switch (stdout_mode_) {
+                case process_io::null:
+                    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER,
+                                          SDL_PROCESS_STDIO_NULL);
+                    break;
+                case process_io::app:
+                    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER,
+                                          SDL_PROCESS_STDIO_APP);
+                    break;
+                default:
+                    // Inherited (default)
+                    break;
+            }
+
+            // Configure stderr
+            switch (stderr_mode_) {
+                case process_io::null:
+                    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER,
+                                          SDL_PROCESS_STDIO_NULL);
+                    break;
+                case process_io::app:
+                    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER,
+                                          SDL_PROCESS_STDIO_APP);
+                    break;
+                case process_io::redirect:
+                    SDL_SetNumberProperty(props, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER,
+                                          SDL_PROCESS_STDIO_REDIRECT);
+                    break;
+                default:
+                    // Inherited (default)
+                    break;
+            }
+
+            if (env_) {
                 SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ENVIRONMENT_POINTER,
-                                       env_array.data());
+                                       env_.get());
             }
-        }
 
-        // Create the process
-        SDL_Process* handle = SDL_CreateProcessWithProperties(props);
-        if (!handle) {
-            return make_unexpected(get_error());
-        }
-
-        process proc;
-        proc.handle_ = handle;
-
-        // Get I/O streams if requested
-        if (stdin_mode_ == process_io::app) {
-            stdin_stream = SDL_GetProcessInput(handle);
-            if (stdin_stream) {
-                proc.stdin_.reset(stdin_stream);
+            // Create the process
+            SDL_Process* handle = SDL_CreateProcessWithProperties(props);
+            if (!handle) {
+                return make_unexpectedf(get_error());
             }
-        }
 
-        if (stdout_mode_ == process_io::app) {
-            stdout_stream = SDL_GetProcessOutput(handle);
-            if (stdout_stream) {
-                proc.stdout_.reset(stdout_stream);
+            process proc;
+            proc.handle_ = handle;
+
+            // Get I/O streams if requested
+            if (stdin_mode_ == process_io::app) {
+                stdin_stream = SDL_GetProcessInput(handle);
+                if (stdin_stream) {
+                    proc.stdin_.reset(stdin_stream);
+                }
             }
-        }
 
-        // Note: SDL3 doesn't appear to have a separate stderr stream function
-        // stderr might be combined with stdout or need different handling
-        if (stderr_mode_ == process_io::app) {
-            // For now, leave stderr as null since SDL3 doesn't provide
-            // a separate function for getting stderr
-            // TODO: Check SDL3 documentation for proper stderr handling
-        }
+            if (stdout_mode_ == process_io::app) {
+                stdout_stream = SDL_GetProcessOutput(handle);
+                if (stdout_stream) {
+                    proc.stdout_.reset(stdout_stream);
+                }
+            }
 
-        return proc;
+            // Note: SDL3 doesn't appear to have a separate stderr stream function
+            // stderr might be combined with stdout or need different handling
+            if (stderr_mode_ == process_io::app) {
+                // For now, leave stderr as null since SDL3 doesn't provide
+                // a separate function for getting stderr
+                // TODO: Check SDL3 documentation for proper stderr handling
+            }
+
+            return proc;
+        } catch (const std::bad_alloc&) {
+            return make_unexpectedf("Out of memory");
+        } catch (const std::exception& e) {
+            return make_unexpectedf(e.what());
+        } catch (...) {
+            return make_unexpectedf("Unknown error");
+        }
     }
 
     /**
@@ -722,12 +713,12 @@ namespace sdlpp {
         const std::vector <std::string>& args) noexcept {
         auto proc_result = process::create(args);
         if (!proc_result) {
-            return make_unexpected(proc_result.error());
+            return make_unexpectedf(proc_result.error());
         }
 
         auto status = proc_result.value().wait();
         if (!status) {
-            return make_unexpected("Failed to wait for process");
+            return make_unexpectedf("Failed to wait for process");
         }
 
         return status.value();
@@ -747,7 +738,7 @@ namespace sdlpp {
                            .spawn();
 
         if (!proc_result) {
-            return make_unexpected(proc_result.error());
+            return make_unexpectedf(proc_result.error());
         }
 
         auto& proc = proc_result.value();
@@ -762,7 +753,7 @@ namespace sdlpp {
         // Wait for completion
         auto status = proc.wait();
         if (!status) {
-            return make_unexpected("Failed to wait for process");
+            return make_unexpectedf("Failed to wait for process");
         }
 
         return std::make_pair(status.value(), std::move(output));

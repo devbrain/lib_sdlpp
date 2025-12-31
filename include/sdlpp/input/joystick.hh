@@ -252,7 +252,7 @@ namespace sdlpp {
             static expected <joystick, std::string> open(joystick_id instance_id) {
                 auto* j = SDL_OpenJoystick(instance_id);
                 if (!j) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return joystick(j);
             }
@@ -305,10 +305,10 @@ namespace sdlpp {
              */
             expected <void, std::string> set_player_index(int player_index) {
                 if (!ptr) {
-                    return make_unexpected("Invalid joystick");
+                    return make_unexpectedf("Invalid joystick");
                 }
                 if (!SDL_SetJoystickPlayerIndex(ptr.get(), player_index)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -525,10 +525,10 @@ namespace sdlpp {
                                                 uint16_t high_frequency_rumble,
                                                 uint32_t duration_ms) {
                 if (!ptr) {
-                    return make_unexpected("Invalid joystick");
+                    return make_unexpectedf("Invalid joystick");
                 }
                 if (!SDL_RumbleJoystick(ptr.get(), low_frequency_rumble, high_frequency_rumble, duration_ms)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -545,10 +545,10 @@ namespace sdlpp {
                                                          uint16_t right_rumble,
                                                          uint32_t duration_ms) {
                 if (!ptr) {
-                    return make_unexpected("Invalid joystick");
+                    return make_unexpectedf("Invalid joystick");
                 }
                 if (!SDL_RumbleJoystickTriggers(ptr.get(), left_rumble, right_rumble, duration_ms)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -563,10 +563,10 @@ namespace sdlpp {
              */
             expected <void, std::string> set_led(uint8_t red, uint8_t green, uint8_t blue) {
                 if (!ptr) {
-                    return make_unexpected("Invalid joystick");
+                    return make_unexpectedf("Invalid joystick");
                 }
                 if (!SDL_SetJoystickLED(ptr.get(), red, green, blue)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -579,10 +579,10 @@ namespace sdlpp {
              */
             expected <void, std::string> send_effect(std::span <const uint8_t> data) {
                 if (!ptr) {
-                    return make_unexpected("Invalid joystick");
+                    return make_unexpectedf("Invalid joystick");
                 }
                 if (!SDL_SendJoystickEffect(ptr.get(), data.data(), static_cast <int>(data.size()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -640,7 +640,7 @@ namespace sdlpp {
 
         SDL_JoystickID id = SDL_AttachVirtualJoystick(&sdl_desc);
         if (id == 0) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return id;
     }
@@ -653,7 +653,7 @@ namespace sdlpp {
      */
     inline expected <void, std::string> detach_virtual_joystick(joystick_id instance_id) {
         if (!SDL_DetachVirtualJoystick(instance_id)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return {};
     }
@@ -668,7 +668,7 @@ namespace sdlpp {
      */
     inline expected <void, std::string> set_virtual_joystick_axis(SDL_Joystick* joystick, int axis, int16_t value) {
         if (!SDL_SetJoystickVirtualAxis(joystick, axis, value)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return {};
     }
@@ -685,7 +685,7 @@ namespace sdlpp {
     inline expected <void, std::string> set_virtual_joystick_ball(SDL_Joystick* joystick, int ball, int16_t xrel,
                                                                   int16_t yrel) {
         if (!SDL_SetJoystickVirtualBall(joystick, ball, xrel, yrel)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return {};
     }
@@ -700,7 +700,7 @@ namespace sdlpp {
      */
     inline expected <void, std::string> set_virtual_joystick_button(SDL_Joystick* joystick, int button, bool down) {
         if (!SDL_SetJoystickVirtualButton(joystick, button, down)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return {};
     }
@@ -716,7 +716,7 @@ namespace sdlpp {
     inline expected <void, std::string>
     set_virtual_joystick_hat(SDL_Joystick* joystick, int hat, hat_position position) {
         if (!SDL_SetJoystickVirtualHat(joystick, hat, static_cast <uint8_t>(position))) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return {};
     }

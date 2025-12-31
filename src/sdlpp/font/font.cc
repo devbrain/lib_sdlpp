@@ -74,7 +74,7 @@ font& font::operator=(font&&) noexcept = default;
 expected<font, std::string> font::load(const std::filesystem::path& path, std::size_t index) {
     auto data = read_file(path);
     if (data.empty()) {
-        return make_unexpected("Failed to read file: " + path.string());
+        return make_unexpectedf("Failed to read file:", path.string());
     }
 
     auto result = load(data, index);
@@ -92,12 +92,12 @@ expected<font, std::string> font::load(std::span<const std::uint8_t> data, std::
     f.m_container_info = onyx_font::font_factory::analyze(data);
 
     if (f.m_container_info.fonts.empty()) {
-        return make_unexpected("No fonts found in data");
+        return make_unexpectedf("No fonts found in data");
     }
 
     if (index >= f.m_container_info.fonts.size()) {
-        return make_unexpected("Font index out of range: " + std::to_string(index) +
-                               " (max: " + std::to_string(f.m_container_info.fonts.size() - 1) + ")");
+        return make_unexpectedf(
+            "Font index out of range:", index, "(max:", f.m_container_info.fonts.size() - 1, ")");
     }
 
     const auto& entry = f.m_container_info.fonts[index];
@@ -133,7 +133,7 @@ expected<font, std::string> font::load(std::span<const std::uint8_t> data, std::
             }
 
             default:
-                return make_unexpected("Unknown font type");
+                return make_unexpectedf("Unknown font type");
         }
 
         f.m_impl->rasterizer = std::make_unique<onyx_font::text_rasterizer>(
@@ -142,7 +142,7 @@ expected<font, std::string> font::load(std::span<const std::uint8_t> data, std::
         f.m_valid = true;
 
     } catch (const std::exception& e) {
-        return make_unexpected(std::string("Failed to load font: ") + e.what());
+        return make_unexpectedf("Failed to load font:", e.what());
     }
 
     return f;
@@ -179,7 +179,7 @@ expected<font, std::string> font::load_raw(
         f.m_container_info.fonts.push_back(entry);
 
     } catch (const std::exception& e) {
-        return make_unexpected(std::string("Failed to load raw font: ") + e.what());
+        return make_unexpectedf("Failed to load raw font:", e.what());
     }
 
     return f;
@@ -322,11 +322,11 @@ expected<surface, std::string> font::render_text(
     const color& bg) const {
 
     if (!m_impl || !m_impl->rasterizer) {
-        return make_unexpected("Font not initialized");
+        return make_unexpectedf("Font not initialized for render_text");
     }
 
     if (text.empty()) {
-        return make_unexpected("Empty text");
+        return make_unexpectedf("Empty text passed to render_text");
     }
 
     // Measure the text
@@ -335,14 +335,16 @@ expected<surface, std::string> font::render_text(
     int height = static_cast<int>(std::ceil(extents.height));
 
     if (width <= 0 || height <= 0) {
-        return make_unexpected("Invalid text dimensions");
+        return make_unexpectedf(
+            "Invalid text dimensions in render_text:", width, "x", height);
     }
 
     // Create surface - use ABGR8888 which stores bytes as R,G,B,A on little-endian
     // This matches surface_raster_target::put_pixel's byte order expectations
     auto surf_result = surface::create_rgb(width, height, pixel_format_enum::ABGR8888);
     if (!surf_result) {
-        return make_unexpected("Failed to create surface: " + surf_result.error());
+        return make_unexpectedf(
+            "Failed to create surface in render_text:", surf_result.error());
     }
 
     auto& surf = *surf_result;
@@ -365,7 +367,7 @@ expected<texture, std::string> font::render_texture(
 
     auto surf_result = render_text(text, fg, {0, 0, 0, 0});
     if (!surf_result) {
-        return make_unexpected(surf_result.error());
+        return make_unexpectedf(surf_result.error());
     }
 
     return texture::create(renderer, *surf_result);
@@ -422,7 +424,7 @@ std::vector<std::string> supported_formats() {
 expected<onyx_font::container_info, std::string> analyze(const std::filesystem::path& path) {
     auto data = read_file(path);
     if (data.empty()) {
-        return make_unexpected("Failed to read file: " + path.string());
+        return make_unexpectedf("Failed to read file:", path.string());
     }
 
     return onyx_font::font_factory::analyze(data);

@@ -199,11 +199,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_title(const std::string& title) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_SetWindowTitle(ptr.get(), title.c_str())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -232,12 +232,12 @@ namespace sdlpp {
             [[nodiscard]] expected <P, std::string> get_position() const
                 requires (!std::is_void_v<P>) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 int x, y;
                 if (!SDL_GetWindowPosition(ptr.get(), &x, &y)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return P{x, y};
@@ -251,11 +251,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_position(int x, int y) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_SetWindowPosition(ptr.get(), x, y)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -286,12 +286,12 @@ namespace sdlpp {
             [[nodiscard]] expected <S, std::string> get_size() const
                 requires (!std::is_void_v<S>) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 int w, h;
                 if (!SDL_GetWindowSize(ptr.get(), &w, &h)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return S{w, h};
@@ -303,12 +303,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <window_dimensions, std::string> get_dimensions() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 int w, h;
                 if (!SDL_GetWindowSize(ptr.get(), &w, &h)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return window_dimensions(w, h);
@@ -321,11 +321,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_size(const window_dimensions& dims) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_SetWindowSize(ptr.get(), dims.width, dims.height)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -367,12 +367,12 @@ namespace sdlpp {
             [[nodiscard]] expected <S, std::string> get_minimum_size() const
                 requires (!std::is_void_v<S>) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 int w, h;
                 if (!SDL_GetWindowMinimumSize(ptr.get(), &w, &h)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return S{w, h};
@@ -387,13 +387,13 @@ namespace sdlpp {
             template<size_like S>
             expected <void, std::string> set_minimum_size(const S& min_size) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_SetWindowMinimumSize(ptr.get(), 
                     static_cast<int>(get_width(min_size)), 
                     static_cast<int>(get_height(min_size)))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -407,11 +407,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_minimum_size(int width, int height) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_SetWindowMinimumSize(ptr.get(), width, height)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -432,12 +432,12 @@ namespace sdlpp {
             [[nodiscard]] expected <S, std::string> get_maximum_size() const
                 requires (!std::is_void_v<S>) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 int w, h;
                 if (!SDL_GetWindowMaximumSize(ptr.get(), &w, &h)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return S{w, h};
@@ -452,13 +452,13 @@ namespace sdlpp {
             template<size_like S>
             expected <void, std::string> set_maximum_size(const S& max_size) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_SetWindowMaximumSize(ptr.get(), 
                     static_cast<int>(get_width(max_size)), 
                     static_cast<int>(get_height(max_size)))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -472,11 +472,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_maximum_size(int width, int height) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_SetWindowMaximumSize(ptr.get(), width, height)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -496,11 +496,11 @@ namespace sdlpp {
              */
             expected <void, std::string> show() {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_ShowWindow(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -512,11 +512,11 @@ namespace sdlpp {
              */
             expected <void, std::string> hide() {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_HideWindow(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -528,11 +528,11 @@ namespace sdlpp {
              */
             expected <void, std::string> raise() {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_RaiseWindow(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -544,11 +544,11 @@ namespace sdlpp {
              */
             expected <void, std::string> maximize() {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_MaximizeWindow(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -560,11 +560,11 @@ namespace sdlpp {
              */
             expected <void, std::string> minimize() {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_MinimizeWindow(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -576,11 +576,11 @@ namespace sdlpp {
              */
             expected <void, std::string> restore() {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_RestoreWindow(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -593,11 +593,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_fullscreen(fullscreen_mode mode) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_SetWindowFullscreen(ptr.get(), mode == fullscreen_mode::fullscreen)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -618,11 +618,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_resizable(bool resizable) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_SetWindowResizable(ptr.get(), resizable)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -635,11 +635,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_always_on_top(bool on_top) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_SetWindowAlwaysOnTop(ptr.get(), on_top)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -664,11 +664,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_opacity(float opacity) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_SetWindowOpacity(ptr.get(), opacity)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -680,12 +680,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <pixel_format_enum, std::string> get_pixel_format() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 SDL_PixelFormat format = SDL_GetWindowPixelFormat(ptr.get());
                 if (format == SDL_PIXELFORMAT_UNKNOWN) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return static_cast <pixel_format_enum>(format);
@@ -698,11 +698,11 @@ namespace sdlpp {
              */
             expected <void, std::string> flash(SDL_FlashOperation operation) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_FlashWindow(ptr.get(), operation)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -715,15 +715,15 @@ namespace sdlpp {
              */
             expected <void, std::string> set_icon(SDL_Surface* icon) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!icon) {
-                    return make_unexpected("Invalid icon surface");
+                    return make_unexpectedf("Invalid icon surface");
                 }
 
                 if (!SDL_SetWindowIcon(ptr.get(), icon)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -735,12 +735,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <SDL_DisplayID, std::string> get_display() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 SDL_DisplayID display = SDL_GetDisplayForWindow(ptr.get());
                 if (!display) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return display;
@@ -753,12 +753,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <SDL_Surface*, std::string> get_surface() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 SDL_Surface* surface = SDL_GetWindowSurface(ptr.get());
                 if (!surface) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return surface;
@@ -770,11 +770,11 @@ namespace sdlpp {
              */
             expected <void, std::string> update_surface() {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_UpdateWindowSurface(ptr.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -795,7 +795,7 @@ namespace sdlpp {
             }
             expected <void, std::string> update_surface_rects(const Container& update_rects) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 // Convert to SDL_Rect array
@@ -808,7 +808,7 @@ namespace sdlpp {
                 
                 if (!SDL_UpdateWindowSurfaceRects(ptr.get(), sdl_rects.data(),
                                                   static_cast <int>(sdl_rects.size()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -821,12 +821,12 @@ namespace sdlpp {
              */
             expected <void, std::string> update_surface_rects(std::span <const SDL_Rect> update_rects) {
                 if (!ptr) {
-                    return make_unexpected("Invalid window");
+                    return make_unexpectedf("Invalid window");
                 }
 
                 if (!SDL_UpdateWindowSurfaceRects(ptr.get(), update_rects.data(),
                                                   static_cast <int>(update_rects.size()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -883,7 +883,7 @@ namespace sdlpp {
                 );
 
                 if (!window) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return sdlpp::window(window);
@@ -913,7 +913,7 @@ namespace sdlpp {
                 );
 
                 if (!window) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return sdlpp::window(window);
@@ -958,7 +958,7 @@ namespace sdlpp {
 
                 auto pos_result = window_result->set_position(pos);
                 if (!pos_result) {
-                    return make_unexpected(pos_result.error());
+                    return make_unexpectedf(pos_result.error());
                 }
 
                 return window_result;
@@ -986,7 +986,7 @@ namespace sdlpp {
 
                 auto pos_result = window_result->set_position(x, y);
                 if (!pos_result) {
-                    return make_unexpected(pos_result.error());
+                    return make_unexpectedf(pos_result.error());
                 }
 
                 return window_result;

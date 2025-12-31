@@ -11,6 +11,7 @@
 #include <sdlpp/detail/compiler.hh>
 #include <version>
 #include <string>
+#include <failsafe/detail/string_utils.hh>
 
 // Check for std::expected availability (C++23 feature)
 #if defined(__cpp_lib_expected) && __cpp_lib_expected >= 202211L
@@ -99,6 +100,15 @@ namespace sdlpp {
      * @brief Common result type for operations that don't return a value
      */
     using result = expected <void, error_type>;
+
+    /**
+     * @brief Create an unexpected value with formatted message arguments
+     */
+    template<typename... Args>
+    constexpr auto make_unexpectedf(Args&&... args) {
+        return make_unexpected(
+            failsafe::detail::build_message(std::forward<Args>(args)...));
+    }
 
     /**
      * @brief Check which expected implementation is being used

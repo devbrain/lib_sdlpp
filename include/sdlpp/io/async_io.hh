@@ -95,7 +95,7 @@ namespace sdlpp {
             [[nodiscard]] static expected <async_io_queue, std::string> create() noexcept {
                 auto* raw = SDL_CreateAsyncIOQueue();
                 if (!raw) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return async_io_queue{queue_ptr{raw}};
             }
@@ -228,7 +228,7 @@ namespace sdlpp {
                 async_io_queue& queue) noexcept {
                 auto* raw = SDL_AsyncIOFromFile(path.string().c_str(), to_string(mode));
                 if (!raw) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return async_io{async_io_ptr{raw}, queue};
             }
@@ -255,11 +255,11 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <std::int64_t, std::string> size() const noexcept {
                 if (!ptr_) {
-                    return make_unexpected("Invalid async I/O handle");
+                    return make_unexpectedf("Invalid async I/O handle");
                 }
                 std::int64_t size = SDL_GetAsyncIOSize(ptr_.get());
                 if (size < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return size;
             }
@@ -275,26 +275,30 @@ namespace sdlpp {
                 std::uint64_t offset,
                 void* buffer,
                 std::uint64_t size) noexcept {
-                if (!ptr_ || !queue_) {
+                try {
+                    if (!ptr_ || !queue_) {
+                        return nullptr;
+                    }
+
+                    auto handle = std::make_shared <task_handle>(task_handle{
+                        async_io_task_type::read,
+                        static_cast <std::size_t>(size),
+                        std::chrono::steady_clock::now()
+                    });
+
+                    // Create a copy of the shared_ptr to pass as user data
+                    auto* user_data = new std::shared_ptr <void>(handle);
+
+                    if (!SDL_ReadAsyncIO(ptr_.get(), buffer, offset, size,
+                                         queue_->get(), user_data)) {
+                        delete user_data;
+                        return nullptr;
+                    }
+
+                    return handle;
+                } catch (...) {
                     return nullptr;
                 }
-
-                auto handle = std::make_shared <task_handle>(task_handle{
-                    async_io_task_type::read,
-                    static_cast <std::size_t>(size),
-                    std::chrono::steady_clock::now()
-                });
-
-                // Create a copy of the shared_ptr to pass as user data
-                auto* user_data = new std::shared_ptr <void>(handle);
-
-                if (!SDL_ReadAsyncIO(ptr_.get(), buffer, offset, size,
-                                     queue_->get(), user_data)) {
-                    delete user_data;
-                    return nullptr;
-                }
-
-                return handle;
             }
 
             /**
@@ -308,8 +312,12 @@ namespace sdlpp {
                 std::uint64_t offset,
                 std::uint64_t size,
                 std::vector <std::uint8_t>& buffer) noexcept {
-                buffer.resize(static_cast <std::size_t>(size));
-                return read_async(offset, buffer.data(), size);
+                try {
+                    buffer.resize(static_cast <std::size_t>(size));
+                    return read_async(offset, buffer.data(), size);
+                } catch (...) {
+                    return nullptr;
+                }
             }
 
             /**
@@ -323,26 +331,30 @@ namespace sdlpp {
                 std::uint64_t offset,
                 const void* buffer,
                 std::uint64_t size) noexcept {
-                if (!ptr_ || !queue_) {
+                try {
+                    if (!ptr_ || !queue_) {
+                        return nullptr;
+                    }
+
+                    auto handle = std::make_shared <task_handle>(task_handle{
+                        async_io_task_type::write,
+                        static_cast <std::size_t>(size),
+                        std::chrono::steady_clock::now()
+                    });
+
+                    // Create a copy of the shared_ptr to pass as user data
+                    auto* user_data = new std::shared_ptr <void>(handle);
+
+                    if (!SDL_WriteAsyncIO(ptr_.get(), const_cast <void*>(buffer),
+                                          offset, size, queue_->get(), user_data)) {
+                        delete user_data;
+                        return nullptr;
+                    }
+
+                    return handle;
+                } catch (...) {
                     return nullptr;
                 }
-
-                auto handle = std::make_shared <task_handle>(task_handle{
-                    async_io_task_type::write,
-                    static_cast <std::size_t>(size),
-                    std::chrono::steady_clock::now()
-                });
-
-                // Create a copy of the shared_ptr to pass as user data
-                auto* user_data = new std::shared_ptr <void>(handle);
-
-                if (!SDL_WriteAsyncIO(ptr_.get(), const_cast <void*>(buffer),
-                                      offset, size, queue_->get(), user_data)) {
-                    delete user_data;
-                    return nullptr;
-                }
-
-                return handle;
             }
 
             /**
@@ -355,7 +367,11 @@ namespace sdlpp {
             [[nodiscard]] std::shared_ptr <task_handle> write_async(
                 std::uint64_t offset,
                 std::span <const T> data) noexcept {
-                return write_async(offset, data.data(), data.size_bytes());
+                try {
+                    return write_async(offset, data.data(), data.size_bytes());
+                } catch (...) {
+                    return nullptr;
+                }
             }
 
             /**
@@ -365,26 +381,30 @@ namespace sdlpp {
              */
             [[nodiscard]] std::shared_ptr <task_handle> close_async(
                 bool wait_pending = true) noexcept {
-                if (!ptr_ || !queue_) {
+                try {
+                    if (!ptr_ || !queue_) {
+                        return nullptr;
+                    }
+
+                    auto handle = std::make_shared <task_handle>(task_handle{
+                        async_io_task_type::close,
+                        0,
+                        std::chrono::steady_clock::now()
+                    });
+
+                    // Create a copy of the shared_ptr to pass as user data
+                    auto* user_data = new std::shared_ptr <void>(handle);
+
+                    if (!SDL_CloseAsyncIO(ptr_.release(), wait_pending,
+                                          queue_->get(), user_data)) {
+                        delete user_data;
+                        return nullptr;
+                    }
+
+                    return handle;
+                } catch (...) {
                     return nullptr;
                 }
-
-                auto handle = std::make_shared <task_handle>(task_handle{
-                    async_io_task_type::close,
-                    0,
-                    std::chrono::steady_clock::now()
-                });
-
-                // Create a copy of the shared_ptr to pass as user data
-                auto* user_data = new std::shared_ptr <void>(handle);
-
-                if (!SDL_CloseAsyncIO(ptr_.release(), wait_pending,
-                                      queue_->get(), user_data)) {
-                    delete user_data;
-                    return nullptr;
-                }
-
-                return handle;
             }
 
             /**

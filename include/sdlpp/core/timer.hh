@@ -370,7 +370,7 @@ namespace sdlpp {
                 );
 
                 if (id == 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return timer_handle(id, std::move(data));
@@ -513,7 +513,7 @@ namespace sdlpp {
                 );
 
                 if (id == 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return timer_handle_ns(id, std::move(data));

@@ -97,7 +97,7 @@ namespace sdlpp {
                 const std::filesystem::path& path) noexcept {
                 SDL_SharedObject* handle = SDL_LoadObject(path.string().c_str());
                 if (!handle) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 shared_object obj;
@@ -130,12 +130,12 @@ namespace sdlpp {
                               "Template parameter must be a function type");
 
                 if (!handle_) {
-                    return make_unexpected("Shared object not loaded");
+                    return make_unexpectedf("Shared object not loaded");
                 }
 
                 SDL_FunctionPointer symbol = SDL_LoadFunction(handle_, name.c_str());
                 if (!symbol) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return reinterpret_cast <Func*>(reinterpret_cast <void*>(symbol));
@@ -152,12 +152,12 @@ namespace sdlpp {
             [[nodiscard]] expected <T*, std::string> get_data(
                 const std::string& name) const noexcept {
                 if (!handle_) {
-                    return make_unexpected("Shared object not loaded");
+                    return make_unexpectedf("Shared object not loaded");
                 }
 
                 SDL_FunctionPointer symbol = SDL_LoadFunction(handle_, name.c_str());
                 if (!symbol) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return reinterpret_cast <T*>(reinterpret_cast <void*>(symbol));
@@ -172,12 +172,12 @@ namespace sdlpp {
             [[nodiscard]] expected <void*, std::string> get_symbol(
                 const std::string& name) const noexcept {
                 if (!handle_) {
-                    return make_unexpected("Shared object not loaded");
+                    return make_unexpectedf("Shared object not loaded");
                 }
 
                 SDL_FunctionPointer symbol = SDL_LoadFunction(handle_, name.c_str());
                 if (!symbol) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return reinterpret_cast <void*>(symbol);
@@ -304,7 +304,7 @@ namespace sdlpp {
             [[nodiscard]] expected <void, std::string> load_from(
                 const shared_object& obj) noexcept {
                 if (!obj.is_valid()) {
-                    return make_unexpected("Invalid shared object");
+                    return make_unexpectedf("Invalid shared object");
                 }
 
                 return load_symbols(obj, std::make_index_sequence <
@@ -322,7 +322,7 @@ namespace sdlpp {
                 bool success = (load_symbol(obj, std::get <Is>(symbols), error) && ...);
 
                 if (!success) {
-                    return make_unexpected(error);
+                    return make_unexpectedf(error);
                 }
 
                 return {};

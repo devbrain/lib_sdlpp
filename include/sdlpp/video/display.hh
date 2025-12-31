@@ -166,12 +166,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <std::string, std::string> get_name() const {
                 if (!id) {
-                    return make_unexpected("Invalid display");
+                    return make_unexpectedf("Invalid display");
                 }
 
                 const char* name = SDL_GetDisplayName(id);
                 if (!name) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return std::string(name);
@@ -183,12 +183,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <display_mode, std::string> get_current_mode() const {
                 if (!id) {
-                    return make_unexpected("Invalid display");
+                    return make_unexpectedf("Invalid display");
                 }
 
                 const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(id);
                 if (!mode) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return display_mode::from_sdl(*mode);
@@ -200,12 +200,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <display_mode, std::string> get_desktop_mode() const {
                 if (!id) {
-                    return make_unexpected("Invalid display");
+                    return make_unexpectedf("Invalid display");
                 }
 
                 const SDL_DisplayMode* mode = SDL_GetDesktopDisplayMode(id);
                 if (!mode) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return display_mode::from_sdl(*mode);
@@ -217,13 +217,13 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <std::vector <display_mode>, std::string> get_fullscreen_modes() const {
                 if (!id) {
-                    return make_unexpected("Invalid display");
+                    return make_unexpectedf("Invalid display");
                 }
 
                 int count = 0;
                 SDL_DisplayMode** modes = SDL_GetFullscreenDisplayModes(id, &count);
                 if (!modes && count != 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 std::vector <display_mode> modes_vec;
@@ -252,7 +252,7 @@ namespace sdlpp {
                 float refresh_rate = 0.0f,
                 bool include_high_density_modes = false) const {
                 if (!id) {
-                    return make_unexpected("Invalid display");
+                    return make_unexpectedf("Invalid display");
                 }
 
                 SDL_DisplayMode closest;
@@ -260,7 +260,7 @@ namespace sdlpp {
                     id, width, height, refresh_rate, include_high_density_modes, &closest);
 
                 if (!found) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return display_mode::from_sdl(closest);
@@ -281,12 +281,12 @@ namespace sdlpp {
             [[nodiscard]] expected <R, std::string> get_bounds() const
                 requires (!std::is_void_v<R>) {
                 if (!id) {
-                    return make_unexpected("Invalid display");
+                    return make_unexpectedf("Invalid display");
                 }
 
                 SDL_Rect bounds;
                 if (!SDL_GetDisplayBounds(id, &bounds)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return R{bounds.x, bounds.y, bounds.w, bounds.h};
@@ -307,12 +307,12 @@ namespace sdlpp {
             [[nodiscard]] expected <R, std::string> get_usable_bounds() const
                 requires (!std::is_void_v<R>) {
                 if (!id) {
-                    return make_unexpected("Invalid display");
+                    return make_unexpectedf("Invalid display");
                 }
 
                 SDL_Rect bounds;
                 if (!SDL_GetDisplayUsableBounds(id, &bounds)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return R{bounds.x, bounds.y, bounds.w, bounds.h};
@@ -324,12 +324,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <float, std::string> get_content_scale() const {
                 if (!id) {
-                    return make_unexpected("Invalid display");
+                    return make_unexpectedf("Invalid display");
                 }
 
                 float scale = SDL_GetDisplayContentScale(id);
                 if (scale <= 0.0f) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return scale;
@@ -341,7 +341,7 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <display_orientation, std::string> get_current_orientation() const {
                 if (!id) {
-                    return make_unexpected("Invalid display");
+                    return make_unexpectedf("Invalid display");
                 }
 
                 SDL_DisplayOrientation orient = SDL_GetCurrentDisplayOrientation(id);
@@ -349,7 +349,7 @@ namespace sdlpp {
                     // Check if it's an actual error or just unknown
                     auto error = get_error();
                     if (!error.empty()) {
-                        return make_unexpected(error);
+                        return make_unexpectedf(error);
                     }
                 }
 
@@ -362,7 +362,7 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <display_orientation, std::string> get_natural_orientation() const {
                 if (!id) {
-                    return make_unexpected("Invalid display");
+                    return make_unexpectedf("Invalid display");
                 }
 
                 SDL_DisplayOrientation orient = SDL_GetNaturalDisplayOrientation(id);
@@ -370,7 +370,7 @@ namespace sdlpp {
                     // Check if it's an actual error or just unknown
                     auto error = get_error();
                     if (!error.empty()) {
-                        return make_unexpected(error);
+                        return make_unexpectedf(error);
                     }
                 }
 
@@ -383,12 +383,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <SDL_PropertiesID, std::string> get_properties() const {
                 if (!id) {
-                    return make_unexpected("Invalid display");
+                    return make_unexpectedf("Invalid display");
                 }
 
                 SDL_PropertiesID props = SDL_GetDisplayProperties(id);
                 if (!props) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return props;
@@ -420,7 +420,7 @@ namespace sdlpp {
                 SDL_DisplayID* ids = SDL_GetDisplays(&count);
 
                 if (!ids && count != 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 std::vector <display> displays_vec;
@@ -441,7 +441,7 @@ namespace sdlpp {
             static expected <display, std::string> get_primary_display() {
                 SDL_DisplayID id = SDL_GetPrimaryDisplay();
                 if (!id) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return display(id);
@@ -458,7 +458,7 @@ namespace sdlpp {
                 SDL_Point sdl_point{static_cast<int>(get_x(p)), static_cast<int>(get_y(p))};
                 SDL_DisplayID id = SDL_GetDisplayForPoint(&sdl_point);
                 if (!id) {
-                    return make_unexpected("No display found for point");
+                    return make_unexpectedf("No display found for point");
                 }
 
                 return display(id);
@@ -476,7 +476,7 @@ namespace sdlpp {
                                   static_cast<int>(get_width(r)), static_cast<int>(get_height(r))};
                 SDL_DisplayID id = SDL_GetDisplayForRect(&sdl_rect);
                 if (!id) {
-                    return make_unexpected("No display found for rectangle");
+                    return make_unexpectedf("No display found for rectangle");
                 }
 
                 return display(id);

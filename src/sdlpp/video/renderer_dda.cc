@@ -68,7 +68,7 @@ static void process_aa_pixel_batch(SDL_Renderer* renderer,
 
 expected<void, std::string> renderer::draw_line_aa(float x1, float y1, float x2, float y2) {
     if (!ptr) {
-        return make_unexpected("Invalid renderer");
+        return make_unexpectedf("Invalid renderer");
     }
     
     // Get current draw color
@@ -92,11 +92,11 @@ expected<void, std::string> renderer::draw_line_aa(float x1, float y1, float x2,
 
 expected<void, std::string> renderer::draw_line_thick(float x1, float y1, float x2, float y2, float width) {
     if (!ptr) {
-        return make_unexpected("Invalid renderer");
+        return make_unexpectedf("Invalid renderer");
     }
     
     if (width <= 0) {
-        return make_unexpected("Line width must be positive");
+        return make_unexpectedf("Line width must be positive");
     }
     
     // Use euler's thick line iterator with manual batching
@@ -118,11 +118,11 @@ expected<void, std::string> renderer::draw_line_thick(float x1, float y1, float 
 
 expected<void, std::string> renderer::draw_circle(int x, int y, int radius) {
     if (!ptr) {
-        return make_unexpected("Invalid renderer");
+        return make_unexpectedf("Invalid renderer");
     }
     
     if (radius < 0) {
-        return make_unexpected("Circle radius must be non-negative");
+        return make_unexpectedf("Circle radius must be non-negative");
     }
     
     if (radius == 0) {
@@ -146,11 +146,11 @@ expected<void, std::string> renderer::draw_circle(int x, int y, int radius) {
 
 expected<void, std::string> renderer::fill_circle(int x, int y, int radius) {
     if (!ptr) {
-        return make_unexpected("Invalid renderer");
+        return make_unexpectedf("Invalid renderer");
     }
     
     if (radius < 0) {
-        return make_unexpected("Circle radius must be non-negative");
+        return make_unexpectedf("Circle radius must be non-negative");
     }
     
     if (radius == 0) {
@@ -171,7 +171,7 @@ expected<void, std::string> renderer::fill_circle(int x, int y, int radius) {
                            static_cast<float>(span.y), 
                            static_cast<float>(span.x_end), 
                            static_cast<float>(span.y))) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
     }
     
@@ -180,11 +180,11 @@ expected<void, std::string> renderer::fill_circle(int x, int y, int radius) {
 
 expected<void, std::string> renderer::draw_ellipse(int x, int y, int rx, int ry) {
     if (!ptr) {
-        return make_unexpected("Invalid renderer");
+        return make_unexpectedf("Invalid renderer");
     }
     
     if (rx < 0 || ry < 0) {
-        return make_unexpected("Ellipse radii must be non-negative");
+        return make_unexpectedf("Ellipse radii must be non-negative");
     }
     
     if (rx == 0 && ry == 0) {
@@ -217,11 +217,11 @@ expected<void, std::string> renderer::draw_ellipse(int x, int y, int rx, int ry)
 
 expected<void, std::string> renderer::fill_ellipse(int x, int y, int rx, int ry) {
     if (!ptr) {
-        return make_unexpected("Invalid renderer");
+        return make_unexpectedf("Invalid renderer");
     }
     
     if (rx < 0 || ry < 0) {
-        return make_unexpected("Ellipse radii must be non-negative");
+        return make_unexpectedf("Ellipse radii must be non-negative");
     }
     
     if (rx == 0 && ry == 0) {
@@ -250,7 +250,7 @@ expected<void, std::string> renderer::fill_ellipse(int x, int y, int rx, int ry)
                            static_cast<float>(y_int), 
                            static_cast<float>(x_end), 
                            static_cast<float>(y_int))) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
     }
     
@@ -259,11 +259,11 @@ expected<void, std::string> renderer::fill_ellipse(int x, int y, int rx, int ry)
 
 expected<void, std::string> renderer::draw_ellipse_arc(int x, int y, int rx, int ry, float start_angle, float end_angle) {
     if (!ptr) {
-        return make_unexpected("Invalid renderer");
+        return make_unexpectedf("Invalid renderer");
     }
     
     if (rx < 0 || ry < 0) {
-        return make_unexpected("Ellipse radii must be non-negative");
+        return make_unexpectedf("Ellipse radii must be non-negative");
     }
     
     if (rx == 0 && ry == 0) {
@@ -299,7 +299,7 @@ expected<void, std::string> renderer::draw_ellipse_arc(int x, int y, int rx, int
 
 expected<void, std::string> renderer::draw_bezier_quad(float x0, float y0, float x1, float y1, float x2, float y2) {
     if (!ptr) {
-        return make_unexpected("Invalid renderer");
+        return make_unexpectedf("Invalid renderer");
     }
     
     // Use euler's quadratic bezier iterator with batch writer
@@ -331,7 +331,7 @@ expected<void, std::string> renderer::draw_bezier_quad(float x0, float y0, float
 expected<void, std::string> renderer::draw_bezier_cubic(float x0, float y0, float x1, float y1, 
                                                        float x2, float y2, float x3, float y3) {
     if (!ptr) {
-        return make_unexpected("Invalid renderer");
+        return make_unexpectedf("Invalid renderer");
     }
     
     // Use euler's cubic bezier iterator with batch writer

@@ -190,8 +190,12 @@ namespace sdlpp {
                                                         property_cleanup_func cleanup,
                                                         void* userdata = nullptr) {
                 auto* data = new cleanup_data{std::move(cleanup), userdata};
-                return SDL_SetPointerPropertyWithCleanup(id, name.c_str(), value,
-                                                         cleanup_data::sdl_cleanup, data);
+                if (!SDL_SetPointerPropertyWithCleanup(id, name.c_str(), value,
+                                                       cleanup_data::sdl_cleanup, data)) {
+                    delete data;
+                    return false;
+                }
+                return true;
             }
 
             /**
@@ -472,12 +476,12 @@ namespace sdlpp {
             [[nodiscard]] static expected <properties, std::string> create() {
                 // Runtime check (in case of dynamic linking with older SDL)
                 if (!version_info::features::available_at_runtime(3, 2, 0)) {
-                    return make_unexpected("SDL Properties API requires SDL 3.2.0 or later at runtime");
+                    return make_unexpectedf("SDL Properties API requires SDL 3.2.0 or later at runtime");
                 }
 
                 SDL_PropertiesID id = SDL_CreateProperties();
                 if (id == 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return properties(id);
             }
@@ -542,7 +546,7 @@ namespace sdlpp {
 
                 for (const auto& [name, value] : values) {
                     if (!props->set(name, value)) {
-                        return make_unexpected("Failed to set property: " + name);
+                        return make_unexpectedf("Failed to set property:", name);
                     }
                 }
 

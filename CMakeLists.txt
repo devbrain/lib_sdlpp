@@ -50,6 +50,10 @@ endif()
 option(SDLPP_WITH_IMAGE "Enable onyx_image integration for image loading" ON)
 option(SDLPP_WITH_FONT  "Enable onyx_font integration for text rendering" ON)
 
+# Datascript is pulled in via dependencies (e.g., onyx_font). Build it static to
+# avoid hidden-visibility export issues in its shared library.
+set(NEUTRINO_DATASCRIPT_BUILD_SHARED OFF CACHE BOOL "Build datascript as a static library")
+
 # =============================================================================
 # C++ Standard
 # =============================================================================
@@ -58,6 +62,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Ensure PIC for object/static libs pulled in via FetchContent (e.g., onyx_image_stb).
 # Symbol visibility (hide all by default, like Windows)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN YES)

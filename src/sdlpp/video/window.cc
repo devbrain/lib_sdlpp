@@ -14,12 +14,12 @@
 namespace sdlpp {
     expected <renderer, std::string> window::create_renderer(const char* driver_name) const {
         if (!ptr) {
-            return make_unexpected("Invalid window");
+            return make_unexpectedf("Invalid window");
         }
 
         SDL_Renderer* r = SDL_CreateRenderer(ptr.get(), driver_name);
         if (!r) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return renderer(r);

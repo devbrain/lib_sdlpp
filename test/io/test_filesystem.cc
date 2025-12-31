@@ -28,7 +28,11 @@ TEST_SUITE("filesystem") {
             CHECK(fs::is_directory(*result));
             
             // Cleanup
-            fs::remove_all(*result);
+            std::error_code ec;
+            fs::remove_all(*result, ec);
+            if (ec) {
+                MESSAGE("Failed to remove pref path: ", ec.message());
+            }
         }
     }
 

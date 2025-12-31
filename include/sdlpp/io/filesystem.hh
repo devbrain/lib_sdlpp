@@ -60,7 +60,7 @@ namespace sdlpp {
         [[nodiscard]] inline expected <std::filesystem::path, std::string> get_base_path() noexcept {
             const char* path = SDL_GetBasePath();
             if (!path) {
-                return make_unexpected(SDL_GetError());
+                return make_unexpectedf(SDL_GetError());
             }
             return std::filesystem::path{path};
         }
@@ -71,7 +71,7 @@ namespace sdlpp {
 
             path_ptr path{SDL_GetPrefPath(org.c_str(), app.c_str())};
             if (!path) {
-                return make_unexpected(SDL_GetError());
+                return make_unexpectedf(SDL_GetError());
             }
             return std::filesystem::path{path.get()};
         }
@@ -80,7 +80,7 @@ namespace sdlpp {
             folder_type folder) noexcept {
             const char* path = SDL_GetUserFolder(static_cast <SDL_Folder>(folder));
             if (!path) {
-                return make_unexpected(SDL_GetError());
+                return make_unexpectedf(SDL_GetError());
             }
             return std::filesystem::path{path};
         }
@@ -90,7 +90,7 @@ namespace sdlpp {
 
             path_ptr path{SDL_GetCurrentDirectory()};
             if (!path) {
-                return make_unexpected(SDL_GetError());
+                return make_unexpectedf(SDL_GetError());
             }
             return std::filesystem::path{path.get()};
         }
@@ -98,7 +98,7 @@ namespace sdlpp {
         [[nodiscard]] inline expected <void, std::string> create_directory(
             const std::filesystem::path& path) noexcept {
             if (!SDL_CreateDirectory(path.string().c_str())) {
-                return make_unexpected(SDL_GetError());
+                return make_unexpectedf(SDL_GetError());
             }
             return {};
         }
@@ -106,7 +106,7 @@ namespace sdlpp {
         [[nodiscard]] inline expected <void, std::string> remove_path(
             const std::filesystem::path& path) noexcept {
             if (!SDL_RemovePath(path.string().c_str())) {
-                return make_unexpected(SDL_GetError());
+                return make_unexpectedf(SDL_GetError());
             }
             return {};
         }
@@ -115,7 +115,7 @@ namespace sdlpp {
             const std::filesystem::path& old_path,
             const std::filesystem::path& new_path) noexcept {
             if (!SDL_RenamePath(old_path.string().c_str(), new_path.string().c_str())) {
-                return make_unexpected(SDL_GetError());
+                return make_unexpectedf(SDL_GetError());
             }
             return {};
         }
@@ -124,7 +124,7 @@ namespace sdlpp {
             const std::filesystem::path& old_path,
             const std::filesystem::path& new_path) noexcept {
             if (!SDL_CopyFile(old_path.string().c_str(), new_path.string().c_str())) {
-                return make_unexpected(SDL_GetError());
+                return make_unexpectedf(SDL_GetError());
             }
             return {};
         }
@@ -133,7 +133,7 @@ namespace sdlpp {
             const std::filesystem::path& path) noexcept {
             SDL_PathInfo info;
             if (!SDL_GetPathInfo(path.string().c_str(), &info)) {
-                return make_unexpected(SDL_GetError());
+                return make_unexpectedf(SDL_GetError());
             }
             return path_info::from_sdl(info);
         }
@@ -212,7 +212,7 @@ namespace sdlpp {
             );
 
             if (!paths && count < 0) {
-                return make_unexpected(SDL_GetError());
+                return make_unexpectedf(SDL_GetError());
             }
 
             return glob_result{paths, count};
@@ -235,7 +235,7 @@ namespace sdlpp {
                 path.string().c_str(),
                 detail::enumerate_callback_wrapper,
                 &callback)) {
-                return make_unexpected(SDL_GetError());
+                return make_unexpectedf(SDL_GetError());
             }
             return {};
         }

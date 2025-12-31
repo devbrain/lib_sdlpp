@@ -303,7 +303,7 @@ namespace sdlpp {
 
                 SDL_AudioStream* stream = SDL_CreateAudioStream(&src_sdl, &dst_sdl);
                 if (!stream) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return audio_stream(stream);
@@ -317,16 +317,16 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> put_data(const void* data, size_t len) {
                 if (!stream_) {
-                    return make_unexpected("Invalid audio stream");
+                    return make_unexpectedf("Invalid audio stream");
                 }
 
                 auto int_len = detail::size_to_int(len);
                 if (!int_len) {
-                    return make_unexpected("Data size too large: " + int_len.error());
+                    return make_unexpectedf("Data size too large:", int_len.error());
                 }
 
                 if (!SDL_PutAudioStreamData(stream_, data, *int_len)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -351,17 +351,17 @@ namespace sdlpp {
              */
             [[nodiscard]] sdlpp::expected <size_t, std::string> get_data(void* data, size_t len) {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 auto int_len = detail::size_to_int(len);
                 if (!int_len) {
-                    return sdlpp::make_unexpected("Buffer size too large: " + int_len.error());
+                    return sdlpp::make_unexpectedf("Buffer size too large:", int_len.error());
                 }
 
                 int bytes_read = SDL_GetAudioStreamData(stream_, data, *int_len);
                 if (bytes_read < 0) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return static_cast<size_t>(bytes_read);
@@ -377,7 +377,7 @@ namespace sdlpp {
             [[nodiscard]] sdlpp::expected <size_t, std::string> get_data(std::span <T> data) {
                 auto bytes_result = get_data(data.data(), data.size_bytes());
                 if (!bytes_result) {
-                    return sdlpp::make_unexpected(bytes_result.error());
+                    return sdlpp::make_unexpectedf(bytes_result.error());
                 }
                 return *bytes_result / sizeof(T);
             }
@@ -387,10 +387,10 @@ namespace sdlpp {
              * @return Bytes available
              */
             [[nodiscard]] expected<size_t, std::string> get_available() const {
-                if (!stream_) return make_unexpected("Invalid stream");
+                if (!stream_) return make_unexpectedf("Invalid stream");
                 int available = SDL_GetAudioStreamAvailable(stream_);
                 if (available < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return static_cast<size_t>(available);
             }
@@ -400,10 +400,10 @@ namespace sdlpp {
              * @return Bytes queued
              */
             [[nodiscard]] expected<size_t, std::string> get_queued() const {
-                if (!stream_) return make_unexpected("Invalid stream");
+                if (!stream_) return make_unexpectedf("Invalid stream");
                 int queued = SDL_GetAudioStreamQueued(stream_);
                 if (queued < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return static_cast<size_t>(queued);
             }
@@ -414,11 +414,11 @@ namespace sdlpp {
              */
             [[nodiscard]] sdlpp::expected <void, std::string> flush() {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 if (!SDL_FlushAudioStream(stream_)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -430,11 +430,11 @@ namespace sdlpp {
              */
             [[nodiscard]] sdlpp::expected <void, std::string> clear() {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 if (!SDL_ClearAudioStream(stream_)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -446,11 +446,11 @@ namespace sdlpp {
              */
             [[nodiscard]] sdlpp::expected <void, std::string> lock() {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 if (!SDL_LockAudioStream(stream_)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -462,11 +462,11 @@ namespace sdlpp {
              */
             [[nodiscard]] sdlpp::expected <void, std::string> unlock() {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 if (!SDL_UnlockAudioStream(stream_)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -478,12 +478,12 @@ namespace sdlpp {
              */
             [[nodiscard]] sdlpp::expected <audio_spec, std::string> get_input_format() const {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 SDL_AudioSpec spec;
                 if (!SDL_GetAudioStreamFormat(stream_, &spec, nullptr)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return audio_spec::from_sdl(spec);
@@ -495,12 +495,12 @@ namespace sdlpp {
              */
             [[nodiscard]] sdlpp::expected <audio_spec, std::string> get_output_format() const {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 SDL_AudioSpec spec;
                 if (!SDL_GetAudioStreamFormat(stream_, nullptr, &spec)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return audio_spec::from_sdl(spec);
@@ -516,7 +516,7 @@ namespace sdlpp {
                 const audio_spec* src_spec = nullptr,
                 const audio_spec* dst_spec = nullptr) {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 SDL_AudioSpec src_sdl, dst_sdl;
@@ -533,7 +533,7 @@ namespace sdlpp {
                 }
 
                 if (!SDL_SetAudioStreamFormat(stream_, src_ptr, dst_ptr)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -555,11 +555,11 @@ namespace sdlpp {
              */
             [[nodiscard]] sdlpp::expected <void, std::string> set_frequency_ratio(float ratio) {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 if (!SDL_SetAudioStreamFrequencyRatio(stream_, ratio)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -581,11 +581,11 @@ namespace sdlpp {
              */
             [[nodiscard]] sdlpp::expected <void, std::string> set_gain(float gain) {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 if (!SDL_SetAudioStreamGain(stream_, gain)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -608,12 +608,12 @@ namespace sdlpp {
             [[nodiscard]] sdlpp::expected <void, std::string> set_input_channel_map(
                 std::span <const int> channel_map) {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 if (!SDL_SetAudioStreamInputChannelMap(stream_, channel_map.data(),
                                                        static_cast <int>(channel_map.size()))) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -627,12 +627,12 @@ namespace sdlpp {
             [[nodiscard]] sdlpp::expected <void, std::string> set_output_channel_map(
                 std::span <const int> channel_map) {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 if (!SDL_SetAudioStreamOutputChannelMap(stream_, channel_map.data(),
                                                         static_cast <int>(channel_map.size()))) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -652,11 +652,11 @@ namespace sdlpp {
              */
             [[nodiscard]] sdlpp::expected <void, std::string> pause_device() {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 if (!SDL_PauseAudioStreamDevice(stream_)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -668,11 +668,11 @@ namespace sdlpp {
              */
             [[nodiscard]] sdlpp::expected <void, std::string> resume_device() {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 if (!SDL_ResumeAudioStreamDevice(stream_)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -736,16 +736,16 @@ namespace sdlpp {
             // Provide the same interface as audio_stream
             [[nodiscard]] sdlpp::expected <void, std::string> put_data(const void* data, size_t len) {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 auto int_len = detail::size_to_int(len);
                 if (!int_len) {
-                    return sdlpp::make_unexpected("Data size too large: " + int_len.error());
+                    return sdlpp::make_unexpectedf("Data size too large:", int_len.error());
                 }
 
                 if (!SDL_PutAudioStreamData(stream_, data, *int_len)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -758,17 +758,17 @@ namespace sdlpp {
 
             [[nodiscard]] sdlpp::expected <size_t, std::string> get_data(void* data, size_t len) {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 auto int_len = detail::size_to_int(len);
                 if (!int_len) {
-                    return sdlpp::make_unexpected("Buffer size too large: " + int_len.error());
+                    return sdlpp::make_unexpectedf("Buffer size too large:", int_len.error());
                 }
 
                 int bytes_read = SDL_GetAudioStreamData(stream_, data, *int_len);
                 if (bytes_read < 0) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return static_cast<size_t>(bytes_read);
@@ -778,36 +778,36 @@ namespace sdlpp {
             [[nodiscard]] sdlpp::expected <size_t, std::string> get_data(std::span <T> data) {
                 auto bytes_result = get_data(data.data(), data.size_bytes());
                 if (!bytes_result) {
-                    return sdlpp::make_unexpected(bytes_result.error());
+                    return sdlpp::make_unexpectedf(bytes_result.error());
                 }
                 return *bytes_result / sizeof(T);
             }
 
             [[nodiscard]] expected<size_t, std::string> get_available() const {
-                if (!stream_) return make_unexpected("Invalid stream");
+                if (!stream_) return make_unexpectedf("Invalid stream");
                 int available = SDL_GetAudioStreamAvailable(stream_);
                 if (available < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return static_cast<size_t>(available);
             }
 
             [[nodiscard]] expected<size_t, std::string> get_queued() const {
-                if (!stream_) return make_unexpected("Invalid stream");
+                if (!stream_) return make_unexpectedf("Invalid stream");
                 int queued = SDL_GetAudioStreamQueued(stream_);
                 if (queued < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return static_cast<size_t>(queued);
             }
 
             [[nodiscard]] sdlpp::expected <void, std::string> flush() {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 if (!SDL_FlushAudioStream(stream_)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -815,11 +815,11 @@ namespace sdlpp {
 
             [[nodiscard]] sdlpp::expected <void, std::string> clear() {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 if (!SDL_ClearAudioStream(stream_)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -832,11 +832,11 @@ namespace sdlpp {
 
             [[nodiscard]] sdlpp::expected <void, std::string> set_gain(float gain) {
                 if (!stream_) {
-                    return sdlpp::make_unexpected("Invalid audio stream");
+                    return sdlpp::make_unexpectedf("Invalid audio stream");
                 }
 
                 if (!SDL_SetAudioStreamGain(stream_, gain)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -899,7 +899,7 @@ namespace sdlpp {
 
                 SDL_AudioDeviceID id = SDL_OpenAudioDevice(device_id.get_sdl_id(), spec_ptr);
                 if (id == 0) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return audio_device(audio_device_id{id});
@@ -911,13 +911,13 @@ namespace sdlpp {
              */
             [[nodiscard]] sdlpp::expected <audio_spec, std::string> get_format() const {
                 if (!device_id_) {
-                    return sdlpp::make_unexpected("Invalid audio device");
+                    return sdlpp::make_unexpectedf("Invalid audio device");
                 }
 
                 SDL_AudioSpec spec;
                 int sample_frames;
                 if (!SDL_GetAudioDeviceFormat(device_id_.get_sdl_id(), &spec, &sample_frames)) {
-                    return sdlpp::make_unexpected(get_error());
+                    return sdlpp::make_unexpectedf(get_error());
                 }
 
                 return audio_spec::from_sdl(spec);
@@ -929,11 +929,11 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> pause() {
                 if (!device_id_) {
-                    return make_unexpected("Invalid audio device");
+                    return make_unexpectedf("Invalid audio device");
                 }
 
                 if (!SDL_PauseAudioDevice(device_id_.get_sdl_id())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -945,11 +945,11 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> resume() {
                 if (!device_id_) {
-                    return make_unexpected("Invalid audio device");
+                    return make_unexpectedf("Invalid audio device");
                 }
 
                 if (!SDL_ResumeAudioDevice(device_id_.get_sdl_id())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -980,11 +980,11 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> set_gain(float gain) {
                 if (!device_id_) {
-                    return make_unexpected("Invalid audio device");
+                    return make_unexpectedf("Invalid audio device");
                 }
 
                 if (!SDL_SetAudioDeviceGain(device_id_.get_sdl_id(), gain)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -998,7 +998,7 @@ namespace sdlpp {
             [[nodiscard]] expected <void, std::string> bind_streams(
                 std::span <audio_stream*> streams) {
                 if (!device_id_) {
-                    return make_unexpected("Invalid audio device");
+                    return make_unexpectedf("Invalid audio device");
                 }
 
                 std::vector <SDL_AudioStream*> sdl_streams;
@@ -1012,11 +1012,11 @@ namespace sdlpp {
 
                 auto stream_count = detail::size_to_int(sdl_streams.size());
                 if (!stream_count) {
-                    return make_unexpected("Too many streams to bind: " + stream_count.error());
+                    return make_unexpectedf("Too many streams to bind:", stream_count.error());
                 }
 
                 if (!SDL_BindAudioStreams(device_id_.get_sdl_id(), sdl_streams.data(), *stream_count)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -1029,11 +1029,11 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <void, std::string> bind_stream(audio_stream& stream) {
                 if (!device_id_) {
-                    return make_unexpected("Invalid audio device");
+                    return make_unexpectedf("Invalid audio device");
                 }
 
                 if (!SDL_BindAudioStream(device_id_.get_sdl_id(), stream.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -1154,7 +1154,7 @@ namespace sdlpp {
         SDL_AudioSpec spec;
         int sample_frames;
         if (!SDL_GetAudioDeviceFormat(device_id.get_sdl_id(), &spec, &sample_frames)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return audio_spec::from_sdl(spec);
@@ -1252,7 +1252,7 @@ namespace sdlpp {
 
         SDL_AudioStream* stream = SDL_OpenAudioDeviceStream(device_id.get_sdl_id(), &sdl_spec, sdl_callback, sdl_userdata);
         if (!stream) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         // Store callback data in properties to keep it alive
@@ -1290,7 +1290,7 @@ namespace sdlpp {
         // SDL requires null-terminated string
         std::string path_str(path);
         if (!SDL_LoadWAV(path_str.c_str(), &spec, &audio_buf, &audio_len)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         wav_data wav;
@@ -1318,7 +1318,7 @@ namespace sdlpp {
      */
     [[nodiscard]] inline expected <wav_data, std::string> load_wav(iostream& stream, bool close_io = false) {
         if (!stream.is_valid()) {
-            return make_unexpected("Invalid IOStream");
+            return make_unexpectedf("Invalid IOStream");
         }
 
         SDL_AudioSpec spec;
@@ -1326,7 +1326,7 @@ namespace sdlpp {
         Uint32 audio_len = 0;
 
         if (!SDL_LoadWAV_IO(stream.get(), close_io, &spec, &audio_buf, &audio_len)) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         wav_data wav;

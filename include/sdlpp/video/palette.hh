@@ -145,15 +145,15 @@ namespace sdlpp {
              */
             expected <void, std::string> set_color(size_t index, const color& c) {
                 if (!ptr) {
-                    return make_unexpected("Invalid palette");
+                    return make_unexpectedf("Invalid palette");
                 }
                 if (index >= static_cast<size_t>(ptr->ncolors)) {
-                    return make_unexpected("Index out of bounds");
+                    return make_unexpectedf("Index out of bounds");
                 }
 
                 SDL_Color colors[1] = {c.to_sdl()};
                 if (!SDL_SetPaletteColors(get(), colors, static_cast<int>(index), 1)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -168,10 +168,10 @@ namespace sdlpp {
             expected <void, std::string> set_colors(std::span <const color> colors,
                                                     int first_index = 0) {
                 if (!ptr) {
-                    return make_unexpected("Invalid palette");
+                    return make_unexpectedf("Invalid palette");
                 }
                 if (first_index < 0 || first_index + static_cast <int>(colors.size()) > ptr->ncolors) {
-                    return make_unexpected("Index out of bounds");
+                    return make_unexpectedf("Index out of bounds");
                 }
 
                 // Convert to SDL_Color array
@@ -183,7 +183,7 @@ namespace sdlpp {
 
                 if (!SDL_SetPaletteColors(get(), sdl_colors.data(),
                                           first_index, static_cast <int>(colors.size()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -291,15 +291,15 @@ namespace sdlpp {
              */
             expected <void, std::string> set_color(size_t index, const color& c) {
                 if (!ptr) {
-                    return make_unexpected("Invalid palette");
+                    return make_unexpectedf("Invalid palette");
                 }
                 if (index >= static_cast<size_t>(ptr->ncolors)) {
-                    return make_unexpected("Index out of bounds");
+                    return make_unexpectedf("Index out of bounds");
                 }
 
                 SDL_Color colors[1] = {c.to_sdl()};
                 if (!SDL_SetPaletteColors(ptr.get(), colors, static_cast<int>(index), 1)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -314,10 +314,10 @@ namespace sdlpp {
             expected <void, std::string> set_colors(std::span <const color> colors,
                                                     int first_index = 0) {
                 if (!ptr) {
-                    return make_unexpected("Invalid palette");
+                    return make_unexpectedf("Invalid palette");
                 }
                 if (first_index < 0 || first_index + static_cast <int>(colors.size()) > ptr->ncolors) {
-                    return make_unexpected("Index out of bounds");
+                    return make_unexpectedf("Index out of bounds");
                 }
 
                 // Convert to SDL_Color array
@@ -329,7 +329,7 @@ namespace sdlpp {
 
                 if (!SDL_SetPaletteColors(ptr.get(), sdl_colors.data(),
                                           first_index, static_cast <int>(colors.size()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -367,7 +367,7 @@ namespace sdlpp {
             static expected <palette, std::string> create(int ncolors) {
                 SDL_Palette* p = SDL_CreatePalette(ncolors);
                 if (!p) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return palette(p);
             }
@@ -379,13 +379,13 @@ namespace sdlpp {
              */
             static expected <palette, std::string> create_grayscale(int bits = 8) {
                 if (bits < 1 || bits > 8) {
-                    return make_unexpected("Bits must be between 1 and 8");
+                    return make_unexpectedf("Bits must be between 1 and 8");
                 }
 
                 int ncolors = 1 << bits;
                 auto pal_result = create(ncolors);
                 if (!pal_result) {
-                    return make_unexpected(pal_result.error());
+                    return make_unexpectedf(pal_result.error());
                 }
 
                 auto& pal = *pal_result;
@@ -399,7 +399,7 @@ namespace sdlpp {
 
                 auto set_result = pal.set_colors(colors);
                 if (!set_result) {
-                    return make_unexpected(set_result.error());
+                    return make_unexpectedf(set_result.error());
                 }
 
                 return std::move(pal);
@@ -416,12 +416,12 @@ namespace sdlpp {
                                                                const color& end,
                                                                int steps = 256) {
                 if (steps < 2) {
-                    return make_unexpected("Steps must be at least 2");
+                    return make_unexpectedf("Steps must be at least 2");
                 }
 
                 auto pal_result = create(steps);
                 if (!pal_result) {
-                    return make_unexpected(pal_result.error());
+                    return make_unexpectedf(pal_result.error());
                 }
 
                 auto& pal = *pal_result;
@@ -435,7 +435,7 @@ namespace sdlpp {
 
                 auto set_result = pal.set_colors(colors);
                 if (!set_result) {
-                    return make_unexpected(set_result.error());
+                    return make_unexpectedf(set_result.error());
                 }
 
                 return std::move(pal);

@@ -508,7 +508,7 @@ namespace sdlpp {
              * @brief Wait for next event
              * @return Event or error
              */
-            [[nodiscard]] sdlpp::expected <event, std::string> wait();
+            [[nodiscard]] SDLPP_EXPORT static sdlpp::expected <event, std::string> wait();
 
             /**
              * @brief Wait for next event with timeout

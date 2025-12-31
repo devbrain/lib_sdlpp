@@ -136,7 +136,7 @@ namespace sdlpp {
      */
     [[nodiscard]] inline expected <void, std::string> hid_init() {
         if (SDL_hid_init() < 0) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return {};
     }
@@ -151,7 +151,7 @@ namespace sdlpp {
      */
     [[nodiscard]] inline expected <void, std::string> hid_exit() {
         if (SDL_hid_exit() < 0) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return {};
     }
@@ -325,13 +325,13 @@ namespace sdlpp {
                         wide_serial = converter.from_bytes(serial_number);
                         serial = wide_serial.c_str();
                     } catch (const std::range_error&) {
-                        return make_unexpected("Invalid UTF-8 in serial number");
+                        return make_unexpectedf("Invalid UTF-8 in serial number");
                     }
                 }
                 
                 auto* dev = SDL_hid_open(vendor_id, product_id, serial);
                 if (!dev) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return hid_device(dev);
             }
@@ -348,7 +348,7 @@ namespace sdlpp {
             static expected <hid_device, std::string> open_path(const std::string& path) {
                 auto* dev = SDL_hid_open_path(path.c_str());
                 if (!dev) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return hid_device(dev);
             }
@@ -364,17 +364,17 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <size_t, std::string> write(std::span <const uint8_t> data) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid device");
+                    return make_unexpectedf("Invalid device");
                 }
                 
                 auto int_size = detail::size_to_int(data.size());
                 if (!int_size) {
-                    return make_unexpected("Data size too large: " + int_size.error());
+                    return make_unexpectedf("Data size too large:", int_size.error());
                 }
                 
                 int bytes_written = SDL_hid_write(ptr.get(), data.data(), static_cast<size_t>(*int_size));
                 if (bytes_written < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return static_cast<size_t>(bytes_written);
             }
@@ -394,12 +394,12 @@ namespace sdlpp {
             expected <size_t, std::string> read_timeout(std::span <uint8_t> buffer,
                                                         std::chrono::duration <Rep, Period> timeout) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid device");
+                    return make_unexpectedf("Invalid device");
                 }
 
                 auto int_size = detail::size_to_int(buffer.size());
                 if (!int_size) {
-                    return make_unexpected("Buffer size too large: " + int_size.error());
+                    return make_unexpectedf("Buffer size too large:", int_size.error());
                 }
 
                 // Convert to milliseconds
@@ -408,7 +408,7 @@ namespace sdlpp {
 
                 int bytes_read = SDL_hid_read_timeout(ptr.get(), buffer.data(), static_cast<size_t>(*int_size), timeout_ms);
                 if (bytes_read < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return static_cast<size_t>(bytes_read);
             }
@@ -425,17 +425,17 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <size_t, std::string> read(std::span <uint8_t> buffer) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid device");
+                    return make_unexpectedf("Invalid device");
                 }
                 
                 auto int_size = detail::size_to_int(buffer.size());
                 if (!int_size) {
-                    return make_unexpected("Buffer size too large: " + int_size.error());
+                    return make_unexpectedf("Buffer size too large:", int_size.error());
                 }
                 
                 int bytes_read = SDL_hid_read(ptr.get(), buffer.data(), static_cast<size_t>(*int_size));
                 if (bytes_read < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return static_cast<size_t>(bytes_read);
             }
@@ -454,10 +454,10 @@ namespace sdlpp {
              */
             expected <void, std::string> set_nonblocking(bool nonblock) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid device");
+                    return make_unexpectedf("Invalid device");
                 }
                 if (SDL_hid_set_nonblocking(ptr.get(), nonblock ? 1 : 0) < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -473,17 +473,17 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <size_t, std::string> send_feature_report(std::span <const uint8_t> data) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid device");
+                    return make_unexpectedf("Invalid device");
                 }
                 
                 auto int_size = detail::size_to_int(data.size());
                 if (!int_size) {
-                    return make_unexpected("Data size too large: " + int_size.error());
+                    return make_unexpectedf("Data size too large:", int_size.error());
                 }
                 
                 int bytes_sent = SDL_hid_send_feature_report(ptr.get(), data.data(), static_cast<size_t>(*int_size));
                 if (bytes_sent < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return static_cast<size_t>(bytes_sent);
             }
@@ -500,17 +500,17 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <size_t, std::string> get_feature_report(std::span <uint8_t> buffer) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid device");
+                    return make_unexpectedf("Invalid device");
                 }
                 
                 auto int_size = detail::size_to_int(buffer.size());
                 if (!int_size) {
-                    return make_unexpected("Buffer size too large: " + int_size.error());
+                    return make_unexpectedf("Buffer size too large:", int_size.error());
                 }
                 
                 int bytes_received = SDL_hid_get_feature_report(ptr.get(), buffer.data(), static_cast<size_t>(*int_size));
                 if (bytes_received < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return static_cast<size_t>(bytes_received);
             }
@@ -527,17 +527,17 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <size_t, std::string> get_input_report(std::span <uint8_t> buffer) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid device");
+                    return make_unexpectedf("Invalid device");
                 }
                 
                 auto int_size = detail::size_to_int(buffer.size());
                 if (!int_size) {
-                    return make_unexpected("Buffer size too large: " + int_size.error());
+                    return make_unexpectedf("Buffer size too large:", int_size.error());
                 }
                 
                 int bytes_received = SDL_hid_get_input_report(ptr.get(), buffer.data(), static_cast<size_t>(*int_size));
                 if (bytes_received < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return static_cast<size_t>(bytes_received);
             }
@@ -549,12 +549,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <std::string, std::string> get_manufacturer_string() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid device");
+                    return make_unexpectedf("Invalid device");
                 }
 
                 std::wstring str_buffer(256, L'\0');
                 if (SDL_hid_get_manufacturer_string(ptr.get(), str_buffer.data(), str_buffer.size()) < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 // Trim to actual length
@@ -570,12 +570,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <std::string, std::string> get_product_string() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid device");
+                    return make_unexpectedf("Invalid device");
                 }
 
                 std::wstring str_buffer(256, L'\0');
                 if (SDL_hid_get_product_string(ptr.get(), str_buffer.data(), str_buffer.size()) < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 // Trim to actual length
@@ -591,12 +591,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <std::string, std::string> get_serial_number_string() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid device");
+                    return make_unexpectedf("Invalid device");
                 }
 
                 std::wstring str_buffer(256, L'\0');
                 if (SDL_hid_get_serial_number_string(ptr.get(), str_buffer.data(), str_buffer.size()) < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 // Trim to actual length
@@ -613,12 +613,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <std::string, std::string> get_indexed_string(int string_index) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid device");
+                    return make_unexpectedf("Invalid device");
                 }
 
                 std::wstring str_buffer(256, L'\0');
                 if (SDL_hid_get_indexed_string(ptr.get(), string_index, str_buffer.data(), str_buffer.size()) < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 // Trim to actual length
@@ -634,12 +634,12 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <hid_device_info, std::string> get_device_info() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid device");
+                    return make_unexpectedf("Invalid device");
                 }
 
                 SDL_hid_device_info* info = SDL_hid_get_device_info(ptr.get());
                 if (!info) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return detail::convert_device_info(info);
@@ -653,17 +653,17 @@ namespace sdlpp {
              */
             [[nodiscard]] expected <size_t, std::string> get_report_descriptor(std::span <uint8_t> buffer) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid device");
+                    return make_unexpectedf("Invalid device");
                 }
                 
                 auto int_size = detail::size_to_int(buffer.size());
                 if (!int_size) {
-                    return make_unexpected("Buffer size too large: " + int_size.error());
+                    return make_unexpectedf("Buffer size too large:", int_size.error());
                 }
 
                 int bytes_copied = SDL_hid_get_report_descriptor(ptr.get(), buffer.data(), static_cast<size_t>(*int_size));
                 if (bytes_copied < 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return static_cast<size_t>(bytes_copied);
             }
@@ -748,11 +748,11 @@ public:
 
 // Stub functions that return errors
 [[nodiscard]] inline expected<void, std::string> hid_init() {
-    return make_unexpected("HID API is disabled in this SDL build");
+    return make_unexpectedf("HID API is disabled in this SDL build");
 }
 
 [[nodiscard]] inline expected<void, std::string> hid_exit() {
-    return make_unexpected("HID API is disabled in this SDL build");
+    return make_unexpectedf("HID API is disabled in this SDL build");
 }
 
 [[nodiscard]] inline uint32_t hid_device_change_count() noexcept {

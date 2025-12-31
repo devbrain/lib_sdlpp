@@ -191,10 +191,10 @@ namespace sdlpp {
              */
             expected <void, std::string> lock() {
                 if (!ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
                 if (SDL_LockSurface(ptr.get()) != 0) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -246,13 +246,13 @@ namespace sdlpp {
              */
             expected <void, std::string> fill(const color& c) {
                 if (!ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 uint32_t mapped = SDL_MapSurfaceRGBA(ptr.get(), c.r, c.g, c.b, c.a);
 
                 if (!SDL_FillSurfaceRect(ptr.get(), nullptr, mapped)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -267,7 +267,7 @@ namespace sdlpp {
             template<rect_like R>
             expected <void, std::string> fill_rect(const R& area, const color& c) {
                 if (!ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 uint32_t mapped = SDL_MapSurfaceRGBA(ptr.get(), c.r, c.g, c.b, c.a);
@@ -277,7 +277,7 @@ namespace sdlpp {
                     static_cast <int>(get_width(area)), static_cast <int>(get_height(area))
                 };
                 if (!SDL_FillSurfaceRect(ptr.get(), &sdl_rect, mapped)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -292,19 +292,19 @@ namespace sdlpp {
              */
             expected <color, std::string> get_pixel(int x, int y) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 // Bounds check
                 if (x < 0 || x >= ptr->w || y < 0 || y >= ptr->h) {
-                    return make_unexpected("Coordinates out of bounds");
+                    return make_unexpectedf("Coordinates out of bounds");
                 }
 
                 // Check if surface is locked
                 if (!SDL_MUSTLOCK(ptr.get()) || SDL_SurfaceHasRLE(ptr.get())) {
                     // Surface doesn't require locking or has RLE encoding
                 } else if (!ptr->pixels) {
-                    return make_unexpected("Surface must be locked before accessing pixels");
+                    return make_unexpectedf("Surface must be locked before accessing pixels");
                 }
 
                 // Get pixel based on format
@@ -331,7 +331,7 @@ namespace sdlpp {
                         pixel = *reinterpret_cast <const uint32_t*>(p);
                         break;
                     default:
-                        return make_unexpected("Unsupported pixel format");
+                        return make_unexpectedf("Unsupported pixel format");
                 }
 
                 // Convert to RGBA
@@ -352,19 +352,19 @@ namespace sdlpp {
              */
             expected <void, std::string> put_pixel(int x, int y, const color& c) {
                 if (!ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 // Bounds check
                 if (x < 0 || x >= ptr->w || y < 0 || y >= ptr->h) {
-                    return make_unexpected("Coordinates out of bounds");
+                    return make_unexpectedf("Coordinates out of bounds");
                 }
 
                 // Check if surface is locked
                 if (!SDL_MUSTLOCK(ptr.get()) || SDL_SurfaceHasRLE(ptr.get())) {
                     // Surface doesn't require locking or has RLE encoding
                 } else if (!ptr->pixels) {
-                    return make_unexpected("Surface must be locked before accessing pixels");
+                    return make_unexpectedf("Surface must be locked before accessing pixels");
                 }
 
                 // Map color to pixel format
@@ -397,7 +397,7 @@ namespace sdlpp {
                         *reinterpret_cast <uint32_t*>(p) = pixel;
                         break;
                     default:
-                        return make_unexpected("Unsupported pixel format");
+                        return make_unexpectedf("Unsupported pixel format");
                 }
 
                 return {};
@@ -435,11 +435,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_blend_mode(blend_mode mode = blend_mode::none) {
                 if (!ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 if (!SDL_SetSurfaceBlendMode(ptr.get(), static_cast <SDL_BlendMode>(mode))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -451,12 +451,12 @@ namespace sdlpp {
              */
             expected <blend_mode, std::string> get_blend_mode() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 SDL_BlendMode mode;
                 if (!SDL_GetSurfaceBlendMode(ptr.get(), &mode)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return static_cast <blend_mode>(mode);
@@ -469,11 +469,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_color_mod(const color& c) {
                 if (!ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 if (!SDL_SetSurfaceColorMod(ptr.get(), c.r, c.g, c.b)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -486,11 +486,11 @@ namespace sdlpp {
              */
             expected <void, std::string> set_alpha_mod(uint8_t alpha) {
                 if (!ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 if (!SDL_SetSurfaceAlphaMod(ptr.get(), alpha)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -503,13 +503,13 @@ namespace sdlpp {
              */
             expected <surface, std::string> convert(pixel_format_enum format) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 SDL_Surface* converted = SDL_ConvertSurface(ptr.get(),
                                                             static_cast <SDL_PixelFormat>(format));
                 if (!converted) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return surface(converted);
@@ -521,12 +521,12 @@ namespace sdlpp {
              */
             expected <surface, std::string> duplicate() const {
                 if (!ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 SDL_Surface* dup = SDL_DuplicateSurface(ptr.get());
                 if (!dup) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return surface(dup);
@@ -547,7 +547,7 @@ namespace sdlpp {
                 std::optional <R> src_rect = std::nullopt,
                 P dst_pos = P{0, 0}) const {
                 if (!ptr || !dst.ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 SDL_Rect src_r;
@@ -566,7 +566,7 @@ namespace sdlpp {
                                   static_cast<int>(get_y(dst_pos)), 0, 0};
 
                 if (!SDL_BlitSurface(ptr.get(), src_ptr, dst.ptr.get(), &dst_r)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -588,7 +588,7 @@ namespace sdlpp {
                 std::optional <R> dst_rect = std::nullopt,
                 scale_mode mode = scale_mode::linear) const {
                 if (!ptr || !dst.ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 SDL_Rect src_r, dst_r;
@@ -617,7 +617,7 @@ namespace sdlpp {
 
                 if (!SDL_BlitSurfaceScaled(ptr.get(), src_ptr, dst.ptr.get(), dst_ptr,
                                            static_cast <SDL_ScaleMode>(mode))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -643,7 +643,7 @@ namespace sdlpp {
                 SDL_Surface* surf = SDL_CreateSurface(w, h,
                                                       static_cast <SDL_PixelFormat>(format));
                 if (!surf) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return surface(surf);
@@ -680,7 +680,7 @@ namespace sdlpp {
                                                           static_cast <SDL_PixelFormat>(format),
                                                           pixels, pitch);
                 if (!surf) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return surface(surf);
@@ -723,15 +723,15 @@ namespace sdlpp {
              */
             expected <void, std::string> set_palette(const const_palette_ref& pal) {
                 if (!ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
                 if (!pal) {
-                    return make_unexpected("Invalid palette");
+                    return make_unexpectedf("Invalid palette");
                 }
 
                 // SDL_SetSurfacePalette needs non-const pointer, but doesn't modify
                 if (!SDL_SetSurfacePalette(ptr.get(), const_cast <SDL_Palette*>(pal.get()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -744,11 +744,11 @@ namespace sdlpp {
              */
             expected <void, std::string> save_bmp(iostream& stream) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid surface");
+                    return make_unexpectedf("Invalid surface");
                 }
 
                 if (!SDL_SaveBMP_IO(ptr.get(), stream.get(), false)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
@@ -762,7 +762,7 @@ namespace sdlpp {
             static expected <surface, std::string> load_bmp(iostream& stream) {
                 SDL_Surface* surf = SDL_LoadBMP_IO(stream.get(), false);
                 if (!surf) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return surface(surf);
@@ -810,7 +810,7 @@ namespace sdlpp {
     inline expected <surface, std::string> load_surface(const std::string& file) {
         SDL_Surface* surf = SDL_LoadBMP(file.c_str());
         if (!surf) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return surface(surf);
@@ -825,11 +825,11 @@ namespace sdlpp {
     inline expected <void, std::string> save_bmp(const surface& surf,
                                                  const std::string& file) {
         if (!surf) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
 
         if (!SDL_SaveBMP(surf.get(), file.c_str())) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
 
         return {};
@@ -844,12 +844,12 @@ namespace sdlpp {
     inline expected <void, std::string> save_bmp(const surface& surf,
                                                  std::ostream& stream) {
         if (!surf) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
 
         auto io_result = from_ostream(stream);
         if (!io_result) {
-            return make_unexpected(io_result.error());
+            return make_unexpectedf(io_result.error());
         }
 
         return surf.save_bmp(*io_result);
@@ -862,31 +862,31 @@ namespace sdlpp {
      */
     inline expected <std::vector <uint8_t>, std::string> save_bmp(const surface& surf) {
         if (!surf) {
-            return make_unexpected("Invalid surface");
+            return make_unexpectedf("Invalid surface");
         }
 
         // Create a dynamic memory stream
         auto io_result = from_dynamic_memory();
         if (!io_result) {
-            return make_unexpected(io_result.error());
+            return make_unexpectedf(io_result.error());
         }
 
         // Save to the stream
         auto save_result = surf.save_bmp(*io_result);
         if (!save_result) {
-            return make_unexpected(save_result.error());
+            return make_unexpectedf(save_result.error());
         }
 
         // Get the size of the data
         auto size_result = io_result->size();
         if (!size_result) {
-            return make_unexpected(size_result.error());
+            return make_unexpectedf(size_result.error());
         }
 
         // Read all the data
         auto seek_result = io_result->seek(0, io_seek_pos::set);
         if (!seek_result) {
-            return make_unexpected(seek_result.error());
+            return make_unexpectedf(seek_result.error());
         }
 
         return io_result->read(static_cast <size_t>(*size_result));
@@ -900,7 +900,7 @@ namespace sdlpp {
     inline expected <surface, std::string> load_bmp(std::istream& stream) {
         auto io_result = from_istream(stream);
         if (!io_result) {
-            return make_unexpected(io_result.error());
+            return make_unexpectedf(io_result.error());
         }
 
         return surface::load_bmp(*io_result);
@@ -915,7 +915,7 @@ namespace sdlpp {
     inline expected <surface, std::string> load_bmp(const void* data, size_t data_size) {
         auto io_result = from_memory(data, data_size);
         if (!io_result) {
-            return make_unexpected(io_result.error());
+            return make_unexpectedf(io_result.error());
         }
 
         return surface::load_bmp(*io_result);

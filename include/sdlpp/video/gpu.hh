@@ -850,7 +850,7 @@ namespace sdlpp::gpu {
                 );
 
                 if (!dev) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return device(dev);
@@ -864,7 +864,7 @@ namespace sdlpp::gpu {
             [[nodiscard]] tl::expected <void, std::string> claim_window(
                 const sdlpp::window& window) {
                 if (!SDL_ClaimWindowForGPUDevice(device_, window.get())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};

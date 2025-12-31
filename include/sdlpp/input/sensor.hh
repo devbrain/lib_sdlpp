@@ -155,7 +155,7 @@ namespace sdlpp {
             static expected <sensor, std::string> open(sensor_id instance_id) {
                 auto* s = SDL_OpenSensor(instance_id);
                 if (!s) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return sensor(s);
             }
@@ -220,14 +220,14 @@ namespace sdlpp {
              */
             expected <void, std::string> get_data(float* data, size_t num_values) const {
                 if (!ptr) {
-                    return make_unexpected("Invalid sensor");
+                    return make_unexpectedf("Invalid sensor");
                 }
                 auto int_values = detail::size_to_int(num_values);
                 if (!int_values) {
-                    return make_unexpected("Number of values too large: " + int_values.error());
+                    return make_unexpectedf("Number of values too large:", int_values.error());
                 }
                 if (!SDL_GetSensorData(ptr.get(), data, *int_values)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -241,7 +241,7 @@ namespace sdlpp {
                 std::array <float, 3> data{};
                 auto get_result = get_data(data.data(), 3);
                 if (!get_result) {
-                    return make_unexpected(get_result.error());
+                    return make_unexpectedf(get_result.error());
                 }
                 return data;
             }
@@ -255,7 +255,7 @@ namespace sdlpp {
                 std::array <float, 6> data{};
                 auto get_result = get_data(data.data(), 6);
                 if (!get_result) {
-                    return make_unexpected(get_result.error());
+                    return make_unexpectedf(get_result.error());
                 }
                 return data;
             }

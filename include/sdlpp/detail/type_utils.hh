@@ -28,7 +28,7 @@ namespace sdlpp::detail {
         // Handle sign differences
         if constexpr (std::is_signed_v<From> && !std::is_signed_v<To>) {
             if (value < 0) {
-                return make_unexpected("Cannot convert negative value to unsigned type");
+                return make_unexpectedf("Cannot convert negative value to unsigned type");
             }
         }
         
@@ -37,7 +37,7 @@ namespace sdlpp::detail {
             if constexpr (sizeof(From) > sizeof(To) || 
                          (sizeof(From) == sizeof(To) && std::is_signed_v<To> && !std::is_signed_v<From>)) {
                 if (value > static_cast<From>(std::numeric_limits<To>::max())) {
-                    return make_unexpected("Value " + std::to_string(value) + " too large for target type");
+                    return make_unexpectedf("Value", std::to_string(value), "too large for target type");
                 }
             }
         }
@@ -73,7 +73,7 @@ namespace sdlpp::detail {
      */
     [[nodiscard]] inline expected<size_t, std::string> int_to_size(int value) {
         if (value < 0) {
-            return make_unexpected("Cannot convert negative value " + std::to_string(value) + " to size_t");
+            return make_unexpectedf("Cannot convert negative value", std::to_string(value), "to size_t");
         }
         return static_cast<size_t>(value);
     }

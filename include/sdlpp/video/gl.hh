@@ -186,7 +186,7 @@ namespace sdlpp {
             [[nodiscard]] static expected <gl_context, std::string> create(const window& window) {
                 SDL_GLContext ctx = SDL_GL_CreateContext(window.get());
                 if (!ctx) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return gl_context(ctx);
             }

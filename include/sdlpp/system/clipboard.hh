@@ -59,7 +59,7 @@ namespace sdlpp {
          */
         [[nodiscard]] inline expected <void, std::string> set_text(const std::string& text) {
             if (!SDL_SetClipboardText(text.c_str())) {
-                return make_unexpected(get_error());
+                return make_unexpectedf(get_error());
             }
             return {};
         }
@@ -108,7 +108,7 @@ namespace sdlpp {
          */
         [[nodiscard]] inline expected <void, std::string> set_primary_selection_text(const std::string& text) {
             if (!SDL_SetPrimarySelectionText(text.c_str())) {
-                return make_unexpected(get_error());
+                return make_unexpectedf(get_error());
             }
             return {};
         }
@@ -144,7 +144,7 @@ namespace sdlpp {
          */
         [[nodiscard]] inline expected <void, std::string> clear() {
             if (!SDL_ClearClipboardData()) {
-                return make_unexpected(get_error());
+                return make_unexpectedf(get_error());
             }
             return {};
         }
@@ -210,7 +210,7 @@ namespace sdlpp {
             if (!SDL_SetClipboardData(data_callback, cleanup_callback, data_holder,
                                       mime_types, num_mime_types)) {
                 delete data_holder;
-                return make_unexpected(get_error());
+                return make_unexpectedf(get_error());
             }
             return {};
         }
@@ -350,7 +350,7 @@ namespace sdlpp {
                     clipboard_cleanup_callback cleanup_cb = nullptr,
                     void* userdata = nullptr) {
                     if (mime_types.empty() || !data_cb) {
-                        return make_unexpected("Invalid parameters");
+                        return make_unexpectedf("Invalid parameters");
                     }
 
                     // Convert strings to C-style array
@@ -367,7 +367,7 @@ namespace sdlpp {
                                               cb_data, type_ptrs.data(),
                                               type_ptrs.size())) {
                         delete cb_data;
-                        return make_unexpected(get_error());
+                        return make_unexpectedf(get_error());
                     }
 
                     return {};

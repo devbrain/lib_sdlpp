@@ -250,7 +250,7 @@ namespace sdlpp {
             static expected <gamepad, std::string> open(joystick_id instance_id) {
                 auto* g = SDL_OpenGamepad(instance_id);
                 if (!g) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return gamepad(g);
             }
@@ -303,10 +303,10 @@ namespace sdlpp {
              */
             expected <void, std::string> set_player_index(int player_index) {
                 if (!ptr) {
-                    return make_unexpected("Invalid gamepad");
+                    return make_unexpectedf("Invalid gamepad");
                 }
                 if (!SDL_SetGamepadPlayerIndex(ptr.get(), player_index)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -508,10 +508,10 @@ namespace sdlpp {
              */
             expected <void, std::string> set_sensor_enabled(gamepad_sensor_type type, bool enabled) {
                 if (!ptr) {
-                    return make_unexpected("Invalid gamepad");
+                    return make_unexpectedf("Invalid gamepad");
                 }
                 if (!SDL_SetGamepadSensorEnabled(ptr.get(), static_cast <SDL_SensorType>(type), enabled)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -545,11 +545,11 @@ namespace sdlpp {
              */
             expected <void, std::string> get_sensor_data(gamepad_sensor_type type, std::span <float> data) {
                 if (!ptr) {
-                    return make_unexpected("Invalid gamepad");
+                    return make_unexpectedf("Invalid gamepad");
                 }
                 if (!SDL_GetGamepadSensorData(ptr.get(), static_cast <SDL_SensorType>(type),
                                               data.data(), static_cast <int>(data.size()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -566,10 +566,10 @@ namespace sdlpp {
                                                 uint16_t high_frequency_rumble,
                                                 uint32_t duration_ms) {
                 if (!ptr) {
-                    return make_unexpected("Invalid gamepad");
+                    return make_unexpectedf("Invalid gamepad");
                 }
                 if (!SDL_RumbleGamepad(ptr.get(), low_frequency_rumble, high_frequency_rumble, duration_ms)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -586,10 +586,10 @@ namespace sdlpp {
                                                          uint16_t right_rumble,
                                                          uint32_t duration_ms) {
                 if (!ptr) {
-                    return make_unexpected("Invalid gamepad");
+                    return make_unexpectedf("Invalid gamepad");
                 }
                 if (!SDL_RumbleGamepadTriggers(ptr.get(), left_rumble, right_rumble, duration_ms)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -604,10 +604,10 @@ namespace sdlpp {
              */
             expected <void, std::string> set_led(uint8_t red, uint8_t green, uint8_t blue) {
                 if (!ptr) {
-                    return make_unexpected("Invalid gamepad");
+                    return make_unexpectedf("Invalid gamepad");
                 }
                 if (!SDL_SetGamepadLED(ptr.get(), red, green, blue)) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -620,10 +620,10 @@ namespace sdlpp {
              */
             expected <void, std::string> send_effect(std::span <const uint8_t> data) {
                 if (!ptr) {
-                    return make_unexpected("Invalid gamepad");
+                    return make_unexpectedf("Invalid gamepad");
                 }
                 if (!SDL_SendGamepadEffect(ptr.get(), data.data(), static_cast <int>(data.size()))) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -659,10 +659,10 @@ namespace sdlpp {
              */
             expected <void, std::string> set_mapping(const std::string& mapping) {
                 if (!ptr) {
-                    return make_unexpected("Invalid gamepad");
+                    return make_unexpectedf("Invalid gamepad");
                 }
                 if (!SDL_SetGamepadMapping(get_id(), mapping.c_str())) {
-                    return make_unexpected(get_error());
+                    return make_unexpectedf(get_error());
                 }
                 return {};
             }
@@ -729,7 +729,7 @@ namespace sdlpp {
     inline expected <int, std::string> add_gamepad_mapping(const std::string& mapping) {
         int mapping_count = SDL_AddGamepadMapping(mapping.c_str());
         if (mapping_count < 0) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return mapping_count;
     }
@@ -743,7 +743,7 @@ namespace sdlpp {
     inline expected <int, std::string> add_gamepad_mappings_from_file(const std::string& file) {
         int mapping_count = SDL_AddGamepadMappingsFromFile(file.c_str());
         if (mapping_count < 0) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return mapping_count;
     }
@@ -758,7 +758,7 @@ namespace sdlpp {
     inline expected <int, std::string> add_gamepad_mappings_from_io(SDL_IOStream* stream, bool close_stream) {
         int mapping_count = SDL_AddGamepadMappingsFromIO(stream, close_stream);
         if (mapping_count < 0) {
-            return make_unexpected(get_error());
+            return make_unexpectedf(get_error());
         }
         return mapping_count;
     }

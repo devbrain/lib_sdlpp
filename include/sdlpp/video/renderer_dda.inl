@@ -16,12 +16,12 @@ namespace sdlpp {
         }
     expected <void, std::string> renderer::draw_bspline(const Container& control_points, int degree) {
         if (!ptr) {
-            return make_unexpected("Invalid renderer");
+            return make_unexpectedf("Invalid renderer");
         }
 
         auto points_count = static_cast <size_t>(std::distance(std::begin(control_points), std::end(control_points)));
         if (points_count < static_cast <size_t>(degree + 1)) {
-            return make_unexpected("Not enough control points for specified degree");
+            return make_unexpectedf("Not enough control points for specified degree");
         }
 
         // Use euler's B-spline iterator with manual batching
@@ -64,12 +64,12 @@ namespace sdlpp {
         }
     expected <void, std::string> renderer::draw_catmull_rom(const Container& points, float tension) {
         if (!ptr) {
-            return make_unexpected("Invalid renderer");
+            return make_unexpectedf("Invalid renderer");
         }
 
         auto points_count = static_cast <size_t>(std::distance(std::begin(points), std::end(points)));
         if (points_count < 2) {
-            return make_unexpected("Need at least 2 points for Catmull-Rom spline");
+            return make_unexpectedf("Need at least 2 points for Catmull-Rom spline");
         }
 
         // Use euler's Catmull-Rom iterator with manual batching
@@ -112,15 +112,15 @@ namespace sdlpp {
                                                       float t_end,
                                                       int steps) {
         if (!ptr) {
-            return make_unexpected("Invalid renderer");
+            return make_unexpectedf("Invalid renderer");
         }
 
         if (steps <= 0) {
-            return make_unexpected("Steps must be positive");
+            return make_unexpectedf("Steps must be positive");
         }
 
         if (t_start >= t_end) {
-            return make_unexpected("t_start must be less than t_end");
+            return make_unexpectedf("t_start must be less than t_end");
         }
 
         // Use manual batching for parametric curves

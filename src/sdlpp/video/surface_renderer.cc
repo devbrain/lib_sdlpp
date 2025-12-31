@@ -120,12 +120,12 @@ void surface_renderer::update_mapped_color() {
 
 expected<void, std::string> surface_renderer::clear() {
     if (!surface_) {
-        return make_unexpected("Invalid surface");
+        return make_unexpectedf("Invalid surface");
     }
     
     // Use SDL_FillSurfaceRect for efficiency
     if (SDL_FillSurfaceRect(surface_, nullptr, mapped_color_) != 0) {
-        return make_unexpected(std::string(SDL_GetError()));
+        return make_unexpectedf(std::string(SDL_GetError()));
     }
     
     return {};
@@ -316,11 +316,11 @@ bool surface_renderer::clip_rect_to_clip(rect<int>& r) const {
 
 expected<void, std::string> surface_renderer::set_alpha_mod(uint8_t alpha) {
     if (!surface_) {
-        return make_unexpected("Invalid surface");
+        return make_unexpectedf("Invalid surface");
     }
     
     if (!SDL_SetSurfaceAlphaMod(surface_, alpha)) {
-        return make_unexpected(get_error());
+        return make_unexpectedf(get_error());
     }
     
     return {};
@@ -328,12 +328,12 @@ expected<void, std::string> surface_renderer::set_alpha_mod(uint8_t alpha) {
 
 expected<uint8_t, std::string> surface_renderer::get_alpha_mod() const {
     if (!surface_) {
-        return make_unexpected("Invalid surface");
+        return make_unexpectedf("Invalid surface");
     }
     
     uint8_t alpha;
     if (!SDL_GetSurfaceAlphaMod(surface_, &alpha)) {
-        return make_unexpected(get_error());
+        return make_unexpectedf(get_error());
     }
     
     return alpha;
@@ -341,11 +341,11 @@ expected<uint8_t, std::string> surface_renderer::get_alpha_mod() const {
 
 expected<void, std::string> surface_renderer::set_color_mod(uint8_t r, uint8_t g, uint8_t b) {
     if (!surface_) {
-        return make_unexpected("Invalid surface");
+        return make_unexpectedf("Invalid surface");
     }
     
     if (!SDL_SetSurfaceColorMod(surface_, r, g, b)) {
-        return make_unexpected(get_error());
+        return make_unexpectedf(get_error());
     }
     
     return {};
@@ -353,12 +353,12 @@ expected<void, std::string> surface_renderer::set_color_mod(uint8_t r, uint8_t g
 
 expected<std::tuple<uint8_t, uint8_t, uint8_t>, std::string> surface_renderer::get_color_mod() const {
     if (!surface_) {
-        return make_unexpected("Invalid surface");
+        return make_unexpectedf("Invalid surface");
     }
     
     uint8_t r, g, b;
     if (!SDL_GetSurfaceColorMod(surface_, &r, &g, &b)) {
-        return make_unexpected(get_error());
+        return make_unexpectedf(get_error());
     }
     
     return std::make_tuple(r, g, b);

@@ -33,7 +33,7 @@ std::vector<std::uint8_t> read_file(const std::filesystem::path& path) {
 expected<surface, std::string> load(const std::filesystem::path& path) {
     auto data = read_file(path);
     if (data.empty()) {
-        return make_unexpected("Failed to read file: " + path.string());
+        return make_unexpectedf("Failed to read file:", path.string());
     }
 
     return load(data);
@@ -45,8 +45,7 @@ expected<surface, std::string> load(std::span<const std::uint8_t> data) {
 
     auto decode_result = onyx_image::decode(data, adapter);
     if (!decode_result) {
-        return make_unexpected("Failed to decode image: " +
-            std::string(onyx_image::to_string(decode_result.error)));
+        return make_unexpectedf("Failed to decode image:", std::string(onyx_image::to_string(decode_result.error)));
     }
 
     return result;
@@ -58,7 +57,7 @@ expected<texture, std::string> load_texture(
 
     auto surface_result = load(path);
     if (!surface_result) {
-        return make_unexpected(surface_result.error());
+        return make_unexpectedf(surface_result.error());
     }
 
     return texture::create(renderer, *surface_result);
@@ -70,7 +69,7 @@ expected<texture, std::string> load_texture(
 
     auto surface_result = load(data);
     if (!surface_result) {
-        return make_unexpected(surface_result.error());
+        return make_unexpectedf(surface_result.error());
     }
 
     return texture::create(renderer, *surface_result);
@@ -85,8 +84,7 @@ expected<surface, std::string> decode(
 
     auto decode_result = onyx_image::decode(data, adapter, codec_name);
     if (!decode_result) {
-        return make_unexpected("Failed to decode image with codec '" +
-            codec_name + "': " + std::string(onyx_image::to_string(decode_result.error)));
+        return make_unexpectedf("Failed to decode image with codec '", codec_name, "':", std::string(onyx_image::to_string(decode_result.error)));
     }
 
     return result;
@@ -114,7 +112,7 @@ bool is_format_supported(const std::string& codec_name) {
 
 expected<surface, std::string> image_atlas::extract(std::size_t index) const {
     if (index >= regions.size()) {
-        return make_unexpected("Image index out of range");
+        return make_unexpectedf("Image index out of range");
     }
 
     const auto& region = regions[index];
@@ -122,13 +120,13 @@ expected<surface, std::string> image_atlas::extract(std::size_t index) const {
     auto result = surface::create_rgb(
         region.bounds.w, region.bounds.h, atlas.format());
     if (!result) {
-        return make_unexpected("Failed to create surface: " + result.error());
+        return make_unexpectedf("Failed to create surface:", result.error());
     }
 
     // Blit the region from atlas to new surface
     auto blit_result = atlas.blit_to(*result, std::optional{region.bounds}, point<int>{0, 0});
     if (!blit_result) {
-        return make_unexpected("Failed to blit region: " + blit_result.error());
+        return make_unexpectedf("Failed to blit region:", blit_result.error());
     }
 
     return result;
@@ -155,7 +153,7 @@ std::optional<std::size_t> image_atlas::find_best_size(int target_size) const {
 expected<image_atlas, std::string> load_atlas(const std::filesystem::path& path) {
     auto data = read_file(path);
     if (data.empty()) {
-        return make_unexpected("Failed to read file: " + path.string());
+        return make_unexpectedf("Failed to read file:", path.string());
     }
 
     return load_atlas(data);
@@ -167,8 +165,7 @@ expected<image_atlas, std::string> load_atlas(std::span<const std::uint8_t> data
 
     auto decode_result = onyx_image::decode(data, adapter);
     if (!decode_result) {
-        return make_unexpected("Failed to decode: " +
-            std::string(onyx_image::to_string(decode_result.error)));
+        return make_unexpectedf("Failed to decode:", std::string(onyx_image::to_string(decode_result.error)));
     }
 
     image_atlas result;
