@@ -43,9 +43,16 @@ bool font_cache::store_glyph(char32_t codepoint) {
         return false;  // Invalid glyph
     }
 
-    // Calculate surface size (add padding for antialiasing)
-    int width = static_cast<int>(std::ceil(metrics.advance_x)) + 2;
-    int height = static_cast<int>(std::ceil(rast->line_height())) + 2;
+    // Calculate surface size based on actual glyph bounds (add padding for antialiasing)
+    // Width: must fit both the glyph and the advance
+    float glyph_right = metrics.bearing_x + metrics.width;
+    int width = static_cast<int>(std::ceil(std::max(metrics.advance_x, glyph_right))) + 2;
+
+    // Height: must fit both the font metrics and the actual glyph
+    auto font_metrics = rast->get_metrics();
+    float glyph_descent = metrics.height - metrics.bearing_y;  // Part below baseline
+    float required_descent = std::max(font_metrics.descent, glyph_descent);
+    int height = static_cast<int>(std::ceil(font_metrics.ascent + required_descent)) + 2;
 
     if (width <= 0 || height <= 0) {
         return false;
@@ -65,7 +72,6 @@ bool font_cache::store_glyph(char32_t codepoint) {
     // Render glyph in white (will be color modulated when drawing)
     surface_raster_target target(surf, {255, 255, 255, 255});
 
-    auto font_metrics = rast->get_metrics();
     int baseline = static_cast<int>(std::ceil(font_metrics.ascent)) + 1;
 
     rast->rasterize_glyph(codepoint, target, 1, baseline);
