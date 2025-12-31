@@ -82,7 +82,9 @@ bool font_cache::store_glyph(char32_t codepoint) {
     // Store in cache
     glyph_data data;
     data.tex = std::move(*tex_result);
-    data.offset_x = 0;
+    // Use bearing_x for proper horizontal positioning
+    // bearing_x is the distance from pen position to left edge of glyph
+    data.offset_x = static_cast<int>(std::floor(metrics.bearing_x));
     data.offset_y = 0;
     data.advance = static_cast<int>(std::ceil(metrics.advance_x));
     data.width = width;
