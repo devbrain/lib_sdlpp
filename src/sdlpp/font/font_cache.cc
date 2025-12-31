@@ -52,7 +52,8 @@ bool font_cache::store_glyph(char32_t codepoint) {
     auto font_metrics = rast->get_metrics();
     float glyph_descent = metrics.height - metrics.bearing_y;  // Part below baseline
     float required_descent = std::max(font_metrics.descent, glyph_descent);
-    int height = static_cast<int>(std::ceil(font_metrics.ascent + required_descent)) + 2;
+    // Use generous padding to ensure descenders fit
+    int height = static_cast<int>(std::ceil(font_metrics.ascent + required_descent)) + 8;
 
     if (width <= 0 || height <= 0) {
         return false;
