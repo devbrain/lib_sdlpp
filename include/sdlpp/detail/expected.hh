@@ -11,6 +11,7 @@
 #include <sdlpp/detail/compiler.hh>
 #include <version>
 #include <string>
+#include <type_traits>
 #include <failsafe/detail/string_utils.hh>
 
 // Check for std::expected availability (C++23 feature)
@@ -80,7 +81,7 @@ namespace sdlpp {
      */
     template<typename E>
     constexpr auto make_unexpected(E&& e) {
-        return tl::make_unexpected(std::forward <E>(e));
+        return tl::unexpected<std::decay_t<E>>(std::forward<E>(e));
     }
 
     inline constexpr bool using_std_expected = false;

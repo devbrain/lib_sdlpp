@@ -182,11 +182,11 @@ public:
     SDLPP_EXPORT int render_text(std::string_view text, int x, int y, const color& fg);
 
     template<typename... Args>
-    requires (sizeof...(Args) > 0)
-             && !(sizeof...(Args) == 1
-                  && std::is_convertible_v<std::remove_cvref_t<
-                         std::tuple_element_t<0, std::tuple<Args...>>>,
-                     std::string_view>)
+    requires ((sizeof...(Args) > 0)
+              && !(sizeof...(Args) == 1
+                   && std::is_convertible_v<std::remove_cvref_t<
+                          std::tuple_element_t<0, std::tuple<Args...>>>,
+                      std::string_view>))
     int render_text(int x, int y, const color& fg, Args&&... args) {
         return render_text(
             failsafe::detail::build_message(std::forward<Args>(args)...),

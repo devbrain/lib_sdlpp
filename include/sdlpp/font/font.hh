@@ -229,11 +229,11 @@ public:
         const color& bg = {0, 0, 0, 0}) const;
 
     template<typename... Args>
-    requires (sizeof...(Args) > 0)
-             && !(sizeof...(Args) == 1
-                  && std::is_convertible_v<std::remove_cvref_t<
-                         std::tuple_element_t<0, std::tuple<Args...>>>,
-                     std::string_view>)
+    requires ((sizeof...(Args) > 0)
+              && !(sizeof...(Args) == 1
+                   && std::is_convertible_v<std::remove_cvref_t<
+                          std::tuple_element_t<0, std::tuple<Args...>>>,
+                      std::string_view>))
     [[nodiscard]] expected<surface, std::string> render_text(
         const color& fg,
         const color& bg,
@@ -245,11 +245,11 @@ public:
     }
 
     template<typename... Args>
-    requires (sizeof...(Args) > 0)
-             && !(sizeof...(Args) == 1
-                  && std::is_convertible_v<std::remove_cvref_t<
-                         std::tuple_element_t<0, std::tuple<Args...>>>,
-                     std::string_view>)
+    requires ((sizeof...(Args) > 0)
+              && !(sizeof...(Args) == 1
+                   && std::is_convertible_v<std::remove_cvref_t<
+                          std::tuple_element_t<0, std::tuple<Args...>>>,
+                      std::string_view>))
     [[nodiscard]] expected<surface, std::string> render_text(
         const color& fg,
         Args&&... args) const {
@@ -270,11 +270,11 @@ public:
         const color& fg) const;
 
     template<typename... Args>
-    requires (sizeof...(Args) > 0)
-             && !(sizeof...(Args) == 1
-                  && std::is_convertible_v<std::remove_cvref_t<
-                         std::tuple_element_t<0, std::tuple<Args...>>>,
-                     std::string_view>)
+    requires ((sizeof...(Args) > 0)
+              && !(sizeof...(Args) == 1
+                   && std::is_convertible_v<std::remove_cvref_t<
+                          std::tuple_element_t<0, std::tuple<Args...>>>,
+                      std::string_view>))
     [[nodiscard]] expected<texture, std::string> render_texture(
         renderer& renderer,
         const color& fg,
