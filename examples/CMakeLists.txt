@@ -15,10 +15,6 @@ add_example_executable(example_failsafe_logger core/example_failsafe_logger.cc)
 
 # App examples
 add_example_executable(example_basic_app app/example_basic_app.cc)
-add_example_executable(example_app_builder app/example_app_builder.cc)
-add_example_executable(example_scene_app app/example_scene_app.cc)
-add_example_executable(example_game_app app/example_game_app.cc)
-add_example_executable(example_callbacks app/example_callbacks.cc)
 
 # Video examples
 add_example_executable(example_window_renderer video/example_window_renderer.cc)

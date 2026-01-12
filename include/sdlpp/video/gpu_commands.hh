@@ -113,9 +113,7 @@ namespace sdlpp::gpu {
                 .resolve_mip_level = resolve_mip_level,
                 .resolve_layer = resolve_layer,
                 .cycle = cycle,
-                .cycle_resolve_texture = cycle_resolve_texture,
-                .padding1 = 0,
-                .padding2 = 0
+                .cycle_resolve_texture = cycle_resolve_texture
             };
         }
     };
@@ -142,9 +140,7 @@ namespace sdlpp::gpu {
                 .stencil_load_op = static_cast <SDL_GPULoadOp>(stencil_load),
                 .stencil_store_op = static_cast <SDL_GPUStoreOp>(stencil_store),
                 .cycle = cycle,
-                .clear_stencil = clear_stencil,
-                .padding1 = 0,
-                .padding2 = 0
+                .clear_stencil = clear_stencil
             };
         }
     };
@@ -193,10 +189,7 @@ namespace sdlpp::gpu {
                 .texture = tex ? tex->get() : nullptr,
                 .mip_level = mip_level,
                 .layer = layer,
-                .cycle = cycle,
-                .padding1 = 0,
-                .padding2 = 0,
-                .padding3 = 0
+                .cycle = cycle
             };
         }
     };
@@ -211,10 +204,7 @@ namespace sdlpp::gpu {
         [[nodiscard]] SDL_GPUStorageBufferReadWriteBinding to_sdl() const noexcept {
             return SDL_GPUStorageBufferReadWriteBinding{
                 .buffer = buff ? buff->get() : nullptr,
-                .cycle = cycle,
-                .padding1 = 0,
-                .padding2 = 0,
-                .padding3 = 0
+                .cycle = cycle
             };
         }
     };
@@ -246,7 +236,7 @@ namespace sdlpp::gpu {
              * @param device GPU device
              * @return Command buffer or error
              */
-            [[nodiscard]] static tl::expected <command_buffer, std::string> acquire(
+            [[nodiscard]] static expected <command_buffer, std::string> acquire(
                 const device& device) {
                 SDL_GPUCommandBuffer* cmd = SDL_AcquireGPUCommandBuffer(device.get());
                 if (!cmd) {
@@ -286,7 +276,7 @@ namespace sdlpp::gpu {
              * @brief Submit command buffer for execution
              * @return Success or error
              */
-            [[nodiscard]] tl::expected <void, std::string> submit() {
+            [[nodiscard]] expected <void, std::string> submit() {
                 if (!cmd_buffer_) {
                     return make_unexpectedf("Invalid command buffer");
                 }
@@ -303,7 +293,7 @@ namespace sdlpp::gpu {
              * @brief Submit command buffer and acquire fence
              * @return Fence or error
              */
-            [[nodiscard]] tl::expected <fence, std::string> submit_and_acquire_fence() {
+            [[nodiscard]] expected <fence, std::string> submit_and_acquire_fence() {
                 if (!cmd_buffer_) {
                     return make_unexpectedf("Invalid command buffer");
                 }
@@ -325,7 +315,7 @@ namespace sdlpp::gpu {
              * @param swapchain_texture_height Output height
              * @return Success or error
              */
-            [[nodiscard]] tl::expected <void, std::string> wait_and_acquire_swapchain_texture(
+            [[nodiscard]] expected <void, std::string> wait_and_acquire_swapchain_texture(
                 const sdlpp::window& window,
                 SDL_GPUTexture** acquired_texture,
                 Uint32* swapchain_texture_width = nullptr,

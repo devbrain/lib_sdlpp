@@ -19,217 +19,162 @@
 // 3. This notice may not be removed or altered from any source distribution.
 //
 
-#ifndef SDLPP_APP_APP_HH
-#define SDLPP_APP_APP_HH
+#ifndef SDLPP_APP_HH
+#define SDLPP_APP_HH
 
+#include <sdlpp/detail/export.hh>
 #include <sdlpp/core/core.hh>
 #include <sdlpp/events/events.hh>
-#include <sdlpp/video/window.hh>
-#include <sdlpp/video/renderer.hh>
-#include <optional>
-#include <functional>
-#include <iostream>
-#include <string>
-#include <chrono>
+#include <atomic>
 
 namespace sdlpp {
+
     /**
-     * @brief Pure interface for SDL3 application model
-     * 
-     * This interface defines the contract for SDL3's new application
-     * lifecycle callbacks (SDL_AppInit, SDL_AppIterate, etc.)
+     * @brief Minimal application base class for SDL3 app model
+     *
+     * Provides SDL initialization and lifecycle management.
+     * Derived classes create their own resources (windows, renderers, etc.)
+     *
+     * Example:
+     * @code
+     * #include <sdlpp/app/entry_point.hh>
+     *
+     * class MyApp : public sdlpp::abstract_application {
+     *     sdlpp::window window_;
+     *     sdlpp::renderer renderer_;
+     *
+     * public:
+     *     void on_init(int argc, char* argv[]) override {
+     *         window_ = sdlpp::window::create("My App", 1280, 720).value();
+     *         renderer_ = sdlpp::renderer::create(window_).value();
+     *     }
+     *
+     *     void handle_event(const sdlpp::event& e) override {
+     *         // Handle input events here
+     *     }
+     *
+     *     void on_iterate() override {
+     *         renderer_.set_draw_color(sdlpp::colors::black);
+     *         renderer_.clear();
+     *         renderer_.present();
+     *     }
+     * };
+     *
+     * SDLPP_MAIN(MyApp)
+     * @endcode
      */
-    class app_interface {
+    class SDLPP_EXPORT abstract_application {
     public:
-        virtual ~app_interface() = default;
-        
         /**
-         * @brief Initialize the application
-         * @param argc Argument count
-         * @param argv Argument values
-         * @return true on success, false to quit
+         * @brief Construct application with SDL initialization flags
+         * @param flags SDL subsystems to initialize (default: video + events)
          */
-        virtual bool init(int argc, char* argv[]) = 0;
-        
+        explicit abstract_application(init_flags flags = init_flags::video | init_flags::events);
+
+        virtual ~abstract_application() = default;
+
+        // Non-copyable, non-movable
+        abstract_application(const abstract_application&) = delete;
+        abstract_application& operator=(const abstract_application&) = delete;
+        abstract_application(abstract_application&&) = delete;
+        abstract_application& operator=(abstract_application&&) = delete;
+
         /**
-         * @brief Called once per frame
-         * @return true to continue, false to quit
+         * @brief Called after SDL is initialized
+         * @param argc Argument count from command line
+         * @param argv Argument values from command line
+         * @throws Any exception to signal initialization failure
          */
-        virtual bool iterate() = 0;
-        
+        virtual void on_init([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]);
+
         /**
-         * @brief Handle an SDL event
+         * @brief Called for each SDL event
          * @param e The event to handle
-         * @return true to continue, false to quit
+         * @note Dispatches to lifecycle callbacks, then calls handle_event()
          */
-        virtual bool event(const sdlpp::event& e) = 0;
-        
+        virtual void on_event(const event& e);
+
         /**
-         * @brief Clean up the application
+         * @brief Handle application events
+         * @param e The event to handle
+         * @note Override this to handle input and other events
          */
-        virtual void quit() = 0;
-    };
-    
-    /**
-     * @brief Base application class with common functionality
-     * 
-     * Provides sensible defaults and common resources for typical SDL applications.
-     * Derived classes can override virtual methods to customize behavior.
-     */
-    class application : public app_interface {
-    public:
+        virtual void handle_event([[maybe_unused]] const event& e);
+
         /**
-         * @brief Application configuration
+         * @brief Called when quit is requested (e.g., window close)
+         * @note Default implementation calls quit()
          */
-        struct config {
-            init_flags sdl_flags = init_flags::video | init_flags::events;
-            std::string window_title = "SDL++ Application";
-            int window_width = 1280;
-            int window_height = 720;
-            sdlpp::window_flags window_flags = sdlpp::window_flags::resizable | sdlpp::window_flags::high_pixel_density;
-            int vsync = 1; // 1 = enabled, 0 = disabled, -1 = adaptive
-            bool auto_create_window = true;
-            bool auto_create_renderer = true;
-            const char* renderer_driver = nullptr; // nullptr = auto-select
-            bool handle_quit_event = true;
-        };
-        
-    private:
-        bool running_ = true;
-        bool initialized_ = false;
-        std::optional<sdlpp::init> sdl_init_;
-        config config_;
-        
-    protected:
-        // Common resources
-        std::optional<window> main_window_;
-        std::optional<renderer> main_renderer_;
-        event_queue* event_queue_ = nullptr;
-        
-        // Timing
-        std::chrono::steady_clock::time_point frame_start_;
-        std::chrono::steady_clock::time_point last_frame_time_;
-        std::chrono::duration<float> delta_time_{0};
-        std::chrono::duration<float> total_time_{0};
-        
-    public:
-        application() = default;
-        explicit application(config cfg) : config_(std::move(cfg)) {}
-        
-        // app_interface implementation
-        bool init(int argc, char* argv[]) override;
-        bool iterate() override;
-        bool event(const sdlpp::event& e) override;
-        void quit() override;
-        
-    protected:
-        // Hooks for derived classes
-        
+        virtual void on_quit_requested();
+
         /**
-         * @brief Parse command line arguments
-         * @param argc Argument count
-         * @param argv Argument values
-         * @return true to continue, false to abort initialization
+         * @brief Called when the app is being terminated
          */
-        virtual bool parse_args([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
-            return true;
-        }
-        
+        virtual void on_terminating();
+
         /**
-         * @brief Called after SDL and window/renderer are initialized
-         * @return true on success, false to quit
+         * @brief Called when the system is low on memory
          */
-        virtual bool on_init() { return true; }
-        
+        virtual void on_low_memory();
+
+        /**
+         * @brief Called when the app is about to enter background
+         */
+        virtual void on_will_enter_background();
+
+        /**
+         * @brief Called when the app entered background
+         */
+        virtual void on_did_enter_background();
+
+        /**
+         * @brief Called when the app is about to enter foreground
+         */
+        virtual void on_will_enter_foreground();
+
+        /**
+         * @brief Called when the app entered foreground
+         */
+        virtual void on_did_enter_foreground();
+
         /**
          * @brief Called once per frame
+         * @throws Any exception to signal failure
+         * @note Call quit() to exit cleanly
          */
-        virtual void on_frame() {}
-        
+        virtual void on_iterate();
+
         /**
-         * @brief Handle an event
-         * @param e The event
-         * @return true to continue, false to quit
+         * @brief Called during shutdown for cleanup
+         * @note Must not throw
          */
-        virtual bool on_event([[maybe_unused]] const sdlpp::event& e) { return true; }
-        
+        virtual void on_quit() noexcept;
+
         /**
-         * @brief Called before cleanup
+         * @brief Request application to quit
+         * @note Thread-safe
          */
-        virtual void on_quit() {}
-        
+        void quit() noexcept;
+
         /**
-         * @brief Handle errors
-         * @param error Error message
+         * @brief Check if application is still running
+         * @return true if running, false if quit was requested
+         * @note Thread-safe
          */
-        virtual void on_error(const std::string& error) {
-            std::cerr << "Application error: " << error << std::endl;
-        }
-        
-    public:
-        // Utility methods
-        
-        /**
-         * @brief Request the application to quit
-         */
-        void request_quit() { running_ = false; }
-        
-        /**
-         * @brief Check if the application is running
-         */
-        bool is_running() const { return running_ && initialized_; }
-        
-        /**
-         * @brief Get the main window
-         * @throws std::runtime_error if no window exists
-         */
-        window& get_window() { 
-            if (!main_window_) throw std::runtime_error("No window created");
-            return *main_window_; 
-        }
-        
-        const window& get_window() const { 
-            if (!main_window_) throw std::runtime_error("No window created");
-            return *main_window_; 
-        }
-        
-        /**
-         * @brief Get the main renderer
-         * @throws std::runtime_error if no renderer exists
-         */
-        renderer& get_renderer() { 
-            if (!main_renderer_) throw std::runtime_error("No renderer created");
-            return *main_renderer_; 
-        }
-        
-        const renderer& get_renderer() const { 
-            if (!main_renderer_) throw std::runtime_error("No renderer created");
-            return *main_renderer_; 
-        }
-        
-        /**
-         * @brief Get the configuration
-         */
-        const config& get_config() const { return config_; }
-        
-        /**
-         * @brief Get frame delta time in seconds
-         */
-        float get_delta_time() const { return delta_time_.count(); }
-        
-        /**
-         * @brief Get total elapsed time in seconds
-         */
-        float get_total_time() const { return total_time_.count(); }
-        
-        /**
-         * @brief Get current FPS
-         */
-        float get_fps() const { 
-            return delta_time_.count() > 0 ? 1.0f / delta_time_.count() : 0.0f; 
-        }
+        [[nodiscard]] bool is_running() const noexcept;
+
+        /// @internal Initialize SDL (called by entry_point)
+        void init_sdl_();
+
+        /// @internal Shutdown SDL (called by entry_point)
+        void shutdown_sdl_() noexcept;
+
+    private:
+        init_flags init_flags_;
+        std::atomic<bool> running_{true};
+        std::optional<init> sdl_init_;
     };
-    
+
 } // namespace sdlpp
 
-#endif // SDLPP_APP_APP_HH
+#endif // SDLPP_APP_HH

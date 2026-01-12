@@ -87,6 +87,16 @@ namespace sdlpp {
     };
 
     /**
+     * @brief Texture address mode for wrapping behavior (SDL 3.4.0+)
+     *
+     * Controls how textures are sampled when UV coordinates exceed [0, 1].
+     */
+    enum class texture_address_mode : int {
+        clamp = SDL_TEXTURE_ADDRESS_CLAMP, ///< Clamp coordinates to edge (default)
+        wrap = SDL_TEXTURE_ADDRESS_WRAP    ///< Wrap coordinates (tile the texture)
+    };
+
+    /**
      * @brief RAII wrapper for SDL_Renderer
      *
      * This class provides a safe, RAII-managed interface to SDL's hardware-accelerated
@@ -1053,6 +1063,101 @@ namespace sdlpp {
              * @return Expected<void> - empty on success, error message on failure
              */
             expected <void, std::string> set_target(const texture& target);
+
+            /**
+             * @brief Render texture using 9-grid tiled scaling (SDL 3.4.0+)
+             *
+             * Uses 9-slice scaling for UI elements where corners remain unscaled.
+             *
+             * @param texture Texture to render
+             * @param src_rect Source rectangle (nullopt for entire texture)
+             * @param left_width Width of left border
+             * @param right_width Width of right border
+             * @param top_height Height of top border
+             * @param bottom_height Height of bottom border
+             * @param scale Scale factor for center stretched area
+             * @param dst_rect Destination rectangle
+             * @param tile_scale Scale factor for tiling (1.0 = original size)
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            template<rect_like R>
+            expected<void, std::string> copy_9grid_tiled(
+                const texture& texture,
+                const std::optional<R>& src_rect,
+                float left_width, float right_width,
+                float top_height, float bottom_height,
+                float scale,
+                const R& dst_rect,
+                float tile_scale);
+
+            /**
+             * @brief Set texture address mode for geometry rendering (SDL 3.4.0+)
+             *
+             * Controls how textures are sampled when UV coordinates exceed [0, 1]
+             * in SDL_RenderGeometry calls. Wrap mode tiles the texture.
+             *
+             * @param mode Address mode to use for both U and V axes
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected<void, std::string> set_texture_address_mode(texture_address_mode mode) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+
+                if (!SDL_SetRenderTextureAddressMode(
+                    ptr.get(),
+                    static_cast<SDL_TextureAddressMode>(mode),
+                    static_cast<SDL_TextureAddressMode>(mode))) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Set texture address mode with different U and V modes (SDL 3.4.0+)
+             *
+             * @param mode_u Address mode for U (horizontal) axis
+             * @param mode_v Address mode for V (vertical) axis
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected<void, std::string> set_texture_address_mode(
+                texture_address_mode mode_u,
+                texture_address_mode mode_v) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+
+                if (!SDL_SetRenderTextureAddressMode(
+                    ptr.get(),
+                    static_cast<SDL_TextureAddressMode>(mode_u),
+                    static_cast<SDL_TextureAddressMode>(mode_v))) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get texture address mode (SDL 3.4.0+)
+             *
+             * @return Expected containing pair of (mode_u, mode_v), or error message
+             */
+            [[nodiscard]] expected<std::pair<texture_address_mode, texture_address_mode>, std::string>
+            get_texture_address_mode() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+
+                SDL_TextureAddressMode mode_u, mode_v;
+                if (!SDL_GetRenderTextureAddressMode(ptr.get(), &mode_u, &mode_v)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return std::make_pair(
+                    static_cast<texture_address_mode>(mode_u),
+                    static_cast<texture_address_mode>(mode_v));
+            }
 
             // Geometry rendering methods
 

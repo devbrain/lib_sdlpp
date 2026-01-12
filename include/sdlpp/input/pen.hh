@@ -21,6 +21,8 @@
 #include <SDL3/SDL_pen.h>
 
 #include <cstdint>
+#include <string>
+#include <vector>
 
 namespace sdlpp {
     /**
@@ -32,6 +34,29 @@ namespace sdlpp {
      * @brief Special touch ID for pen events
      */
     constexpr SDL_TouchID pen_touch_id = input_constants::pen_as_touch;
+
+    /**
+     * @brief Pen device type (SDL 3.4.0+)
+     *
+     * Indicates whether a pen operates on a screen directly (like a Wacom Cintiq)
+     * or on a separate touchpad (like a Wacom Intuos tablet).
+     */
+    enum class pen_device_type : int {
+        invalid = SDL_PEN_DEVICE_TYPE_INVALID,   ///< Not a valid pen device
+        unknown = SDL_PEN_DEVICE_TYPE_UNKNOWN,   ///< Unknown pen type
+        direct = SDL_PEN_DEVICE_TYPE_DIRECT,     ///< Pen touches display directly
+        indirect = SDL_PEN_DEVICE_TYPE_INDIRECT  ///< Pen touches separate surface
+    };
+
+    /**
+     * @brief Get the type of a pen device (SDL 3.4.0+)
+     *
+     * @param instance_id The pen instance ID
+     * @return The pen device type
+     */
+    [[nodiscard]] inline pen_device_type get_pen_device_type(SDL_PenID instance_id) {
+        return static_cast<pen_device_type>(SDL_GetPenDeviceType(instance_id));
+    }
 } // namespace sdlpp
 
 

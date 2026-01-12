@@ -25,6 +25,7 @@
 #include <sdlpp/video/blend_mode.hh>
 #include <string>
 #include <optional>
+#include <cstring>
 #include <sdlpp/utility/dimension.hh>
 
 namespace sdlpp {
@@ -288,7 +289,8 @@ namespace sdlpp {
              * @param x X coordinate
              * @param y Y coordinate
              * @return Expected containing color at (x,y), or error message
-             * @note The surface must be locked before calling this method
+             * @note Surface must be locked first if SDL_MUSTLOCK() returns true.
+             *       Use lock() / unlock() or lock_guard for bulk operations.
              */
             expected <color, std::string> get_pixel(int x, int y) const {
                 if (!ptr) {
@@ -300,11 +302,9 @@ namespace sdlpp {
                     return make_unexpectedf("Coordinates out of bounds");
                 }
 
-                // Check if surface is locked
-                if (!SDL_MUSTLOCK(ptr.get()) || SDL_SurfaceHasRLE(ptr.get())) {
-                    // Surface doesn't require locking or has RLE encoding
-                } else if (!ptr->pixels) {
-                    return make_unexpectedf("Surface must be locked before accessing pixels");
+                // Check if surface requires locking and is not locked
+                if (SDL_MUSTLOCK(ptr.get()) && !ptr->pixels) {
+                    return make_unexpectedf("Surface requires locking - call lock() first");
                 }
 
                 // Get pixel based on format
@@ -317,9 +317,13 @@ namespace sdlpp {
                     case 1:
                         pixel = *p;
                         break;
-                    case 2:
-                        pixel = *reinterpret_cast <const uint16_t*>(p);
+                    case 2: {
+                        // Use memcpy to avoid unaligned access
+                        uint16_t tmp;
+                        std::memcpy(&tmp, p, sizeof(tmp));
+                        pixel = tmp;
                         break;
+                    }
                     case 3:
                         if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
                             pixel = static_cast<uint32_t>(p[0]) << 16 | static_cast<uint32_t>(p[1]) << 8 | static_cast<uint32_t>(p[2]);
@@ -327,17 +331,19 @@ namespace sdlpp {
                             pixel = static_cast<uint32_t>(p[0]) | static_cast<uint32_t>(p[1]) << 8 | static_cast<uint32_t>(p[2]) << 16;
                         }
                         break;
-                    case 4:
-                        pixel = *reinterpret_cast <const uint32_t*>(p);
+                    case 4: {
+                        // Use memcpy to avoid unaligned access
+                        std::memcpy(&pixel, p, sizeof(pixel));
                         break;
+                    }
                     default:
                         return make_unexpectedf("Unsupported pixel format");
                 }
 
-                // Convert to RGBA
+                // Convert to RGBA - get palette for paletted formats
                 uint8_t r, g, b, a;
                 SDL_GetRGBA(pixel, SDL_GetPixelFormatDetails(ptr->format),
-                            nullptr, &r, &g, &b, &a);
+                            SDL_GetSurfacePalette(ptr.get()), &r, &g, &b, &a);
 
                 return color{r, g, b, a};
             }
@@ -348,7 +354,8 @@ namespace sdlpp {
              * @param y Y coordinate
              * @param c Color to set
              * @return Expected<void> - empty on success, error message on failure
-             * @note The surface must be locked before calling this method
+             * @note Surface must be locked first if SDL_MUSTLOCK() returns true.
+             *       Use lock() / unlock() or lock_guard for bulk operations.
              */
             expected <void, std::string> put_pixel(int x, int y, const color& c) {
                 if (!ptr) {
@@ -360,11 +367,9 @@ namespace sdlpp {
                     return make_unexpectedf("Coordinates out of bounds");
                 }
 
-                // Check if surface is locked
-                if (!SDL_MUSTLOCK(ptr.get()) || SDL_SurfaceHasRLE(ptr.get())) {
-                    // Surface doesn't require locking or has RLE encoding
-                } else if (!ptr->pixels) {
-                    return make_unexpectedf("Surface must be locked before accessing pixels");
+                // Check if surface requires locking and is not locked
+                if (SDL_MUSTLOCK(ptr.get()) && !ptr->pixels) {
+                    return make_unexpectedf("Surface requires locking - call lock() first");
                 }
 
                 // Map color to pixel format
@@ -379,9 +384,12 @@ namespace sdlpp {
                     case 1:
                         *p = static_cast <uint8_t>(pixel);
                         break;
-                    case 2:
-                        *reinterpret_cast <uint16_t*>(p) = static_cast <uint16_t>(pixel);
+                    case 2: {
+                        // Use memcpy to avoid unaligned access
+                        uint16_t tmp = static_cast<uint16_t>(pixel);
+                        std::memcpy(p, &tmp, sizeof(tmp));
                         break;
+                    }
                     case 3:
                         if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
                             p[0] = (pixel >> 16) & 0xff;
@@ -393,9 +401,11 @@ namespace sdlpp {
                             p[2] = (pixel >> 16) & 0xff;
                         }
                         break;
-                    case 4:
-                        *reinterpret_cast <uint32_t*>(p) = pixel;
+                    case 4: {
+                        // Use memcpy to avoid unaligned access
+                        std::memcpy(p, &pixel, sizeof(pixel));
                         break;
+                    }
                     default:
                         return make_unexpectedf("Unsupported pixel format");
                 }
@@ -408,7 +418,7 @@ namespace sdlpp {
              * @tparam P Point type (must satisfy point_like)
              * @param p Point coordinates
              * @return Expected containing color at point, or error message
-             * @note The surface must be locked before calling this method
+             * @note Surface must be locked first if SDL_MUSTLOCK() returns true
              */
             template<point_like P>
             expected <color, std::string> get_pixel(const P& p) const {
@@ -421,7 +431,7 @@ namespace sdlpp {
              * @param p Point coordinates
              * @param c Color to set
              * @return Expected<void> - empty on success, error message on failure
-             * @note The surface must be locked before calling this method
+             * @note Surface must be locked first if SDL_MUSTLOCK() returns true
              */
             template<point_like P>
             expected <void, std::string> put_pixel(const P& p, const color& c) {
@@ -766,6 +776,60 @@ namespace sdlpp {
                 }
 
                 return surface(surf);
+            }
+
+            /**
+             * @brief Rotate surface by 90-degree increments (SDL 3.4.0+)
+             *
+             * Creates a new surface rotated by the specified number of 90-degree
+             * clockwise rotations.
+             *
+             * @param turns Number of 90-degree clockwise rotations (1=90°, 2=180°, 3=270°)
+             * @return Expected containing new rotated surface, or error message
+             *
+             * Example:
+             * @code
+             * auto rotated_90 = surf.rotate(1);   // 90° clockwise
+             * auto rotated_180 = surf.rotate(2);  // 180°
+             * auto rotated_270 = surf.rotate(3);  // 270° clockwise (90° counter-clockwise)
+             * @endcode
+             */
+            [[nodiscard]] expected<surface, std::string> rotate(int turns) const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid surface");
+                }
+
+                float angle = static_cast<float>(turns) * 90.0f;
+                SDL_Surface* rotated = SDL_RotateSurface(ptr.get(), angle);
+                if (!rotated) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return surface(rotated);
+            }
+
+            /**
+             * @brief Rotate surface 90 degrees clockwise (SDL 3.4.0+)
+             * @return Expected containing new rotated surface, or error message
+             */
+            [[nodiscard]] expected<surface, std::string> rotate_90_cw() const {
+                return rotate(1);
+            }
+
+            /**
+             * @brief Rotate surface 90 degrees counter-clockwise (SDL 3.4.0+)
+             * @return Expected containing new rotated surface, or error message
+             */
+            [[nodiscard]] expected<surface, std::string> rotate_90_ccw() const {
+                return rotate(3);
+            }
+
+            /**
+             * @brief Rotate surface 180 degrees (SDL 3.4.0+)
+             * @return Expected containing new rotated surface, or error message
+             */
+            [[nodiscard]] expected<surface, std::string> rotate_180() const {
+                return rotate(2);
             }
             
             /**

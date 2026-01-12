@@ -37,7 +37,8 @@ namespace sdlpp {
      */
     enum class scale_mode : int {
         nearest = SDL_SCALEMODE_NEAREST, ///< Nearest neighbor scaling (pixelated)
-        linear = SDL_SCALEMODE_LINEAR ///< Linear filtering (smooth)
+        linear = SDL_SCALEMODE_LINEAR, ///< Linear filtering (smooth)
+        pixelart = SDL_SCALEMODE_PIXELART ///< Pixel art optimized scaling (SDL 3.4.0+)
     };
 
     /**

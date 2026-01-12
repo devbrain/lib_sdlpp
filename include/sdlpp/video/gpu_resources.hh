@@ -41,7 +41,7 @@ namespace sdlpp::gpu {
              * @param info Creation parameters
              * @return Buffer or error
              */
-            [[nodiscard]] static tl::expected <buffer, std::string> create(
+            [[nodiscard]] static expected <buffer, std::string> create(
                 const device& device,
                 const buffer_create_info& info) {
                 SDL_GPUBufferCreateInfo sdl_info{
@@ -126,7 +126,7 @@ namespace sdlpp::gpu {
              * @param info Creation parameters
              * @return Transfer buffer or error
              */
-            [[nodiscard]] static tl::expected <transfer_buffer, std::string> create(
+            [[nodiscard]] static expected <transfer_buffer, std::string> create(
                 const device& device,
                 const transfer_buffer_create_info& info) {
                 SDL_GPUTransferBufferCreateInfo sdl_info{
@@ -220,7 +220,7 @@ namespace sdlpp::gpu {
              * @param info Creation parameters
              * @return Texture or error
              */
-            [[nodiscard]] static tl::expected <texture, std::string> create(
+            [[nodiscard]] static expected <texture, std::string> create(
                 const device& device,
                 const texture_create_info& info) {
                 SDL_GPUTextureCreateInfo sdl_info{
@@ -311,7 +311,7 @@ namespace sdlpp::gpu {
              * @param info Creation parameters
              * @return Sampler or error
              */
-            [[nodiscard]] static tl::expected <sampler, std::string> create(
+            [[nodiscard]] static expected <sampler, std::string> create(
                 const device& device,
                 const sampler_create_info& info) {
                 SDL_GPUSamplerCreateInfo sdl_info{
@@ -328,8 +328,6 @@ namespace sdlpp::gpu {
                     .max_lod = info.max_lod,
                     .enable_anisotropy = info.enable_anisotropy,
                     .enable_compare = info.enable_compare,
-                    .padding1 = 0,
-                    .padding2 = 0,
                     .props = info.props
                 };
 
@@ -399,7 +397,7 @@ namespace sdlpp::gpu {
              * @param info Creation parameters
              * @return Shader or error
              */
-            [[nodiscard]] static tl::expected <shader, std::string> create(
+            [[nodiscard]] static expected <shader, std::string> create(
                 const device& device,
                 const shader_create_info& info) {
                 SDL_GPUShaderCreateInfo sdl_info{
@@ -481,7 +479,7 @@ namespace sdlpp::gpu {
              * @param info Creation parameters
              * @return Pipeline or error
              */
-            [[nodiscard]] static tl::expected <graphics_pipeline, std::string> create(
+            [[nodiscard]] static expected <graphics_pipeline, std::string> create(
                 const device& device,
                 const graphics_pipeline_create_info& info) {
                 // Convert color target descriptions
@@ -516,10 +514,7 @@ namespace sdlpp::gpu {
                     .color_target_descriptions = sdl_color_targets.data(),
                     .num_color_targets = static_cast <Uint32>(sdl_color_targets.size()),
                     .depth_stencil_format = static_cast <SDL_GPUTextureFormat>(info.depth_stencil_format),
-                    .has_depth_stencil_target = info.has_depth_stencil_target,
-                    .padding1 = 0,
-                    .padding2 = 0,
-                    .padding3 = 0
+                    .has_depth_stencil_target = info.has_depth_stencil_target
                 };
 
                 SDL_GPUGraphicsPipelineCreateInfo sdl_info{
@@ -604,7 +599,7 @@ namespace sdlpp::gpu {
              * @param props Additional properties
              * @return Pipeline or error
              */
-            [[nodiscard]] static tl::expected <compute_pipeline, std::string> create(
+            [[nodiscard]] static expected <compute_pipeline, std::string> create(
                 const device& device,
                 const shader_create_info& shader_info,
                 Uint32 thread_count_x,

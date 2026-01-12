@@ -133,6 +133,21 @@ namespace sdlpp {
     };
 
     /**
+     * @brief Window progress state for taskbar indicators (SDL 3.4.0+)
+     *
+     * Used to show progress indicators in the window's taskbar icon
+     * on Windows and Linux.
+     */
+    enum class window_progress_state : int {
+        invalid = SDL_PROGRESS_STATE_INVALID,      ///< Invalid/unknown state
+        none = SDL_PROGRESS_STATE_NONE,            ///< No progress indicator
+        indeterminate = SDL_PROGRESS_STATE_INDETERMINATE, ///< Spinning/indeterminate progress
+        normal = SDL_PROGRESS_STATE_NORMAL,        ///< Normal progress bar
+        error = SDL_PROGRESS_STATE_ERROR,          ///< Error state (red on Windows)
+        paused = SDL_PROGRESS_STATE_PAUSED         ///< Paused state (yellow on Windows)
+    };
+
+    /**
      * @brief RAII wrapper for SDL_Window
      *
      * This class provides a safe, RAII-managed interface to SDL's window
@@ -658,6 +673,18 @@ namespace sdlpp {
             }
 
             /**
+             * @brief Get window display scale (DPI scale factor)
+             * @return Display scale factor (1.0 = 100%, 2.0 = 200% / HiDPI)
+             */
+            [[nodiscard]] float display_scale() const {
+                if (!ptr) {
+                    return 1.0f;
+                }
+
+                return SDL_GetWindowDisplayScale(ptr.get());
+            }
+
+            /**
              * @brief Set window opacity
              * @param opacity Opacity value (0.0 = transparent, 1.0 = opaque)
              * @return Expected<void> - empty on success, error message on failure
@@ -728,6 +755,97 @@ namespace sdlpp {
 
                 return {};
             }
+
+            // ==================== Progress Indicators (SDL 3.4.0+) ====================
+
+            /**
+             * @brief Set the window's progress state (SDL 3.4.0+)
+             *
+             * Sets the taskbar progress indicator state. On Windows, this shows as
+             * a colored overlay on the taskbar icon. On Linux, desktop environment
+             * support varies.
+             *
+             * @param state The progress state to set
+             * @return Expected<void> - empty on success, error message on failure
+             *
+             * Example:
+             * @code
+             * // Show indeterminate progress during operation
+             * win.set_progress_state(window_progress_state::indeterminate);
+             * // ... do work ...
+             * win.set_progress_state(window_progress_state::none);
+             * @endcode
+             */
+            expected<void, std::string> set_progress_state(window_progress_state state) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid window");
+                }
+
+                if (!SDL_SetWindowProgressState(ptr.get(), static_cast<SDL_ProgressState>(state))) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get the window's progress state (SDL 3.4.0+)
+             *
+             * @return The current progress state
+             */
+            [[nodiscard]] window_progress_state get_progress_state() const {
+                if (!ptr) {
+                    return window_progress_state::invalid;
+                }
+
+                return static_cast<window_progress_state>(SDL_GetWindowProgressState(ptr.get()));
+            }
+
+            /**
+             * @brief Set the window's progress value (SDL 3.4.0+)
+             *
+             * Sets the progress bar fill level. Only visible when the progress state
+             * is set to normal, error, or paused.
+             *
+             * @param value Progress value (0.0 = empty, 1.0 = full)
+             * @return Expected<void> - empty on success, error message on failure
+             *
+             * Example:
+             * @code
+             * win.set_progress_state(window_progress_state::normal);
+             * for (float p = 0.0f; p <= 1.0f; p += 0.1f) {
+             *     win.set_progress_value(p);
+             *     // ... do work ...
+             * }
+             * win.set_progress_state(window_progress_state::none);
+             * @endcode
+             */
+            expected<void, std::string> set_progress_value(float value) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid window");
+                }
+
+                if (!SDL_SetWindowProgressValue(ptr.get(), value)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get the window's progress value (SDL 3.4.0+)
+             *
+             * @return The current progress value (0.0 - 1.0), or -1.0 if invalid
+             */
+            [[nodiscard]] float get_progress_value() const {
+                if (!ptr) {
+                    return -1.0f;
+                }
+
+                return SDL_GetWindowProgressValue(ptr.get());
+            }
+
+            // ==================== Display and Surface ====================
 
             /**
              * @brief Get the display containing the window

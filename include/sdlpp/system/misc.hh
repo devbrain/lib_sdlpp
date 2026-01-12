@@ -47,7 +47,7 @@ namespace sdlpp {
      * auto result3 = sdlpp::open_url("mailto:support@example.com?subject=Help");
      * @endcode
      */
-    [[nodiscard]] inline tl::expected <void, std::string> open_url(std::string_view url) {
+    [[nodiscard]] inline expected <void, std::string> open_url(std::string_view url) {
         if (SDL_OpenURL(std::string(url).c_str())) {
             return {};
         }

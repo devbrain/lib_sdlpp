@@ -513,9 +513,10 @@ namespace sdlpp {
             /**
              * @brief Wait for next event with timeout
              * @param timeout Maximum time to wait
-             * @return Event or error
+             * @return Event if one occurred within timeout, nullopt on timeout
+             * @note Timeout is not treated as an error - use wait() for blocking wait with error handling
              */
-            [[nodiscard]] SDLPP_EXPORT static sdlpp::expected <event, std::string> wait_timeout(std::chrono::milliseconds timeout);
+            [[nodiscard]] SDLPP_EXPORT static std::optional<event> wait_timeout(std::chrono::milliseconds timeout);
 
             /**
              * @brief Push event to queue

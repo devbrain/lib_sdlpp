@@ -2,8 +2,8 @@
 // Example: Basic SDL++ Application
 //
 
-#include <sdlpp/app/app.hh>
-#include <sdlpp/app/app_impl.hh>
+#include <sdlpp/app/entry_point.hh>
+#include <sdlpp/app/game_application.hh>
 #include <sdlpp/video/color.hh>
 #include <sdlpp/utility/geometry.hh>
 #include <iostream>
@@ -11,27 +11,32 @@
 using namespace sdlpp;
 
 // Simple application that draws a moving rectangle
-class basic_app : public application {
+class basic_app : public game_application {
     float rect_x_ = 100.0f;
     float rect_y_ = 100.0f;
     float rect_speed_ = 200.0f; // pixels per second
     float rect_dir_x_ = 1.0f;
     float rect_dir_y_ = 1.0f;
-    
+    bool paused_ = false;
+
 protected:
-    bool on_init() override {
+    window_config get_window_config() override {
+        return {"Basic App Example", 800, 600, window_flags::resizable, 60};
+    }
+
+    void on_ready() override {
         std::cout << "Application initialized!\n";
         std::cout << "Press ESC to quit\n";
         std::cout << "Press SPACE to pause/resume\n";
-        return true;
     }
-    
-    void on_frame() override {
+
+    void on_update(float dt) override {
+        if (paused_) return;
+
         // Update rectangle position
-        float dt = get_delta_time();
         rect_x_ += rect_speed_ * rect_dir_x_ * dt;
         rect_y_ += rect_speed_ * rect_dir_y_ * dt;
-        
+
         // Bounce off walls
         auto window_size = get_window().get_size();
         if (window_size) {
@@ -44,67 +49,46 @@ protected:
                 rect_y_ = std::clamp(rect_y_, 0.0f, static_cast<float>(window_size->height - 50));
             }
         }
-        
-        // Render
-        auto& renderer = get_renderer();
-        
-        // Clear screen
-        if (auto res = renderer.set_draw_color(colors::dark_gray); !res) {
-            on_error("Failed to set draw color: " + res.error());
-        }
-        if (auto res = renderer.clear(); !res) {
-            on_error("Failed to clear: " + res.error());
-        }
-        
-        // Draw rectangle
-        if (auto res = renderer.set_draw_color(colors::cyan); !res) {
-            on_error("Failed to set draw color: " + res.error());
-        }
-        if (auto res = renderer.fill_rect(rect_i{
-            static_cast<int>(rect_x_), 
-            static_cast<int>(rect_y_), 
-            50, 50
-        }); !res) {
-            on_error("Failed to fill rect: " + res.error());
-        }
-        
-        // Draw FPS counter
-        if (auto res = renderer.set_draw_color(colors::white); !res) {
-            on_error("Failed to set draw color: " + res.error());
-        }
-        // Note: In a real app, you'd use a text rendering library
-        
-        // Renderer::present() is called automatically by the base class
     }
-    
-    bool on_event(const sdlpp::event& e) override {
-        // Handle keyboard events
-        if (e.is<keyboard_event>()) {
-            const auto* kb = e.as<keyboard_event>();
-            if (!kb) return true;
-            if (kb->type == event_type::key_down) {
-                switch (kb->key) {
-                    case keycodes::escape:
-                        request_quit();
-                        return false;
-                        
-                    case keycodes::space:
-                        // Toggle pause
-                        rect_speed_ = (rect_speed_ == 0) ? 200.0f : 0.0f;
-                        break;
-                        
-                    default:
-                        break;
-                }
+
+    void on_render(renderer& r) override {
+        // Clear screen
+        [[maybe_unused]] auto color_res = r.set_draw_color(colors::dark_gray);
+        [[maybe_unused]] auto clear_res = r.clear();
+
+        // Draw rectangle
+        [[maybe_unused]] auto rect_color_res = r.set_draw_color(colors::cyan);
+        [[maybe_unused]] auto fill_res = r.fill_rect(rect_i{
+            static_cast<int>(rect_x_),
+            static_cast<int>(rect_y_),
+            50, 50
+        });
+
+        r.present();
+    }
+
+    void handle_event(const event& e) override {
+        if (e.type() == event_type::key_down) {
+            const auto& key_event = e.key();
+            switch (key_event.key) {
+                case SDLK_ESCAPE:
+                    quit();
+                    break;
+
+                case SDLK_SPACE:
+                    paused_ = !paused_;
+                    std::cout << (paused_ ? "Paused\n" : "Resumed\n");
+                    break;
+
+                default:
+                    break;
             }
         }
-        
-        return true;
     }
-    
-    void on_quit() override {
+
+    void on_quit() noexcept override {
         std::cout << "Application shutting down...\n";
-        std::cout << "Average FPS: " << get_fps() << "\n";
+        std::cout << "Average FPS: " << fps() << "\n";
     }
 };
 

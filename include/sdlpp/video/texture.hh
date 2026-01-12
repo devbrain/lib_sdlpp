@@ -599,6 +599,80 @@ namespace sdlpp {
         return {};
     }
 
+    /**
+     * @brief Render a texture using 9-grid tiled scaling (SDL 3.4.0+)
+     *
+     * Renders a texture using 9-grid (9-slice) scaling where corners remain
+     * unscaled, edges are stretched in one direction, and the center is tiled.
+     * This is useful for UI elements like buttons, panels, and windows that
+     * need to scale without distorting corners.
+     *
+     * @param texture The texture to render
+     * @param src_rect Source rectangle (nullopt for entire texture)
+     * @param left_width Width of the left column
+     * @param right_width Width of the right column
+     * @param top_height Height of the top row
+     * @param bottom_height Height of the bottom row
+     * @param scale Scale factor for the center stretched area
+     * @param dst_rect Destination rectangle
+     * @param tile_scale Scale factor for tiling (1.0 = original size)
+     * @return Expected<void> - empty on success, error message on failure
+     *
+     * Example:
+     * @code
+     * // Button texture with 10px borders
+     * renderer.copy_9grid_tiled(button_tex, std::nullopt,
+     *     10.0f, 10.0f, 10.0f, 10.0f, 1.0f, dest_rect, 1.0f);
+     * @endcode
+     */
+    template<rect_like R>
+    inline expected<void, std::string> renderer::copy_9grid_tiled(
+        const texture& texture,
+        const std::optional<R>& src_rect,
+        float left_width, float right_width,
+        float top_height, float bottom_height,
+        float scale,
+        const R& dst_rect,
+        float tile_scale) {
+        if (!ptr) {
+            return make_unexpectedf("Invalid renderer");
+        }
+
+        if (!texture) {
+            return make_unexpectedf("Invalid texture");
+        }
+
+        SDL_FRect src;
+        SDL_FRect* src_ptr = nullptr;
+
+        if (src_rect) {
+            src = {
+                static_cast<float>(get_x(*src_rect)),
+                static_cast<float>(get_y(*src_rect)),
+                static_cast<float>(get_width(*src_rect)),
+                static_cast<float>(get_height(*src_rect))
+            };
+            src_ptr = &src;
+        }
+
+        SDL_FRect dst = {
+            static_cast<float>(get_x(dst_rect)),
+            static_cast<float>(get_y(dst_rect)),
+            static_cast<float>(get_width(dst_rect)),
+            static_cast<float>(get_height(dst_rect))
+        };
+
+        if (!SDL_RenderTexture9GridTiled(ptr.get(), texture.get(),
+                                         src_ptr,
+                                         left_width, right_width,
+                                         top_height, bottom_height,
+                                         scale, &dst, tile_scale)) {
+            return make_unexpectedf(get_error());
+        }
+
+        return {};
+    }
+
     inline expected <texture, std::string> renderer::get_target() const {
         if (!ptr) {
             return make_unexpectedf("Invalid renderer");

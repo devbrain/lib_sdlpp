@@ -220,6 +220,64 @@ namespace sdlpp {
     }
 
     /**
+     * @brief Mouse transform callback type (SDL 3.4.0+)
+     *
+     * This callback is used to transform relative mouse motion before
+     * it is reported to the application. Useful for custom mouse
+     * acceleration curves or sensitivity adjustments.
+     *
+     * @param userdata User-provided data
+     * @param win The window receiving the motion
+     * @param dx Input delta X
+     * @param dy Input delta Y
+     * @param out_dx Output (transformed) delta X
+     * @param out_dy Output (transformed) delta Y
+     */
+    using mouse_transform_callback = SDL_MouseMotionTransformCallback;
+
+    /**
+     * @brief Set custom mouse transform for relative mode (SDL 3.4.0+)
+     *
+     * Installs a callback that transforms relative mouse motion before
+     * it is delivered to the application. This can be used to implement
+     * custom acceleration curves, sensitivity adjustments, or smoothing.
+     *
+     * @param callback Transform callback function (nullptr to disable)
+     * @param userdata User data passed to callback
+     * @return Expected<void> - empty on success, error message on failure
+     *
+     * Example:
+     * @code
+     * // Custom transform that doubles mouse sensitivity
+     * auto transform = [](void* userdata, Uint64 timestamp, SDL_Window* window,
+     *                     SDL_MouseID mouseID, float* x, float* y) {
+     *     *x *= 2.0f;
+     *     *y *= 2.0f;
+     * };
+     * sdlpp::set_relative_mouse_transform(transform, nullptr);
+     * @endcode
+     */
+    inline expected<void, std::string> set_relative_mouse_transform(
+        mouse_transform_callback callback,
+        void* userdata = nullptr) {
+        if (!SDL_SetRelativeMouseTransform(callback, userdata)) {
+            return make_unexpectedf(get_error());
+        }
+        return {};
+    }
+
+    /**
+     * @brief Clear custom mouse transform (SDL 3.4.0+)
+     *
+     * Removes any custom mouse transform callback.
+     *
+     * @return Expected<void> - empty on success, error message on failure
+     */
+    inline expected<void, std::string> clear_relative_mouse_transform() {
+        return set_relative_mouse_transform(nullptr, nullptr);
+    }
+
+    /**
      * @brief Set relative mouse mode for a window
      *
      * While the mouse is in relative mode, the cursor is hidden and mouse
@@ -475,6 +533,103 @@ namespace sdlpp {
                 }
 
                 return {};
+            }
+
+            /**
+             * @brief Create an animated color cursor (SDL 3.4.0+)
+             *
+             * Creates an animated cursor from a series of surface frames with
+             * specified durations.
+             *
+             * @param frames Span of surface pointers (animation frames)
+             * @param durations Span of durations in milliseconds for each frame
+             * @param hot_x X position of hot spot
+             * @param hot_y Y position of hot spot
+             * @return Expected containing cursor, or error message
+             *
+             * Example:
+             * @code
+             * std::vector<SDL_Surface*> frames = {frame1.get(), frame2.get(), frame3.get()};
+             * std::vector<Uint32> durations = {100, 100, 100}; // 100ms per frame
+             * auto cursor = cursor::create_animated(frames, durations, 0, 0);
+             * @endcode
+             */
+            static expected<cursor, std::string> create_animated(
+                std::span<SDL_Surface* const> frames,
+                std::span<const Uint32> durations,
+                int hot_x, int hot_y) {
+
+                if (frames.empty()) {
+                    return make_unexpectedf("No frames provided");
+                }
+
+                if (frames.size() != durations.size()) {
+                    return make_unexpectedf("Frame count must match duration count");
+                }
+
+                // Build array of SDL_CursorFrameInfo
+                std::vector<SDL_CursorFrameInfo> frame_info;
+                frame_info.reserve(frames.size());
+                for (size_t i = 0; i < frames.size(); ++i) {
+                    frame_info.push_back({frames[i], durations[i]});
+                }
+
+                auto* c = SDL_CreateAnimatedCursor(
+                    frame_info.data(),
+                    static_cast<int>(frame_info.size()),
+                    hot_x, hot_y);
+
+                if (!c) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return cursor(c);
+            }
+
+            /**
+             * @brief Create an animated color cursor from surfaces (SDL 3.4.0+)
+             *
+             * Convenience overload that accepts surface references.
+             *
+             * @param frames Span of surface references (animation frames)
+             * @param durations Span of durations in milliseconds for each frame
+             * @param hot_x X position of hot spot
+             * @param hot_y Y position of hot spot
+             * @return Expected containing cursor, or error message
+             */
+            static expected<cursor, std::string> create_animated(
+                std::span<const surface> frames,
+                std::span<const Uint32> durations,
+                int hot_x, int hot_y) {
+
+                if (frames.empty()) {
+                    return make_unexpectedf("No frames provided");
+                }
+
+                if (frames.size() != durations.size()) {
+                    return make_unexpectedf("Frame count must match duration count");
+                }
+
+                // Build array of SDL_CursorFrameInfo
+                std::vector<SDL_CursorFrameInfo> frame_info;
+                frame_info.reserve(frames.size());
+                for (size_t i = 0; i < frames.size(); ++i) {
+                    if (!frames[i].get()) {
+                        return make_unexpectedf("Invalid surface in frames");
+                    }
+                    frame_info.push_back({frames[i].get(), durations[i]});
+                }
+
+                auto* c = SDL_CreateAnimatedCursor(
+                    frame_info.data(),
+                    static_cast<int>(frame_info.size()),
+                    hot_x, hot_y);
+
+                if (!c) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return cursor(c);
             }
     };
 

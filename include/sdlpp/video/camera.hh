@@ -136,6 +136,18 @@ namespace sdlpp {
     }
 
     /**
+     * @brief Camera permission state (SDL 3.4.0+)
+     *
+     * Represents the state of camera access permissions on platforms
+     * that require explicit user permission (iOS, Android, etc.).
+     */
+    enum class camera_permission_state : int {
+        unknown = -1,   ///< Permission state not yet determined
+        denied = 0,     ///< Permission denied by user or system
+        granted = 1     ///< Permission granted
+    };
+
+    /**
      * @brief Get supported formats for a camera
      *
      * @param instance_id The camera instance ID
@@ -209,6 +221,22 @@ namespace sdlpp {
              * @brief Get the underlying SDL_Camera pointer
              */
             [[nodiscard]] SDL_Camera* get() const noexcept { return ptr.get(); }
+
+            /**
+             * @brief Get the camera permission state (SDL 3.4.0+)
+             *
+             * Returns the current state of camera permissions. This is useful
+             * on platforms like iOS and Android where camera access requires
+             * explicit user permission.
+             *
+             * @return The current permission state
+             */
+            [[nodiscard]] camera_permission_state get_permission_state() const {
+                if (!ptr) {
+                    return camera_permission_state::unknown;
+                }
+                return static_cast<camera_permission_state>(SDL_GetCameraPermissionState(ptr.get()));
+            }
 
             /**
              * @brief Open a camera device

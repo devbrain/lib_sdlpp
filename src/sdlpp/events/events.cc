@@ -19,12 +19,13 @@ namespace sdlpp {
         return make_unexpectedf(get_error());
     }
 
-    expected <event, std::string> event_queue::wait_timeout(std::chrono::milliseconds timeout) {
+    std::optional<event> event_queue::wait_timeout(std::chrono::milliseconds timeout) {
         SDL_Event e;
         if (SDL_WaitEventTimeout(&e, static_cast <Sint32>(timeout.count()))) {
             return event(std::move(e));
         }
-        return make_unexpectedf(get_error());
+        // Timeout is not an error - return nullopt
+        return std::nullopt;
     }
 
     expected <void, std::string> event_queue::push(const event& e) {

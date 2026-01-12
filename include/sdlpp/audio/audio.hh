@@ -344,6 +344,123 @@ namespace sdlpp {
             }
 
             /**
+             * @brief Put audio data into the stream without copying (SDL 3.4.0+)
+             *
+             * This is a zero-copy variant that transfers ownership of the data
+             * to the stream. The data must remain valid and unchanged until
+             * it has been consumed by the stream.
+             *
+             * @param data Audio data pointer (ownership transferred to stream)
+             * @param len Data length in bytes
+             * @param callback Function called when data is consumed (can free the buffer)
+             * @param userdata User data passed to callback
+             * @return Success or error
+             *
+             * Example:
+             * @code
+             * void* audio_buffer = SDL_malloc(buffer_size);
+             * // ... fill buffer ...
+             * auto free_callback = [](void*, const void* buf, int) {
+             *     SDL_free(const_cast<void*>(buf));
+             * };
+             * stream.put_data_no_copy(audio_buffer, buffer_size, free_callback, nullptr);
+             * // audio_buffer is now owned by the stream
+             * @endcode
+             */
+            [[nodiscard]] expected<void, std::string> put_data_no_copy(
+                void* data, size_t len,
+                SDL_AudioStreamDataCompleteCallback callback,
+                void* userdata = nullptr) {
+                if (!stream_) {
+                    return make_unexpectedf("Invalid audio stream");
+                }
+
+                auto int_len = detail::size_to_int(len);
+                if (!int_len) {
+                    return make_unexpectedf("Data size too large:", int_len.error());
+                }
+
+                if (!SDL_PutAudioStreamDataNoCopy(stream_, data, *int_len, callback, userdata)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Put planar audio data into the stream (SDL 3.4.0+)
+             *
+             * For planar audio formats where each channel is stored in a separate
+             * buffer rather than interleaved.
+             *
+             * @param channel_data Array of pointers to each channel's data
+             * @param num_channels Number of channels
+             * @param len Data length per channel in bytes
+             * @return Success or error
+             *
+             * Example:
+             * @code
+             * // Stereo planar audio
+             * const void* channels[2] = {left_channel_data, right_channel_data};
+             * stream.put_planar_data(channels, 2, samples_per_channel * sizeof(float));
+             * @endcode
+             */
+            [[nodiscard]] expected<void, std::string> put_planar_data(
+                const void* const* channel_data,
+                int num_channels,
+                size_t len) {
+                if (!stream_) {
+                    return make_unexpectedf("Invalid audio stream");
+                }
+
+                auto int_len = detail::size_to_int(len);
+                if (!int_len) {
+                    return make_unexpectedf("Data size too large:", int_len.error());
+                }
+
+                if (!SDL_PutAudioStreamPlanarData(stream_, channel_data, num_channels, *int_len)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Put planar audio data using spans (SDL 3.4.0+)
+             *
+             * @tparam T Sample type (e.g., float, int16_t)
+             * @param channels Vector of spans, one per channel
+             * @return Success or error
+             */
+            template<typename T>
+            [[nodiscard]] expected<void, std::string> put_planar_data(
+                const std::vector<std::span<const T>>& channels) {
+                if (channels.empty()) {
+                    return make_unexpectedf("No channel data provided");
+                }
+
+                // Verify all channels have the same size
+                size_t samples = channels[0].size();
+                for (const auto& ch : channels) {
+                    if (ch.size() != samples) {
+                        return make_unexpectedf("Channel sizes must match");
+                    }
+                }
+
+                // Build array of data pointers
+                std::vector<const void*> ptrs;
+                ptrs.reserve(channels.size());
+                for (const auto& ch : channels) {
+                    ptrs.push_back(ch.data());
+                }
+
+                return put_planar_data(
+                    ptrs.data(),
+                    static_cast<int>(channels.size()),
+                    samples * sizeof(T));
+            }
+
+            /**
              * @brief Get converted audio data from the stream
              * @param data Buffer to fill
              * @param len Maximum bytes to get

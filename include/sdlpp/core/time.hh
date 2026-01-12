@@ -175,7 +175,7 @@ namespace sdlpp {
      * @param tp Time point to convert
      * @return Date/time components
      */
-    [[nodiscard]] inline tl::expected <date_time, std::string> time_to_date_time(
+    [[nodiscard]] inline expected <date_time, std::string> time_to_date_time(
         const sdl_clock::time_point& tp) {
         SDL_DateTime dt;
         sdl_time ns = tp.time_since_epoch().count();
@@ -193,7 +193,7 @@ namespace sdlpp {
      * @param dt Date/time components
      * @return Time point
      */
-    [[nodiscard]] inline tl::expected <sdl_clock::time_point, std::string>
+    [[nodiscard]] inline expected <sdl_clock::time_point, std::string>
     date_time_to_time(const date_time& dt) {
         sdl_time ns;
         SDL_DateTime sdl_dt = dt.to_sdl();
@@ -374,7 +374,7 @@ namespace sdlpp {
      * @brief Get locale-specific date/time format preferences
      * @return Format preferences, or error
      */
-    [[nodiscard]] inline tl::expected <date_time_format, std::string>
+    [[nodiscard]] inline expected <date_time_format, std::string>
     get_date_time_locale_preferences() {
         SDL_DateFormat date_fmt;
         SDL_TimeFormat time_fmt;

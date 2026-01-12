@@ -198,6 +198,40 @@ namespace sdlpp::gpu {
         astc_12x12_unorm_srgb = SDL_GPU_TEXTUREFORMAT_ASTC_12x12_UNORM_SRGB
     };
 
+    // ==================== Format Conversion Functions (SDL 3.4.0+) ====================
+
+    /**
+     * @brief Convert GPU texture format to SDL pixel format (SDL 3.4.0+)
+     *
+     * @param fmt GPU texture format to convert
+     * @return Corresponding SDL pixel format, or SDL_PIXELFORMAT_UNKNOWN if no match
+     *
+     * Example:
+     * @code
+     * auto pixel_fmt = gpu::get_pixel_format(texture_format::r8g8b8a8_unorm);
+     * @endcode
+     */
+    [[nodiscard]] inline SDL_PixelFormat get_pixel_format(texture_format fmt) {
+        return SDL_GetPixelFormatFromGPUTextureFormat(
+            static_cast<SDL_GPUTextureFormat>(fmt));
+    }
+
+    /**
+     * @brief Convert SDL pixel format to GPU texture format (SDL 3.4.0+)
+     *
+     * @param fmt SDL pixel format to convert
+     * @return Corresponding GPU texture format, or texture_format::invalid if no match
+     *
+     * Example:
+     * @code
+     * auto gpu_fmt = gpu::get_texture_format(SDL_PIXELFORMAT_RGBA8888);
+     * @endcode
+     */
+    [[nodiscard]] inline texture_format get_texture_format(SDL_PixelFormat fmt) {
+        return static_cast<texture_format>(
+            SDL_GetGPUTextureFormatFromPixelFormat(fmt));
+    }
+
     /**
      * @brief Texture type
      */
@@ -673,15 +707,16 @@ namespace sdlpp::gpu {
      */
     struct multisample_state {
         enum sample_count sample_count{sample_count::count_1}; ///< Number of samples
-        Uint32 sample_mask{0xFFFFFFFF}; ///< Sample mask
-        bool enable_mask{false}; ///< Enable sample mask
+        Uint32 sample_mask{0}; ///< Sample mask (reserved, must be 0)
+        bool enable_mask{false}; ///< Enable sample mask (reserved, must be false)
+        bool enable_alpha_to_coverage{false}; ///< Enable alpha-to-coverage
 
         [[nodiscard]] SDL_GPUMultisampleState to_sdl() const noexcept {
             return SDL_GPUMultisampleState{
                 .sample_count = static_cast <SDL_GPUSampleCount>(sample_count),
                 .sample_mask = sample_mask,
                 .enable_mask = enable_mask,
-                .padding1 = 0,
+                .enable_alpha_to_coverage = enable_alpha_to_coverage,
                 .padding2 = 0,
                 .padding3 = 0
             };
@@ -839,7 +874,7 @@ namespace sdlpp::gpu {
              * @param driver_name Preferred driver name (or nullptr for auto)
              * @return Device or error
              */
-            [[nodiscard]] static tl::expected <device, std::string> create(
+            [[nodiscard]] static expected <device, std::string> create(
                 shader_format format_flags,
                 bool debug_mode = false,
                 const char* driver_name = nullptr) {
@@ -861,7 +896,7 @@ namespace sdlpp::gpu {
              * @param window Window to claim
              * @return Success or error
              */
-            [[nodiscard]] tl::expected <void, std::string> claim_window(
+            [[nodiscard]] expected <void, std::string> claim_window(
                 const sdlpp::window& window) {
                 if (!SDL_ClaimWindowForGPUDevice(device_, window.get())) {
                     return make_unexpectedf(get_error());
@@ -899,6 +934,44 @@ namespace sdlpp::gpu {
                     SDL_DestroyGPUDevice(device_);
                     device_ = nullptr;
                 }
+            }
+
+            /**
+             * @brief Create a 2D renderer backed by this GPU device (SDL 3.4.0+)
+             *
+             * Creates an SDL 2D renderer that uses this GPU device for rendering.
+             * This bridges the GPU API with the simpler 2D renderer API.
+             *
+             * @param win Window to render to
+             * @return SDL_Renderer pointer (caller owns), or nullptr on error
+             *
+             * Example:
+             * @code
+             * auto gpu_dev = gpu::device::create(gpu::shader_format::spirv);
+             * auto renderer = gpu_dev->create_renderer(win);
+             * // Use standard 2D renderer API with GPU acceleration
+             * @endcode
+             *
+             * @note The returned renderer should be destroyed with SDL_DestroyRenderer
+             */
+            [[nodiscard]] SDL_Renderer* create_renderer(const sdlpp::window& win) {
+                if (!device_ || !win.get()) {
+                    return nullptr;
+                }
+                return SDL_CreateGPURenderer(device_, win.get());
+            }
+
+            /**
+             * @brief Get GPU device from a renderer created with create_renderer (SDL 3.4.0+)
+             *
+             * Retrieves the underlying GPU device from a renderer that was created
+             * with SDL_CreateGPURenderer.
+             *
+             * @param renderer The GPU-backed renderer
+             * @return The GPU device, or nullptr if renderer is not GPU-backed
+             */
+            [[nodiscard]] static SDL_GPUDevice* get_device_from_renderer(SDL_Renderer* renderer) {
+                return SDL_GetGPURendererDevice(renderer);
             }
 
         private:
