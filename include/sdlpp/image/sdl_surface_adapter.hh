@@ -21,7 +21,7 @@ namespace sdlpp::image {
  * // surf now contains the decoded image
  * @endcode
  */
-class sdl_surface_adapter : public onyx_image::surface {
+class SDLPP_EXPORT sdl_surface_adapter : public onyx_image::surface {
 public:
     /**
      * @brief Construct adapter for an existing surface reference.
@@ -57,6 +57,6 @@ private:
 /**
  * @brief Convert onyx_image pixel format to SDL pixel format.
  */
-[[nodiscard]] pixel_format_enum to_sdl_format(onyx_image::pixel_format fmt);
+ [[nodiscard]] SDLPP_EXPORT pixel_format_enum to_sdl_format(onyx_image::pixel_format fmt);
 
 } // namespace sdlpp::image
