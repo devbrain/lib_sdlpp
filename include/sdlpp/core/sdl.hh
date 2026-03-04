@@ -28,9 +28,6 @@
 #endif
 
 #include <SDL3/SDL.h>
-#if defined(SDL_MAIN_USE_CALLBACKS)
-#include <SDL3/SDL_main.h>
-#endif
 
 #if defined(SDLPP_COMPILER_MSVC)
 #pragma warning( pop )

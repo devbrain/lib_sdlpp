@@ -23,6 +23,7 @@
 #define SDLPP_ENTRY_POINT_HH
 
 #define SDL_MAIN_USE_CALLBACKS 1
+#include <sdlpp/core/sdl_main.hh>
 #include <sdlpp/app/app.hh>
 
 namespace sdlpp::detail {
