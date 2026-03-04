@@ -215,6 +215,6 @@ namespace sdlpp {
             }
         }
 
-        last_frame_time_ = clock::now();
+        last_frame_time_ = current_time;
     }
 }
