@@ -17,9 +17,11 @@ pixel_format_enum to_sdl_format(onyx_image::pixel_format fmt) {
         case onyx_image::pixel_format::rgb888:
             return pixel_format_enum::RGB24;
         case onyx_image::pixel_format::rgba8888:
-            return pixel_format_enum::RGBA8888;
+            // onyx_image stores pixels as R,G,B,A bytes in memory.
+            // SDL's ABGR8888 = uint32 0xAABBGGRR = bytes R,G,B,A on little-endian.
+            return pixel_format_enum::ABGR8888;
     }
-    return pixel_format_enum::RGBA8888;
+    return pixel_format_enum::ABGR8888;
 }
 
 pixel_format_enum sdl_surface_adapter::to_sdl_format(onyx_image::pixel_format fmt) {
