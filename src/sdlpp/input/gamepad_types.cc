@@ -48,7 +48,7 @@ namespace sdlpp {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "leftx") {
             value = gamepad_axis::leftx;
@@ -151,7 +151,7 @@ namespace sdlpp {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "south") {
             value = gamepad_button::south;
@@ -264,7 +264,7 @@ namespace sdlpp {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "unknown") {
             value = gamepad_type::unknown;
