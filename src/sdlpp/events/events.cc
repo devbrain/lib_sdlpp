@@ -1,5 +1,6 @@
 #include <sdlpp/events/events.hh>
 #include <sdlpp/detail/type_utils.hh>
+#include <cctype>
 
 namespace sdlpp {
     // Event queue implementation
@@ -379,7 +380,7 @@ namespace sdlpp {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "first_event") {
             value = event_type::first_event;

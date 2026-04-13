@@ -52,7 +52,7 @@ namespace sdlpp {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "none") {
             value = blend_mode::none;
@@ -111,7 +111,7 @@ namespace sdlpp {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "nearest") {
             value = scale_mode::nearest;
@@ -213,7 +213,7 @@ namespace sdlpp {
             }
 
             // Convert to lowercase
-            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), ::tolower);
+            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
             // Match flag name
             bool found = false;

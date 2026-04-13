@@ -41,7 +41,7 @@ namespace sdlpp {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "core") {
             value = gl_profile::core;
@@ -94,7 +94,7 @@ namespace sdlpp {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "debug") {
             value = gl_context_flag::debug;
@@ -145,7 +145,7 @@ namespace sdlpp {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "none") {
             value = gl_release_behavior::none;
@@ -192,7 +192,7 @@ namespace sdlpp {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "no_notification") {
             value = gl_reset_notification::no_notification;
@@ -289,7 +289,7 @@ namespace sdlpp {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "red_size") {
             value = gl_attr::red_size;

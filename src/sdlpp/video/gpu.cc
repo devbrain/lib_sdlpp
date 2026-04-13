@@ -46,7 +46,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "triangle_list") {
             value = primitive_type::triangle_list;
@@ -101,7 +101,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "load") {
             value = load_op::load;
@@ -154,7 +154,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "store") {
             value = store_op::store;
@@ -205,7 +205,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "uint16") {
             value = index_element_size::uint16;
@@ -585,7 +585,7 @@ namespace sdlpp::gpu {
             }
 
             // Convert to lowercase
-            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), ::tolower);
+            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
             // Match flag name
             bool found = false;
@@ -1107,7 +1107,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "texture_2d") {
             value = texture_type::texture_2d;
@@ -1164,7 +1164,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "count_1") {
             value = sample_count::count_1;
@@ -1223,7 +1223,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "positive_x") {
             value = cube_map_face::positive_x;
@@ -1278,7 +1278,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "upload") {
             value = transfer_buffer_usage::upload;
@@ -1325,7 +1325,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "vertex") {
             value = shader_stage::vertex;
@@ -1436,7 +1436,7 @@ namespace sdlpp::gpu {
             }
 
             // Convert to lowercase
-            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), ::tolower);
+            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
             // Match flag name
             bool found = false;
@@ -1575,7 +1575,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "invalid") {
             value = vertex_element_format::invalid;
@@ -1680,7 +1680,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "vertex") {
             value = vertex_input_rate::vertex;
@@ -1727,7 +1727,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "fill") {
             value = fill_mode::fill;
@@ -1776,7 +1776,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "none") {
             value = cull_mode::none;
@@ -1825,7 +1825,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "counter_clockwise") {
             value = front_face::counter_clockwise;
@@ -1886,7 +1886,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "invalid") {
             value = compare_op::invalid;
@@ -1961,7 +1961,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "invalid") {
             value = stencil_op::invalid;
@@ -2030,7 +2030,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "invalid") {
             value = blend_op::invalid;
@@ -2109,7 +2109,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "invalid") {
             value = blend_factor::invalid;
@@ -2180,7 +2180,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "nearest") {
             value = filter::nearest;
@@ -2227,7 +2227,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "nearest") {
             value = sampler_mipmap_mode::nearest;
@@ -2276,7 +2276,7 @@ namespace sdlpp::gpu {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "repeat") {
             value = sampler_address_mode::repeat;
@@ -2397,7 +2397,7 @@ namespace sdlpp::gpu {
             }
 
             // Convert to lowercase
-            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), ::tolower);
+            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
             // Match flag name
             bool found = false;
@@ -2554,7 +2554,7 @@ namespace sdlpp::gpu {
             }
 
             // Convert to lowercase
-            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), ::tolower);
+            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
             // Match flag name
             bool found = false;
@@ -2695,7 +2695,7 @@ namespace sdlpp::gpu {
             }
 
             // Convert to lowercase
-            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), ::tolower);
+            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
             // Match flag name
             bool found = false;

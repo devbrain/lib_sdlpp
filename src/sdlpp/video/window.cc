@@ -176,7 +176,7 @@ namespace sdlpp {
             }
 
             // Convert to lowercase
-            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), ::tolower);
+            std::transform(flag_name.begin(), flag_name.end(), flag_name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
             // Match flag name
             bool found = false;
@@ -353,7 +353,7 @@ namespace sdlpp {
         }
 
         // Convert to lowercase for case-insensitive comparison
-        std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+        std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (str == "windowed") {
             value = fullscreen_mode::windowed;

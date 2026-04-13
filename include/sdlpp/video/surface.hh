@@ -325,7 +325,7 @@ namespace sdlpp {
                         break;
                     }
                     case 3:
-                        if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
+                        if constexpr (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
                             pixel = static_cast<uint32_t>(p[0]) << 16 | static_cast<uint32_t>(p[1]) << 8 | static_cast<uint32_t>(p[2]);
                         } else {
                             pixel = static_cast<uint32_t>(p[0]) | static_cast<uint32_t>(p[1]) << 8 | static_cast<uint32_t>(p[2]) << 16;
@@ -391,7 +391,7 @@ namespace sdlpp {
                         break;
                     }
                     case 3:
-                        if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
+                        if constexpr (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
                             p[0] = (pixel >> 16) & 0xff;
                             p[1] = (pixel >> 8) & 0xff;
                             p[2] = pixel & 0xff;
