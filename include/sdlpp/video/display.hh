@@ -145,8 +145,8 @@ namespace sdlpp {
             /**
              * @brief Construct from display ID
              */
-            explicit display(SDL_DisplayID display_id)
-                : id(display_id) {
+            explicit display(SDL_DisplayID displ_id)
+                : id(displ_id) {
             }
 
             /**
