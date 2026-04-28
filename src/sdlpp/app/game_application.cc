@@ -207,7 +207,7 @@ namespace sdlpp {
         // Enforce FPS limit
         if (target_fps_ > 0) {
             auto frame_end = clock::now();
-            duration frame_time = frame_end - last_frame_time_;
+            duration frame_time = frame_end - current_time;
 
             if (frame_time < frame_duration_) {
                 duration sleep_time = frame_duration_ - frame_time;
