@@ -4,6 +4,7 @@
  */
 #pragma once
 
+#include <cstddef>
 #include <sdlpp/core/sdl.hh>
 
 #include <sdlpp/detail/pointer.hh>

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 /**
  * @file touch.hh
  * @brief Touch input functionality

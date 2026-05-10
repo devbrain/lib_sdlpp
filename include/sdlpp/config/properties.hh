@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cstddef>
 /**
  * @file properties.hh
  * @brief Modern C++ wrapper for SDL3 properties system

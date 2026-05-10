@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cstddef>
 /**
  * @file version.hh
  * @brief Modern C++ wrapper for SDL3 version information

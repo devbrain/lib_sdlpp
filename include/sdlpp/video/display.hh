@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cstddef>
 /**
  * @file display.hh
  * @brief Modern C++ wrapper for SDL3 display querying functionality

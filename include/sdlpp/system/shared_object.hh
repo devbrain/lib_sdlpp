@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 /**
  * @file shared_object.hh
  * @brief Dynamic library loading and function resolution

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 /**
  * @file audio.hh
  * @brief Audio functionality wrapper for SDL3

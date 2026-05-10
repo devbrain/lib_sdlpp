@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <sdlpp/video/texture.hh>
 #include <sdlpp/video/renderer.hh>
 #include <sdlpp/video/color.hh>

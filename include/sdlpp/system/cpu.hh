@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 /**
  * @file cpu.hh
  * @brief CPU information and SIMD detection utilities
