@@ -513,14 +513,24 @@ namespace sdlpp {
         return (get_external_storage_state() & static_cast<Uint32>(external_storage_state::write)) != 0;
     }
 
+    /// Callback invoked once Android resolves a permission request.
+    /// Signature matches SDL3's SDL_RequestAndroidPermissionCallback.
+    using request_permission_callback = SDL_RequestAndroidPermissionCallback;
+
     /**
      * @brief Request an Android permission
      * @param permission Permission string (e.g., "android.permission.CAMERA")
-     * @return true if permission request was initiated
-     * @note The actual permission grant happens asynchronously
+     * @param cb         Required callback fired on the SDL thread once the
+     *                   user grants or denies. Must not be null.
+     * @param userdata   Opaque pointer forwarded to @p cb.
+     * @return true if the request was successfully queued
+     * @note SDL3 changed the signature: a callback is mandatory. The grant
+     *       still happens asynchronously — this call only initiates it.
      */
-    [[nodiscard]] inline bool request_permission(const std::string& permission) noexcept {
-        return SDL_RequestAndroidPermission(permission.c_str());
+    [[nodiscard]] inline bool request_permission(const std::string& permission,
+                                                 request_permission_callback cb,
+                                                 void* userdata = nullptr) noexcept {
+        return SDL_RequestAndroidPermission(permission.c_str(), cb, userdata);
     }
 
     /**
@@ -568,12 +578,13 @@ namespace sdlpp {
 
     /**
      * @brief Send a message to the Android activity
-     * @param command Command identifier
+     * @param command Command identifier (forwarded as Uint32 — SDL3 uses
+     *                an unsigned message id)
      * @param param Parameter value
-     * @return Result value from the activity
+     * @return true on success
      * @note This is for custom activity communication
      */
-    [[nodiscard]] inline int send_message(int command, int param) noexcept {
+    [[nodiscard]] inline bool send_message(Uint32 command, int param) noexcept {
         return SDL_SendAndroidMessage(command, param);
     }
 
@@ -586,7 +597,13 @@ namespace sdlpp {
         [[nodiscard]] inline Uint32 get_external_storage_state() noexcept { return 0; }
         [[nodiscard]] inline bool is_external_storage_readable() noexcept { return false; }
         [[nodiscard]] inline bool is_external_storage_writable() noexcept { return false; }
-        [[nodiscard]] inline bool request_permission(const std::string&) noexcept { return false; }
+        // Non-Android stub: SDL_RequestAndroidPermissionCallback isn't
+        // declared off-Android, so we use a forward-compatible signature
+        // pinned to a void* placeholder.
+        using request_permission_callback = void (*)(void*, const char*, bool);
+        [[nodiscard]] inline bool request_permission(const std::string&,
+                                                     request_permission_callback = nullptr,
+                                                     void* = nullptr) noexcept { return false; }
 
         inline void send_back_button() noexcept {
         }
@@ -597,7 +614,7 @@ namespace sdlpp {
 
         [[nodiscard]] inline void* get_activity() noexcept { return nullptr; }
         [[nodiscard]] inline void* get_jni_env() noexcept { return nullptr; }
-        [[nodiscard]] inline int send_message(int, int) noexcept { return 0; }
+        [[nodiscard]] inline bool send_message(Uint32, int) noexcept { return false; }
 
 #endif // SDL_PLATFORM_ANDROID
     }
