@@ -13,6 +13,9 @@ project(sdlpp
 # =============================================================================
 # Neutrino CMake Integration
 # =============================================================================
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(FETCHCONTENT_UPDATES_DISCONNECTED ON CACHE BOOL "Skip FetchContent update checks")
+endif ()
 
 include(FetchContent)
 
@@ -83,6 +86,9 @@ endif ()
 set(PROJECT_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory(src/sdlpp)
+if (SDLPP_WITH_IMAGE AND SDLPP_WITH_FONT)
+    add_subdirectory(src/simplex)
+endif ()
 
 # =============================================================================
 # Unit Tests

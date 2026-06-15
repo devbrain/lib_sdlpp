@@ -193,7 +193,7 @@ namespace sdlpp {
              * @brief Get the current draw color
              * @return Expected containing color, or error message
              */
-            expected <color, std::string> get_draw_color() const {
+            [[nodiscard]] expected <color, std::string> get_draw_color() const {
                 if (!ptr) {
                     return make_unexpectedf("Invalid renderer");
                 }
@@ -227,7 +227,7 @@ namespace sdlpp {
              * @brief Get the blend mode for drawing operations
              * @return Expected containing blend mode, or error message
              */
-            expected <blend_mode, std::string> get_draw_blend_mode() const {
+            [[nodiscard]] expected <blend_mode, std::string> get_draw_blend_mode() const {
                 if (!ptr) {
                     return make_unexpectedf("Invalid renderer");
                 }
@@ -483,6 +483,17 @@ namespace sdlpp {
                 return {};
             }
 
+            expected <void, std::string> draw_rect(const SDL_FRect& r) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+
+                if (!SDL_RenderRect(ptr.get(), &r)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
             /**
              * @brief Draw multiple rectangle outlines
              * @tparam Container Container type holding rect_like elements
@@ -544,6 +555,18 @@ namespace sdlpp {
                 };
 
                 if (!SDL_RenderFillRect(ptr.get(), &sdl_rect)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
+
+            expected <void, std::string> fill_rect(const SDL_FRect& r) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+
+                if (!SDL_RenderFillRect(ptr.get(), &r)) {
                     return make_unexpectedf(get_error());
                 }
 

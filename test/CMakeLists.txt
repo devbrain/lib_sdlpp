@@ -16,6 +16,9 @@ neutrino_fetch_doctest()
 add_executable(sdlpp_unittest
     main.cc
 
+    # App tests
+    app/test_game_application.cc
+
     # Core tests
     core/test_core_enum_operators.cc
     core/test_error.cc
@@ -79,6 +82,7 @@ add_executable(sdlpp_unittest
     system/test_platform.cc
     system/test_platform_enhanced.cc
     system/test_process.cc
+    system/test_random.cc
     system/test_shared_object.cc
 
     # UI tests

@@ -87,3 +87,6 @@ add_example_executable(example_string_utils detail/example_string_utils.cc)
 
 # Tests subdirectory
 add_subdirectory(tests)
+
+# simplex examples
+add_subdirectory(simplex)

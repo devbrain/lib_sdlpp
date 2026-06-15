@@ -28,7 +28,11 @@
 #include <sdlpp/video/renderer.hh>
 #include <sdlpp/video/surface.hh>
 #include <sdlpp/core/failsafe_backend.hh>
+#include <sdlpp/utility/geometry_types.hh>
+#include <array>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <thread>
 
@@ -43,6 +47,19 @@ namespace sdlpp {
         int height;
         window_flags flags = window_flags::none;
         int target_fps = 60;  ///< Target FPS (0 = unlimited/vsync)
+    };
+
+    /**
+     * @brief Per-frame input state for a key or mouse button.
+     */
+    struct button_state {
+        bool pressed = false;   ///< True only on the frame the button transitions down.
+        bool released = false;  ///< True only on the frame the button transitions up.
+        bool held = false;      ///< True while the button is down.
+
+        [[nodiscard]] explicit operator bool() const noexcept {
+            return held;
+        }
     };
 
     /**
@@ -268,6 +285,53 @@ namespace sdlpp {
          */
         void set_target_fps(int fps);
 
+        /**
+         * @brief Check if the application window currently has keyboard focus.
+         */
+        [[nodiscard]] bool is_focused() const noexcept;
+
+        /**
+         * @brief Get the frame state for a keyboard key.
+         */
+        [[nodiscard]] button_state get_key(scancode scan) const noexcept;
+
+        /**
+         * @brief Get the frame state for a mouse button.
+         */
+        [[nodiscard]] button_state get_mouse(mouse_button button) const noexcept;
+
+        /**
+         * @brief Get the frame state for an olc-style mouse button index.
+         *
+         * Index mapping: 0 = left, 1 = right, 2 = middle, 3 = x1, 4 = x2.
+         */
+        [[nodiscard]] button_state get_mouse(std::uint32_t button) const noexcept;
+
+        /**
+         * @brief Get the current mouse x coordinate in window space.
+         */
+        [[nodiscard]] int get_mouse_x() const noexcept;
+
+        /**
+         * @brief Get the current mouse y coordinate in window space.
+         */
+        [[nodiscard]] int get_mouse_y() const noexcept;
+
+        /**
+         * @brief Get the current mouse position in window space.
+         */
+        [[nodiscard]] point_i get_mouse_pos() const noexcept;
+
+        /**
+         * @brief Get the current mouse position in window space.
+         */
+        [[nodiscard]] point_i get_window_mouse() const noexcept;
+
+        /**
+         * @brief Get accumulated vertical mouse wheel delta for this frame.
+         */
+        [[nodiscard]] int get_mouse_wheel() const noexcept;
+
     private:
         void on_event(const event& e) override;
 
@@ -275,7 +339,13 @@ namespace sdlpp {
 
         void on_iterate() final;
 
+        void update_input_from_event(const event& e);
+
+        void clear_transient_input_state() noexcept;
+
     private:
+        static constexpr std::size_t mouse_button_count = 5;
+
         window window_;
         renderer renderer_;
 
@@ -287,6 +357,12 @@ namespace sdlpp {
         float fps_ = 0.0f;
         int frame_count_ = 0;
         int target_fps_ = 60;
+
+        std::array<button_state, SDL_SCANCODE_COUNT> keyboard_state_{};
+        std::array<button_state, mouse_button_count> mouse_state_{};
+        point_i mouse_position_{0, 0};
+        int mouse_wheel_delta_ = 0;
+        bool focused_ = true;
     };
 
 } // namespace sdlpp

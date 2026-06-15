@@ -250,6 +250,12 @@ TEST_SUITE("color") {
             CHECK(colors::red == color(255, 0, 0));
             CHECK(colors::green == color(0, 255, 0));
             CHECK(colors::blue == color(0, 0, 255));
+            CHECK(colors::gray == color(190, 190, 190));
+            CHECK(colors::light_gray == color(211, 211, 211));
+            CHECK(colors::dark_gray == color(169, 169, 169));
+            CHECK(colors::alice_blue == color(240, 248, 255));
+            CHECK(colors::antique_white_4 == color(139, 131, 120));
+            CHECK(colors::sgi_teal == color(56, 142, 142));
             CHECK(colors::transparent == color(0, 0, 0, 0));
         }
         

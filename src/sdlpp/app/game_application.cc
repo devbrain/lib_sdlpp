@@ -5,6 +5,34 @@
 #include <sdlpp/app/game_application.hh>
 
 namespace sdlpp {
+    namespace {
+        [[nodiscard]] std::optional<std::size_t> mouse_button_index(mouse_button button) noexcept {
+            switch (button) {
+                case mouse_button::left:
+                    return 0;
+                case mouse_button::right:
+                    return 1;
+                case mouse_button::middle:
+                    return 2;
+                case mouse_button::x1:
+                    return 3;
+                case mouse_button::x2:
+                    return 4;
+            }
+            return std::nullopt;
+        }
+
+        void press_button(button_state& state) noexcept {
+            state.pressed = !state.held;
+            state.held = true;
+        }
+
+        void release_button(button_state& state) noexcept {
+            state.released = state.held;
+            state.held = false;
+        }
+    }
+
     game_application::game_application() = default;
     game_application::~game_application() = default;
 
@@ -82,7 +110,56 @@ namespace sdlpp {
         }
     }
 
+    bool game_application::is_focused() const noexcept {
+        return focused_;
+    }
+
+    button_state game_application::get_key(scancode scan) const noexcept {
+        const auto index = static_cast<std::size_t>(scan);
+        if (index >= keyboard_state_.size()) {
+            return {};
+        }
+        return keyboard_state_[index];
+    }
+
+    button_state game_application::get_mouse(mouse_button button) const noexcept {
+        const auto index = mouse_button_index(button);
+        if (!index) {
+            return {};
+        }
+        return mouse_state_[*index];
+    }
+
+    button_state game_application::get_mouse(std::uint32_t button) const noexcept {
+        if (button >= mouse_state_.size()) {
+            return {};
+        }
+        return mouse_state_[button];
+    }
+
+    int game_application::get_mouse_x() const noexcept {
+        return mouse_position_.x;
+    }
+
+    int game_application::get_mouse_y() const noexcept {
+        return mouse_position_.y;
+    }
+
+    point_i game_application::get_mouse_pos() const noexcept {
+        return mouse_position_;
+    }
+
+    point_i game_application::get_window_mouse() const noexcept {
+        return mouse_position_;
+    }
+
+    int game_application::get_mouse_wheel() const noexcept {
+        return mouse_wheel_delta_;
+    }
+
     void game_application::on_event(const event& e) {
+        update_input_from_event(e);
+
         // Dispatch window events
         if (e.is<window_event>()) {
             auto* we = e.as<window_event>();
@@ -161,6 +238,7 @@ namespace sdlpp {
             throw std::runtime_error("Failed to create window: " + window_result.error());
         }
         window_ = std::move(window_result.value());
+        focused_ = (window_.get_flags() & window_flags::input_focus) != window_flags::none;
 
         // Set icon if provided
         auto icon = get_window_icon();
@@ -204,6 +282,8 @@ namespace sdlpp {
         on_update(delta_time_);
         on_render(renderer_);
 
+        clear_transient_input_state();
+
         // Enforce FPS limit
         if (target_fps_ > 0) {
             auto frame_end = clock::now();
@@ -216,5 +296,110 @@ namespace sdlpp {
         }
 
         last_frame_time_ = current_time;
+    }
+
+    void game_application::update_input_from_event(const event& e) {
+        const auto app_window_id = window_.get_id();
+
+        if (const auto* we = e.as<window_event>()) {
+            if (we->windowID != 0 && app_window_id != 0 && we->windowID != app_window_id) {
+                return;
+            }
+            if (we->is_focus_gained()) {
+                focused_ = true;
+            } else if (we->is_focus_lost()) {
+                focused_ = false;
+                for (auto& state : keyboard_state_) {
+                    state.held = false;
+                }
+                for (auto& state : mouse_state_) {
+                    state.held = false;
+                }
+            }
+            return;
+        }
+
+        if (const auto* key = e.as<keyboard_event>()) {
+            if (key->windowID != 0 && app_window_id != 0 && key->windowID != app_window_id) {
+                return;
+            }
+
+            const auto index = static_cast<std::size_t>(key->scan);
+            if (index >= keyboard_state_.size()) {
+                return;
+            }
+
+            if (key->is_pressed()) {
+                if (!key->is_repeat()) {
+                    press_button(keyboard_state_[index]);
+                } else {
+                    keyboard_state_[index].held = true;
+                }
+            } else if (key->is_released()) {
+                release_button(keyboard_state_[index]);
+            }
+            return;
+        }
+
+        if (const auto* motion = e.as<mouse_motion_event>()) {
+            if (motion->windowID != 0 && app_window_id != 0 && motion->windowID != app_window_id) {
+                return;
+            }
+
+            mouse_position_ = {
+                static_cast<int>(motion->x),
+                static_cast<int>(motion->y)
+            };
+            return;
+        }
+
+        if (const auto* button = e.as<mouse_button_event>()) {
+            if (button->windowID != 0 && app_window_id != 0 && button->windowID != app_window_id) {
+                return;
+            }
+
+            mouse_position_ = {
+                static_cast<int>(button->x),
+                static_cast<int>(button->y)
+            };
+
+            const auto index = mouse_button_index(button->get_button());
+            if (!index) {
+                return;
+            }
+
+            if (button->is_pressed()) {
+                press_button(mouse_state_[*index]);
+            } else if (button->is_released()) {
+                release_button(mouse_state_[*index]);
+            }
+            return;
+        }
+
+        if (const auto* wheel = e.as<mouse_wheel_event>()) {
+            if (wheel->windowID != 0 && app_window_id != 0 && wheel->windowID != app_window_id) {
+                return;
+            }
+
+            mouse_position_ = {
+                static_cast<int>(wheel->mouse_x),
+                static_cast<int>(wheel->mouse_y)
+            };
+            mouse_wheel_delta_ += static_cast<int>(wheel->y);
+        }
+    }
+
+    void game_application::clear_transient_input_state() noexcept {
+        for (auto& state : keyboard_state_) {
+            state.pressed = false;
+            state.released = false;
+        }
+
+        for (auto& state : mouse_state_) {
+            state.pressed = false;
+            state.released = false;
+        }
+
+        mouse_wheel_delta_ = 0;
     }
 }
