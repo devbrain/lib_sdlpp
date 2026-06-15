@@ -79,8 +79,10 @@ namespace simplex::collide {
     }
 
     struct entry_exit_times {
-        float entry;
-        float exit;
+        float entry{};
+        float exit{};
+        vec entry_normal{};
+        vec exit_normal{};
     };
 
     /*
@@ -146,7 +148,21 @@ namespace simplex::collide {
         const float t_entry = std::max(t_min_x, t_min_y);
         const float t_exit = std::min(t_max_x, t_max_y);
 
-        return {t_entry, t_exit};
+        vec entry_normal{};
+        if (t_entry == t_min_x) {
+            entry_normal = vec{ (dx >= 0.0f) ? -1.0f : 1.0f, 0.0f };
+        } else {
+            entry_normal = vec{ 0.0f, (dy >= 0.0f) ? -1.0f : 1.0f };
+        }
+
+        vec exit_normal{};
+        if (t_exit == t_max_x) {
+            exit_normal = vec{ (dx >= 0.0f) ? 1.0f : -1.0f, 0.0f };
+        } else {
+            exit_normal = vec{ 0.0f, (dy >= 0.0f) ? 1.0f : -1.0f };
+        }
+
+        return {t_entry, t_exit, entry_normal, exit_normal};
     }
 
     [[nodiscard]] constexpr bool line_intersects(const entry_exit_times& e) {
@@ -156,5 +172,6 @@ namespace simplex::collide {
     [[nodiscard]] constexpr bool segment_intersects(const entry_exit_times& e) {
         return line_intersects(e) && (e.entry <= 1.0f) && (e.exit >= 0.0f);
     }
+
 
 } // namespace simplex::collide

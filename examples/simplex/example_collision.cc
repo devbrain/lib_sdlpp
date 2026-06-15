@@ -81,6 +81,16 @@ class example : public simplex::application {
                     draw_line_thick( p1, p2,  4, colors::yellow);
                     draw_line( p2, end_point, colors::aquamarine);
 
+                    // Draw entry (red) and exit (green) normals
+                    constexpr float normal_len = 15.0f;
+                    auto get_design_normal = [&](const collide::vec& n) {
+                        const float dx = n.x() * normal_len;
+                        const float dy = (world_view.y_up ? -n.y() : n.y()) * normal_len;
+                        return simplex::point{simplex::dp{dx}, simplex::dp{dy}};
+                    };
+                    draw_line_thick(p1, p1 + get_design_normal(ir.entry_normal), 2, colors::red);
+                    draw_line_thick(p2, p2 + get_design_normal(ir.exit_normal), 2, colors::green);
+
                 } else {
                     draw_line(*line_ends[0], end_point,  colors::aquamarine);
                 }
