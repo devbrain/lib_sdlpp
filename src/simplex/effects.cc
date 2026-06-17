@@ -1,3 +1,4 @@
+#define EULER_DISABLE_ENFORCE
 #include <simplex/effects.hh>
 #include <cmath>
 #include <algorithm>
@@ -5,60 +6,94 @@
 
 namespace simplex::effects {
     void wave_horizontal(sprite_mesh& mesh, float time, float amplitude, float frequency) noexcept {
-        mesh.transform_vertices([time, amplitude, frequency](int col, int row, float u, float v, float& px, float& py) {
-            (void)col;
-            (void)row;
-            (void)u;
-            (void)py;
-            px += std::sin(v * frequency * 2.0f * 3.14159265f + time) * amplitude;
-        });
+        auto& verts = mesh.vertices();
+        int cols = mesh.cols();
+        int rows = mesh.rows();
+        std::size_t idx = 0;
+        for (int y = 0; y <= rows; ++y) {
+            float v = static_cast<float>(y) / static_cast<float>(rows);
+            float offset = std::sin(v * frequency * 2.0f * 3.14159265f + time) * amplitude;
+            for (int x = 0; x <= cols; ++x) {
+                verts[idx].position.x += offset;
+                idx++;
+            }
+        }
     }
 
     void wave_vertical(sprite_mesh& mesh, float time, float amplitude, float frequency) noexcept {
-        mesh.transform_vertices([time, amplitude, frequency](int col, int row, float u, float v, float& px, float& py) {
-            (void)col;
-            (void)row;
-            (void)v;
-            (void)px;
-            py += std::sin(u * frequency * 2.0f * 3.14159265f + time) * amplitude;
-        });
+        auto& verts = mesh.vertices();
+        int cols = mesh.cols();
+        int rows = mesh.rows();
+        std::vector<float> offsets(static_cast<std::size_t>(cols + 1));
+        for (int x = 0; x <= cols; ++x) {
+            float u = static_cast<float>(x) / static_cast<float>(cols);
+            offsets[static_cast<std::size_t>(x)] = std::sin(u * frequency * 2.0f * 3.14159265f + time) * amplitude;
+        }
+
+        std::size_t idx = 0;
+        for (int y = 0; y <= rows; ++y) {
+            for (int x = 0; x <= cols; ++x) {
+                verts[idx].position.y += offsets[static_cast<std::size_t>(x)];
+                idx++;
+            }
+        }
     }
 
     void skew_horizontal(sprite_mesh& mesh, float skew_x) noexcept {
-        mesh.transform_vertices([skew_x](int col, int row, float u, float v, float& px, float& py) {
-            (void)col;
-            (void)row;
-            (void)u;
-            (void)py;
-            px += (v - 0.5f) * skew_x * 2.0f;
-        });
+        auto& verts = mesh.vertices();
+        int cols = mesh.cols();
+        int rows = mesh.rows();
+        std::size_t idx = 0;
+        for (int y = 0; y <= rows; ++y) {
+            float v = static_cast<float>(y) / static_cast<float>(rows);
+            float offset = (v - 0.5f) * skew_x * 2.0f;
+            for (int x = 0; x <= cols; ++x) {
+                verts[idx].position.x += offset;
+                idx++;
+            }
+        }
     }
 
     void skew_vertical(sprite_mesh& mesh, float skew_y) noexcept {
-        mesh.transform_vertices([skew_y](int col, int row, float u, float v, float& px, float& py) {
-            (void)col;
-            (void)row;
-            (void)v;
-            (void)px;
-            py += (u - 0.5f) * skew_y * 2.0f;
-        });
+        auto& verts = mesh.vertices();
+        int cols = mesh.cols();
+        int rows = mesh.rows();
+        std::vector<float> offsets(static_cast<std::size_t>(cols + 1));
+        for (int x = 0; x <= cols; ++x) {
+            float u = static_cast<float>(x) / static_cast<float>(cols);
+            offsets[static_cast<std::size_t>(x)] = (u - 0.5f) * skew_y * 2.0f;
+        }
+
+        std::size_t idx = 0;
+        for (int y = 0; y <= rows; ++y) {
+            for (int x = 0; x <= cols; ++x) {
+                verts[idx].position.y += offsets[static_cast<std::size_t>(x)];
+                idx++;
+            }
+        }
     }
 
     void perspective(sprite_mesh& mesh, float top_taper, float bottom_taper) noexcept {
         int cols = mesh.cols();
+        int rows = mesh.rows();
         auto& verts = mesh.vertices();
+        if (verts.empty()) return;
 
-        mesh.transform_vertices([&verts, cols, top_taper, bottom_taper](int col, int row, float u, float v, float& px, float& py) {
-            (void)col;
-            (void)py;
-            float px_left = verts[static_cast<std::size_t>(row * (cols + 1))].position.x;
-            float px_right = verts[static_cast<std::size_t>(row * (cols + 1) + cols)].position.x;
+        std::size_t idx = 0;
+        for (int y = 0; y <= rows; ++y) {
+            float v = static_cast<float>(y) / static_cast<float>(rows);
+            float px_left = verts[static_cast<std::size_t>(y * (cols + 1))].position.x;
+            float px_right = verts[static_cast<std::size_t>(y * (cols + 1) + cols)].position.x;
             float row_center = (px_left + px_right) * 0.5f;
             float half_width = (px_right - px_left) * 0.5f;
-
             float taper = (1.0f - v) * top_taper + v * bottom_taper;
-            px = row_center + (u - 0.5f) * half_width * 2.0f * taper;
-        });
+
+            for (int x = 0; x <= cols; ++x) {
+                float u = static_cast<float>(x) / static_cast<float>(cols);
+                verts[idx].position.x = row_center + (u - 0.5f) * half_width * 2.0f * taper;
+                idx++;
+            }
+        }
     }
 
     void pinch_punch(sprite_mesh& mesh, float center_u, float center_v, float radius, float amount) noexcept {
@@ -84,19 +119,25 @@ namespace simplex::effects {
         float center_px = min_x + center_u * width;
         float center_py = min_y + center_v * height;
 
-        mesh.transform_vertices([center_u, center_v, radius, amount, center_px, center_py](int col, int row, float u, float v, float& px, float& py) {
-            (void)col;
-            (void)row;
-            float du = u - center_u;
+        int cols = mesh.cols();
+        int rows = mesh.rows();
+        std::size_t idx = 0;
+        for (int y = 0; y <= rows; ++y) {
+            float v = static_cast<float>(y) / static_cast<float>(rows);
             float dv = v - center_v;
-            float dist = std::sqrt(du * du + dv * dv);
-            if (dist < radius) {
-                float influence = (1.0f - dist / radius);
-                float factor = 1.0f + amount * influence * influence;
-                px = center_px + (px - center_px) * factor;
-                py = center_py + (py - center_py) * factor;
+            for (int x = 0; x <= cols; ++x) {
+                float u = static_cast<float>(x) / static_cast<float>(cols);
+                float du = u - center_u;
+                float dist = std::sqrt(du * du + dv * dv);
+                if (dist < radius) {
+                    float influence = (1.0f - dist / radius);
+                    float factor = 1.0f + amount * influence * influence;
+                    verts[idx].position.x = center_px + (verts[idx].position.x - center_px) * factor;
+                    verts[idx].position.y = center_py + (verts[idx].position.y - center_py) * factor;
+                }
+                idx++;
             }
-        });
+        }
     }
 
     void rotate_3d(sprite_mesh& mesh, float pitch, float yaw, float roll, float pivot_u, float pivot_v, float perspective_factor) noexcept {
@@ -129,14 +170,9 @@ namespace simplex::effects {
         auto m_z = euler::rotation_matrix3_z(euler::radian<float>(roll));
         auto rot_matrix = m_x * m_y * m_z;
 
-        mesh.transform_vertices([&rot_matrix, pivot_px, pivot_py, camera_distance](int col, int row, float u, float v, float& px, float& py) {
-            (void)col;
-            (void)row;
-            (void)u;
-            (void)v;
-
-            float local_x = px - pivot_px;
-            float local_y = py - pivot_py;
+        for (auto& vert : verts) {
+            float local_x = vert.position.x - pivot_px;
+            float local_y = vert.position.y - pivot_py;
             float local_z = 0.0f;
 
             euler::vector<float, 4> local_pos{local_x, local_y, local_z, 1.0f};
@@ -151,8 +187,8 @@ namespace simplex::effects {
                 denom = 0.01f;
             }
 
-            px = pivot_px + rx / denom;
-            py = pivot_py + ry / denom;
-        });
+            vert.position.x = pivot_px + rx / denom;
+            vert.position.y = pivot_py + ry / denom;
+        }
     }
 } // namespace simplex::effects

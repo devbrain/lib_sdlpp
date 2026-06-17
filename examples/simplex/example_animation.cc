@@ -91,8 +91,8 @@ namespace simplex {
             // Initialize background mesh with 20x20 grid subdivision
             m_background_mesh = simplex::sprite_mesh(20, 20);
 
-            // Initialize sprite mesh with 10x10 grid subdivision for 3D coin spin effect
-            m_sprite_mesh = simplex::sprite_mesh(10, 10);
+            // Initialize sprite mesh with 2x2 grid subdivision for 3D coin spin effect
+            m_sprite_mesh = simplex::sprite_mesh(2, 2);
         }
 
         void on_update(float dt) override {
