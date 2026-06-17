@@ -27,7 +27,7 @@ namespace simplex {
             auto& r = get_renderer();
 
             // Load WGT sprite file (.spr) and generate frames/bitmasks
-            auto atlas_res = simplex::sprite_atlas::load_wgt_spr(r, "/home/igor/proj/wgt/wgttut4/anim.spr", true);
+            auto atlas_res = simplex::sprite_atlas::load_wgt_spr(r, "/home/igor/proj/wgt/wgttut4/ANIM.SPR", true);
             if (!atlas_res) {
                 LOG_ERROR("Failed to load WGT sprites: ", atlas_res.error());
                 return;
@@ -36,7 +36,7 @@ namespace simplex {
             LOG_INFO("Successfully loaded WGT sprite atlas with ", m_atlas->frame_count(), " frames.");
 
             // Load background PCX using onyx_image
-            auto bg_res = sdlpp::image::load_texture(r, "/home/igor/proj/wgt/wgttut4/lunar.pcx");
+            auto bg_res = sdlpp::image::load_texture(r, "/home/igor/proj/wgt/wgttut4/LUNAR.PCX");
             if (!bg_res) {
                 LOG_ERROR("Failed to load background PCX: ", bg_res.error());
                 return;
