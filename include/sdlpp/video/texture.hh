@@ -22,6 +22,7 @@
 #include <sdlpp/video/blend_mode.hh>
 #include <sdlpp/video/renderer.hh>
 #include <sdlpp/video/surface.hh>
+#include <sdlpp/video/palette.hh>
 #include <string>
 
 namespace sdlpp {
@@ -329,6 +330,37 @@ namespace sdlpp {
                 if (ptr) {
                     SDL_UnlockTexture(ptr.get());
                 }
+            }
+
+            /**
+             * @brief Set the palette used by this texture.
+             * @param palette The palette structure to use.
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_palette(const const_palette_ref& palette) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid texture");
+                }
+
+                SDL_Palette* pal_ptr = palette.is_valid() ? const_cast<SDL_Palette*>(palette.get()) : nullptr;
+                if (!SDL_SetTexturePalette(ptr.get(), pal_ptr)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get the palette used by this texture.
+             * @return Expected containing const_palette_ref, or error/empty
+             */
+            [[nodiscard]] expected <const_palette_ref, std::string> get_palette() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid texture");
+                }
+
+                SDL_Palette* pal = SDL_GetTexturePalette(ptr.get());
+                return const_palette_ref(pal);
             }
 
             /**

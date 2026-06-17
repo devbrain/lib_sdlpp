@@ -503,6 +503,34 @@ TEST_SUITE("renderer and texture") {
             auto copy_f = rend.copy(tex, std::optional<rect_f>{}, std::optional<rect_f>{fdst});
             CHECK(copy_f.has_value());
         }
+
+        SUBCASE("texture palette") {
+            auto tex_result = texture::create(
+                rend,
+                pixel_format_enum::INDEX8,
+                texture_access::static_access,
+                32, 32
+            );
+            if (!tex_result) return;
+            auto& tex = *tex_result;
+
+            auto pal_result = palette::create(256);
+            REQUIRE(pal_result.has_value());
+            auto& pal = *pal_result;
+
+            auto color_res = pal.set_color(0, colors::red);
+            REQUIRE(color_res.has_value());
+
+            auto set_pal_res = tex.set_palette(pal);
+            CHECK(set_pal_res.has_value());
+
+            auto get_pal_res = tex.get_palette();
+            CHECK(get_pal_res.has_value());
+            if (get_pal_res && *get_pal_res) {
+                CHECK(get_pal_res->get() == pal.get());
+                CHECK(get_pal_res->get_color(0) == colors::red);
+            }
+        }
         
         SUBCASE("render target texture") {
             auto target_tex = texture::create(
