@@ -86,4 +86,30 @@ TEST_SUITE("simplex::sprite_atlas") {
         // No overlap in bounds
         CHECK(!mask.overlaps(other, 10, 10));
     }
+
+    TEST_CASE("user-supplied bitmasks") {
+        std::vector<sdlpp::rect<int>> rects = {
+            {0, 0, 16, 16},
+            {16, 0, 16, 16}
+        };
+
+        simplex::sprite_atlas atlas(sdlpp::texture{}, rects);
+        CHECK(!atlas.has_bitmasks());
+
+        simplex::bitmask mask1(16, 16);
+        mask1.set(5, 5, true);
+
+        atlas.set_frame_mask(0, mask1);
+        CHECK(atlas.has_bitmasks());
+
+        // The second frame should default to an empty bitmask (width=0, height=0)
+        auto m0 = atlas.get_frame_mask(0);
+        CHECK(m0.width() == 16);
+        CHECK(m0.height() == 16);
+        CHECK(m0.get(5, 5) == true);
+
+        auto m1 = atlas.get_frame_mask(1);
+        CHECK(m1.width() == 0);
+        CHECK(m1.height() == 0);
+    }
 }

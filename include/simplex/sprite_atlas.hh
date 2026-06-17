@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <filesystem>
+#include <utility>
 #include <sdlpp/video/texture.hh>
 #include <sdlpp/video/surface.hh>
 #include <sdlpp/utility/geometry.hh>
@@ -164,6 +165,18 @@ namespace simplex {
              */
             [[nodiscard]] const bitmask& get_frame_mask(std::size_t index) const {
                 return m_masks.at(index);
+            }
+
+            /**
+             * @brief Set or update the bitmask of a frame.
+             * @param index Frame index (0-based).
+             * @param mask The user-supplied bitmask.
+             */
+            void set_frame_mask(std::size_t index, bitmask mask) {
+                if (m_masks.size() < m_frames.size()) {
+                    m_masks.resize(m_frames.size());
+                }
+                m_masks.at(index) = std::move(mask);
             }
 
             // Static factories/loaders
