@@ -1,6 +1,7 @@
 #include <simplex/simplex.hh>
 #include <simplex/sprite_atlas.hh>
 #include <simplex/sprite.hh>
+#include <simplex/mesh.hh>
 #include <sdlpp/app/entry_point.hh>
 #include <sdlpp/image/image.hh>
 #include <random>
@@ -22,6 +23,8 @@ namespace simplex {
         };
         std::vector<sprite_data> m_sprites;
         simplex::animated_sprite m_scripted_sprite;
+        simplex::sprite_mesh m_background_mesh;
+        float m_wave_time{0.0f};
 
         void on_ready() override {
             simplex::application::on_ready();
@@ -82,6 +85,9 @@ namespace simplex {
             m_scripted_sprite.add_animation("run", run_seq);
             m_scripted_sprite.play("run");
             m_scripted_sprite.position = {60_dp, 50_dp};
+
+            // Initialize background mesh with 20x20 grid subdivision
+            m_background_mesh = simplex::sprite_mesh(20, 20);
         }
 
         void on_update(float dt) override {
@@ -131,16 +137,22 @@ namespace simplex {
                 m_scripted_sprite.queue_movement({.target_offset = {-200_dp, 0_dp}, .duration = 2.0f, .easing_fn = ease_in_out});
                 m_scripted_sprite.queue_movement({.target_offset = {0_dp, -100_dp}, .duration = 1.0f, .easing_fn = ease_in_out});
             }
+
+            // Increment background wave animation timer
+            m_wave_time += dt;
         }
 
         void on_render(sdlpp::renderer& r) override {
             r.clear();
 
-            // Draw background stretched to fit the virtual layout coordinates (320x200)
+            // Draw background as a waving flag mesh stretched to fit (320x200)
             if (m_background) {
-                std::optional<sdlpp::rect<float>> src_opt = std::nullopt;
-                std::optional<sdlpp::rect<float>> dst_opt = sdlpp::rect<float>{0.0f, 0.0f, 320.0f * scale(), 200.0f * scale()};
-                r.copy(*m_background, src_opt, dst_opt);
+                m_background_mesh.layout_rect(rect{0_dp, 0_dp, 320_dp, 200_dp});
+                m_background_mesh.transform_vertices([this](int col, int row, float u, float v, float& px, float& py) {
+                    // Apply horizontal wave translation along the vertical axis (v) over time
+                    px += std::sin(v * 2.0f * 3.14159f + m_wave_time * 2.5f) * 6.0f * scale();
+                });
+                m_background_mesh.render(r, *m_background);
             }
 
             // Draw all sprites via the atlas
