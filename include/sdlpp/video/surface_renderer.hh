@@ -8,6 +8,7 @@
 #include <sdlpp/detail/expected.hh>
 #include <sdlpp/detail/export.hh>
 #include <sdlpp/video/color.hh>
+#include <sdlpp/video/line_style.hh>
 #include <sdlpp/video/blend_mode.hh>
 #include <sdlpp/video/pixels.hh>
 #include <sdlpp/utility/geometry.hh>
@@ -126,6 +127,21 @@ public:
     }
     
     /**
+     * @brief Set the current line style
+     */
+    expected<void, std::string> set_line_style(const line_style& style) {
+        line_style_ = style;
+        return {};
+    }
+
+    /**
+     * @brief Get the current line style
+     */
+    [[nodiscard]] expected<line_style, std::string> get_line_style() const {
+        return line_style_;
+    }
+
+    /**
      * @brief Get the current clipping rectangle
      */
     SDLPP_EXPORT expected<std::optional<rect<int>>, std::string> get_clip_rect() const;
@@ -191,10 +207,10 @@ public:
     }
     
     /**
-     * @brief Draw a line
+     * @brief Draw a solid line bypassing line styling
      */
     template<point_like P1, point_like P2>
-    expected<void, std::string> draw_line(const P1& start, const P2& end) {
+    expected<void, std::string> draw_line_solid(const P1& start, const P2& end) {
         if (!surface_) {
             return make_unexpectedf("Invalid surface");
         }
@@ -222,6 +238,19 @@ public:
         }
 
         return {};
+    }
+
+    /**
+     * @brief Draw a line respecting the current line style
+     */
+    template<point_like P1, point_like P2>
+    expected<void, std::string> draw_line(const P1& start, const P2& end) {
+        if (line_style_.type == line_style_type::dashed) {
+            return draw_line_dashed(start, end, line_style_.dash, line_style_.gap);
+        } else if (line_style_.type == line_style_type::dotted) {
+            return draw_line_dotted(start, end, line_style_.spacing);
+        }
+        return draw_line_solid(start, end);
     }
     
     /**
@@ -398,8 +427,11 @@ public:
      * @param width Line width in pixels
      * @return Expected<void> - empty on success, error message on failure
      */
+    /**
+     * @brief Draw a solid thick line bypassing line styling
+     */
     template<point_like P1, point_like P2>
-    expected<void, std::string> draw_line_thick(const P1& start, const P2& end, float width) {
+    expected<void, std::string> draw_line_thick_solid(const P1& start, const P2& end, float width) {
         if (!surface_) {
             return make_unexpectedf("Invalid surface");
         }
@@ -436,6 +468,73 @@ public:
     }
 
     /**
+     * @brief Draw a thick line respecting the current line style
+     */
+    template<point_like P1, point_like P2>
+    expected<void, std::string> draw_line_thick(const P1& start, const P2& end, float width) {
+        if (line_style_.type == line_style_type::dashed) {
+            const float x1 = static_cast<float>(get_x(start));
+            const float y1 = static_cast<float>(get_y(start));
+            const float x2 = static_cast<float>(get_x(end));
+            const float y2 = static_cast<float>(get_y(end));
+
+            const float dx = x2 - x1;
+            const float dy = y2 - y1;
+            const float length = std::sqrt(dx * dx + dy * dy);
+            const float dash = line_style_.dash;
+            const float gap = line_style_.gap;
+            const float period = dash + gap;
+
+            if (length <= 0.0f || period <= 0.0f) {
+                return draw_line_thick_solid(start, end, width);
+            }
+
+            const float ux = dx / length;
+            const float uy = dy / length;
+
+            expected<void, std::string> res{};
+            for (float s = 0.0f; s < length; s += period) {
+                const float e = std::min(s + dash, length);
+                euler::point2f p0{x1 + ux * s, y1 + uy * s};
+                euler::point2f p1{x1 + ux * e, y1 + uy * e};
+                res = draw_line_thick_solid(p0, p1, width);
+                if (!res) {
+                    return res;
+                }
+            }
+            return res;
+        } else if (line_style_.type == line_style_type::dotted) {
+            const float x1 = static_cast<float>(get_x(start));
+            const float y1 = static_cast<float>(get_y(start));
+            const float x2 = static_cast<float>(get_x(end));
+            const float y2 = static_cast<float>(get_y(end));
+
+            const float dx = x2 - x1;
+            const float dy = y2 - y1;
+            const float length = std::sqrt(dx * dx + dy * dy);
+            const float spacing = line_style_.spacing;
+
+            if (length <= 0.0f || spacing <= 0.0f) {
+                return fill_circle(start, std::max(1, static_cast<int>(std::round(width / 2.0f))));
+            }
+
+            const float ux = dx / length;
+            const float uy = dy / length;
+
+            expected<void, std::string> res{};
+            for (float s = 0.0f; s <= length; s += spacing) {
+                euler::point2f p{x1 + ux * s, y1 + uy * s};
+                res = fill_circle(p, std::max(1, static_cast<int>(std::round(width / 2.0f))));
+                if (!res) {
+                    return res;
+                }
+            }
+            return res;
+        }
+        return draw_line_thick_solid(start, end, width);
+    }
+
+    /**
      * @brief Draw a dashed line
      * @param start Starting point
      * @param end Ending point
@@ -460,7 +559,7 @@ public:
         const float period = dash + gap;
 
         if (length <= 0.0f || period <= 0.0f) {
-            return draw_line(start, end);
+            return draw_line_solid(start, end);
         }
 
         const float ux = dx / length;
@@ -471,7 +570,7 @@ public:
             const float e = std::min(s + dash, length);
             euler::point2f p0{x1 + ux * s, y1 + uy * s};
             euler::point2f p1{x1 + ux * e, y1 + uy * e};
-            res = draw_line(p0, p1);
+            res = draw_line_solid(p0, p1);
             if (!res) {
                 return res;
             }
@@ -1545,6 +1644,7 @@ private:
     color draw_color_;
     blend_mode blend_mode_;
     std::optional<rect<int>> clip_rect_;
+    line_style line_style_ = line_style::solid();
     
     // Mapped color for current format
     uint32_t mapped_color_;

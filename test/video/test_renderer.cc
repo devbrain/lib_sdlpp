@@ -126,6 +126,45 @@ TEST_SUITE("renderer and texture") {
             auto fill_result = rend.fill_rect(r);
             CHECK(fill_result.has_value());
         }
+
+        SUBCASE("line style state") {
+            // Check default line style is solid
+            auto get_style_res = rend.get_line_style();
+            REQUIRE(get_style_res.has_value());
+            CHECK(get_style_res->type == line_style_type::solid);
+
+            // Change to dashed
+            auto set_style_res = rend.set_line_style(line_style::dashed(10.0f, 5.0f));
+            REQUIRE(set_style_res.has_value());
+            get_style_res = rend.get_line_style();
+            REQUIRE(get_style_res.has_value());
+            CHECK(get_style_res->type == line_style_type::dashed);
+            CHECK(get_style_res->dash == 10.0f);
+            CHECK(get_style_res->gap == 5.0f);
+
+            // Change to dotted
+            set_style_res = rend.set_line_style(line_style::dotted(6.0f));
+            REQUIRE(set_style_res.has_value());
+            get_style_res = rend.get_line_style();
+            REQUIRE(get_style_res.has_value());
+            CHECK(get_style_res->type == line_style_type::dotted);
+            CHECK(get_style_res->spacing == 6.0f);
+
+            // Draw line with style applied
+            auto line_res = rend.draw_line(0.0f, 0.0f, 10.0f, 10.0f);
+            CHECK(line_res.has_value());
+
+            // Draw thick line with style applied
+            auto line_thick_res = rend.draw_line_thick(0.0f, 0.0f, 10.0f, 10.0f, 4.0f);
+            CHECK(line_thick_res.has_value());
+
+            // Reset back to solid
+            set_style_res = rend.set_line_style(line_style::solid());
+            REQUIRE(set_style_res.has_value());
+            get_style_res = rend.get_line_style();
+            REQUIRE(get_style_res.has_value());
+            CHECK(get_style_res->type == line_style_type::solid);
+        }
         
         SUBCASE("draw multiple primitives") {
             std::vector<point_i> points = {

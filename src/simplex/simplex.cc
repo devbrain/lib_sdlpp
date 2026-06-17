@@ -86,6 +86,29 @@ namespace simplex {
         return get_renderer().get_draw_blend_mode();
     }
 
+    sdlpp::expected<void, std::string> application::set_line_style(const sdlpp::line_style& style) {
+        sdlpp::line_style scaled_style = style;
+        scaled_style.dash *= scale();
+        scaled_style.gap *= scale();
+        scaled_style.spacing *= scale();
+        return get_renderer().set_line_style(scaled_style);
+    }
+
+    sdlpp::expected<sdlpp::line_style, std::string> application::get_line_style() const {
+        auto style_res = get_renderer().get_line_style();
+        if (!style_res) {
+            return sdlpp::make_unexpected(style_res.error());
+        }
+        sdlpp::line_style unscaled_style = *style_res;
+        float current_scale = scale();
+        if (current_scale > 0.0f) {
+            unscaled_style.dash /= current_scale;
+            unscaled_style.gap /= current_scale;
+            unscaled_style.spacing /= current_scale;
+        }
+        return unscaled_style;
+    }
+
     sdlpp::expected<void, std::string> application::draw_point(const dp& x, const dp& y) {
         return get_renderer().draw_point(x.px(), y.px());
     }

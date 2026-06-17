@@ -88,7 +88,9 @@ class example : public simplex::application {
                         const float dy = (world_view.y_up ? -n.y() : n.y()) * normal_len;
                         return simplex::point{simplex::dp{dx}, simplex::dp{dy}};
                     };
+                    set_line_style(line_style::dashed(4.0f, 2.0f));
                     draw_arrow(p1, p1 + get_design_normal(ir.entry_normal), 6_dp, 30.0f, 2.0f, colors::red);
+                    set_line_style(line_style::solid());
                     draw_arrow(p2, p2 + get_design_normal(ir.exit_normal), 6_dp, 30.0f, 2.0f, colors::green);
 
                 } else {

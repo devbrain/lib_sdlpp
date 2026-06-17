@@ -90,7 +90,7 @@ expected<void, std::string> renderer::draw_line_aa(float x1, float y1, float x2,
     return {};
 }
 
-expected<void, std::string> renderer::draw_line_thick(float x1, float y1, float x2, float y2, float width) {
+expected<void, std::string> renderer::draw_line_thick_solid(float x1, float y1, float x2, float y2, float width) {
     if (!ptr) {
         return make_unexpectedf("Invalid renderer");
     }
@@ -114,6 +114,66 @@ expected<void, std::string> renderer::draw_line_thick(float x1, float y1, float 
     }
     
     return {};
+}
+
+expected<void, std::string> renderer::draw_line_thick(float x1, float y1, float x2, float y2, float width) {
+    if (!ptr) {
+        return make_unexpectedf("Invalid renderer");
+    }
+    
+    if (width <= 0) {
+        return make_unexpectedf("Line width must be positive");
+    }
+
+    if (style_.type == line_style_type::dashed) {
+        const float dx = x2 - x1;
+        const float dy = y2 - y1;
+        const float length = std::sqrt(dx * dx + dy * dy);
+        const float dash = style_.dash;
+        const float gap = style_.gap;
+        const float period = dash + gap;
+
+        if (length <= 0.0f || period <= 0.0f) {
+            return draw_line_thick_solid(x1, y1, x2, y2, width);
+        }
+
+        const float ux = dx / length;
+        const float uy = dy / length;
+
+        expected<void, std::string> res{};
+        for (float s = 0.0f; s < length; s += period) {
+            const float e = std::min(s + dash, length);
+            res = draw_line_thick_solid(x1 + ux * s, y1 + uy * s, x1 + ux * e, y1 + uy * e, width);
+            if (!res) {
+                return res;
+            }
+        }
+        return res;
+    } else if (style_.type == line_style_type::dotted) {
+        const float dx = x2 - x1;
+        const float dy = y2 - y1;
+        const float length = std::sqrt(dx * dx + dy * dy);
+        const float spacing = style_.spacing;
+
+        if (length <= 0.0f || spacing <= 0.0f) {
+            return fill_circle(static_cast<int>(std::round(x1)), static_cast<int>(std::round(y1)), std::max(1, static_cast<int>(std::round(width / 2.0f))));
+        }
+
+        const float ux = dx / length;
+        const float uy = dy / length;
+
+        expected<void, std::string> res{};
+        for (float s = 0.0f; s <= length; s += spacing) {
+            int r = std::max(1, static_cast<int>(std::round(width / 2.0f)));
+            res = fill_circle(static_cast<int>(std::round(x1 + ux * s)), static_cast<int>(std::round(y1 + uy * s)), r);
+            if (!res) {
+                return res;
+            }
+        }
+        return res;
+    }
+    
+    return draw_line_thick_solid(x1, y1, x2, y2, width);
 }
 
 expected<void, std::string> renderer::draw_circle(int x, int y, int radius) {
@@ -372,7 +432,7 @@ expected<void, std::string> renderer::draw_line_dashed(float x1, float y1, float
     const float period = dash + gap;
 
     if (length <= 0.0f || period <= 0.0f) {
-        return draw_line(x1, y1, x2, y2);
+        return draw_line_solid(x1, y1, x2, y2);
     }
 
     const float ux = dx / length;
@@ -381,7 +441,7 @@ expected<void, std::string> renderer::draw_line_dashed(float x1, float y1, float
     expected<void, std::string> res{};
     for (float s = 0.0f; s < length; s += period) {
         const float e = std::min(s + dash, length);
-        res = draw_line(x1 + ux * s, y1 + uy * s, x1 + ux * e, y1 + uy * e);
+        res = draw_line_solid(x1 + ux * s, y1 + uy * s, x1 + ux * e, y1 + uy * e);
         if (!res) {
             return res;
         }

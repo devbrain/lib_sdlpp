@@ -6,6 +6,7 @@
 #include <simplex/dp.hh>
 #include <simplex/geometry.hh>
 #include <sdlpp/app/game_application.hh>
+#include <sdlpp/video/line_style.hh>
 
 #include <failsafe/logger.hh>
 
@@ -37,6 +38,9 @@ namespace simplex {
 
             sdlpp::expected <void, std::string> set_draw_blend_mode(sdlpp::blend_mode mode = sdlpp::blend_mode::none);
             [[nodiscard]] sdlpp::expected <sdlpp::blend_mode, std::string> get_draw_blend_mode() const;
+
+            sdlpp::expected <void, std::string> set_line_style(const sdlpp::line_style& style);
+            [[nodiscard]] sdlpp::expected <sdlpp::line_style, std::string> get_line_style() const;
 
             sdlpp::expected <void, std::string> draw_point(const dp& x, const dp& y);
             sdlpp::expected <void, std::string> draw_point(const dp& x, const dp& y, const sdlpp::color& c);

@@ -30,6 +30,7 @@
 
 // Euler DDA includes (with warning suppression)
 #include <sdlpp/core/euler.hh>
+#include <sdlpp/video/line_style.hh>
 
 // Forward declarations
 namespace sdlpp {
@@ -106,6 +107,7 @@ namespace sdlpp {
     class renderer {
         private:
             renderer_ptr ptr;
+            line_style style_ = line_style::solid();
 
         public:
             /**
@@ -204,6 +206,24 @@ namespace sdlpp {
                 }
 
                 return color{r, g, b, a};
+            }
+
+            /**
+             * @brief Set the current line style
+             * @param style Line style to use
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_line_style(const line_style& style) {
+                style_ = style;
+                return {};
+            }
+
+            /**
+             * @brief Get the current line style
+             * @return Expected containing line style, or error message
+             */
+            [[nodiscard]] expected <line_style, std::string> get_line_style() const {
+                return style_;
             }
 
             /**
@@ -348,17 +368,8 @@ namespace sdlpp {
              * @return Expected<void> - empty on success, error message on failure
              */
             expected <void, std::string> draw_line(int x1, int y1, int x2, int y2) {
-                if (!ptr) {
-                    return make_unexpectedf("Invalid renderer");
-                }
-
-                if (!SDL_RenderLine(ptr.get(),
-                                    static_cast <float>(x1), static_cast <float>(y1),
-                                    static_cast <float>(x2), static_cast <float>(y2))) {
-                    return make_unexpectedf(get_error());
-                }
-
-                return {};
+                return draw_line(static_cast<float>(x1), static_cast<float>(y1),
+                                 static_cast<float>(x2), static_cast<float>(y2));
             }
 
             /**
@@ -381,7 +392,7 @@ namespace sdlpp {
              * @param y2 End Y coordinate
              * @return Expected<void> - empty on success, error message on failure
              */
-            expected <void, std::string> draw_line(float x1, float y1, float x2, float y2) {
+            expected <void, std::string> draw_line_solid(float x1, float y1, float x2, float y2) {
                 if (!ptr) {
                     return make_unexpectedf("Invalid renderer");
                 }
@@ -391,6 +402,23 @@ namespace sdlpp {
                 }
 
                 return {};
+            }
+
+            /**
+             * @brief Draw a line with floating-point precision, respecting the current line style
+             * @param x1 Start X coordinate
+             * @param y1 Start Y coordinate
+             * @param x2 End X coordinate
+             * @param y2 End Y coordinate
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> draw_line(float x1, float y1, float x2, float y2) {
+                if (style_.type == line_style_type::dashed) {
+                    return draw_line_dashed(x1, y1, x2, y2, style_.dash, style_.gap);
+                } else if (style_.type == line_style_type::dotted) {
+                    return draw_line_dotted(x1, y1, x2, y2, style_.spacing);
+                }
+                return draw_line_solid(x1, y1, x2, y2);
             }
 
             /**
@@ -1434,6 +1462,7 @@ namespace sdlpp {
              * @return Expected<void> - empty on success, error message on failure
              */
             SDLPP_EXPORT expected<void, std::string> draw_line_thick(float x1, float y1, float x2, float y2, float width);
+            SDLPP_EXPORT expected<void, std::string> draw_line_thick_solid(float x1, float y1, float x2, float y2, float width);
 
             /**
              * @brief Draw a thick line with specified width
