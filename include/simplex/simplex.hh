@@ -153,4 +153,28 @@ namespace simplex {
             struct impl;
             std::unique_ptr<impl> m_pimpl;
     };
+
+    /**
+     * @brief Centralized free function for drawing a sprite using a renderer and scale factor.
+     */
+    SIMPLEX_EXPORT sdlpp::expected<void, std::string> draw_sprite(
+        sdlpp::renderer& r,
+        const sprite_atlas& atlas,
+        const animated_sprite& sprite,
+        float scale = 1.0f
+    );
+
+    /**
+     * @brief Centralized free function for drawing an atlas frame at a position with optional flips.
+     */
+    SIMPLEX_EXPORT sdlpp::expected<void, std::string> draw_sprite(
+        sdlpp::renderer& r,
+        const sprite_atlas& atlas,
+        std::size_t frame_index,
+        const point& p,
+        float scale = 1.0f,
+        bool flip_h = false,
+        bool flip_v = false,
+        bool flip_d = false
+    );
 } // namespace simplex

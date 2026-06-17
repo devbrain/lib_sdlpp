@@ -418,23 +418,47 @@ namespace simplex {
     }
 
     sdlpp::expected<void, std::string> application::draw_sprite(const sprite_atlas& atlas, const animated_sprite& sprite) {
-        if (!sprite.visible) {
-            return {};
-        }
-        return draw_sprite(
-            atlas,
-            sprite.current_frame(),
-            sprite.position,
-            sprite.flip_horizontal,
-            sprite.flip_vertical,
-            sprite.flip_diagonal
-        );
+        return simplex::draw_sprite(get_renderer(), atlas, sprite, scale());
     }
 
     sdlpp::expected<void, std::string> application::draw_sprite(
         const sprite_atlas& atlas,
         std::size_t frame_index,
         const point& p,
+        bool flip_h,
+        bool flip_v,
+        bool flip_d
+    ) {
+        return simplex::draw_sprite(get_renderer(), atlas, frame_index, p, scale(), flip_h, flip_v, flip_d);
+    }
+
+    sdlpp::expected<void, std::string> draw_sprite(
+        sdlpp::renderer& r,
+        const sprite_atlas& atlas,
+        const animated_sprite& sprite,
+        float scale
+    ) {
+        if (!sprite.visible) {
+            return {};
+        }
+        return draw_sprite(
+            r,
+            atlas,
+            sprite.current_frame(),
+            sprite.position,
+            scale,
+            sprite.flip_horizontal,
+            sprite.flip_vertical,
+            sprite.flip_diagonal
+        );
+    }
+
+    sdlpp::expected<void, std::string> draw_sprite(
+        sdlpp::renderer& r,
+        const sprite_atlas& atlas,
+        std::size_t frame_index,
+        const point& p,
+        float scale,
         bool flip_h,
         bool flip_v,
         bool flip_d
@@ -449,8 +473,8 @@ namespace simplex {
 
         auto src_rect = atlas.get_frame_rect(frame_index);
         
-        float dest_w = static_cast<float>(src_rect.w) * scale();
-        float dest_h = static_cast<float>(src_rect.h) * scale();
+        float dest_w = static_cast<float>(src_rect.w) * scale;
+        float dest_h = static_cast<float>(src_rect.h) * scale;
 
         float dest_x = p.x.px();
         float dest_y = p.y.px();
@@ -485,7 +509,7 @@ namespace simplex {
                     flip = sdlpp::flip_mode::vertical;
                 }
             }
-            return get_renderer().copy_ex(
+            return r.copy_ex(
                 atlas.texture(),
                 src_opt,
                 dst_opt,
@@ -495,7 +519,7 @@ namespace simplex {
             );
         }
 
-        return get_renderer().copy(atlas.texture(), src_opt, dst_opt);
+        return r.copy(atlas.texture(), src_opt, dst_opt);
     }
 
     void application::on_window_display_scale_changed(float scale) {
