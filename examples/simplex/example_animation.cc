@@ -26,6 +26,8 @@ namespace simplex {
         simplex::animated_sprite m_scripted_sprite;
         simplex::sprite_mesh m_background_mesh;
         simplex::sprite_mesh m_sprite_mesh;
+        simplex::rotate_3d_effect m_bg_rotate_effect;
+        simplex::rotate_3d_effect m_sprite_rotate_effect;
         float m_wave_time{0.0f};
 
         void on_ready() override {
@@ -90,9 +92,12 @@ namespace simplex {
 
             // Initialize background mesh with 20x20 grid subdivision
             m_background_mesh = simplex::sprite_mesh(20, 20);
+            m_bg_rotate_effect.set_pivot(0.5f, 0.5f);
+            m_bg_rotate_effect.set_perspective_factor(1.8f);
 
             // Initialize sprite mesh with 2x2 grid subdivision for 3D coin spin effect
             m_sprite_mesh = simplex::sprite_mesh(2, 2);
+            m_sprite_rotate_effect.set_pivot(0.5f, 0.5f);
         }
 
         void on_update(float dt) override {
@@ -158,7 +163,9 @@ namespace simplex {
                 euler::radianf pitch = euler::degreef(35.0f);
                 euler::radianf yaw(m_wave_time * 0.3f);
 
-                simplex::effects::rotate_3d(m_background_mesh, pitch, yaw, euler::radianf(0.0f), 0.5f, 0.5f, 1.8f);
+                m_bg_rotate_effect.set_pitch(pitch);
+                m_bg_rotate_effect.set_yaw(yaw);
+                m_bg_rotate_effect.apply(m_background_mesh);
                 m_background_mesh.render(r, *m_background);
             }
 
@@ -177,7 +184,8 @@ namespace simplex {
 
                     // Apply coin effect: rotate around Y-axis (yaw)
                     euler::radianf yaw(m_wave_time * 4.0f + static_cast<float>(i) * 0.5f);
-                    simplex::effects::rotate_3d(m_sprite_mesh, euler::radianf(0.0f), yaw, euler::radianf(0.0f));
+                    m_sprite_rotate_effect.set_yaw(yaw);
+                    m_sprite_rotate_effect.apply(m_sprite_mesh);
 
                     m_sprite_mesh.render(r, m_atlas->texture());
                 }

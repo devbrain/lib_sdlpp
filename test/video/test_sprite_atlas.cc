@@ -192,31 +192,38 @@ TEST_SUITE("simplex::sprite_atlas") {
         mesh.layout_rect(dest, sdlpp::rect<float>{0.0f, 0.0f, 1.0f, 1.0f});
 
         // Test wave_horizontal
-        simplex::effects::wave_horizontal(mesh, 0.0f, 5.0f, 1.0f);
+        simplex::wave_horizontal_effect wave_h(5.0f, 1.0f, 0.0f);
+        wave_h.apply(mesh);
         CHECK(mesh.vertex_count() == 9);
 
         // Test wave_vertical
-        simplex::effects::wave_vertical(mesh, 0.0f, 5.0f, 1.0f);
+        simplex::wave_vertical_effect wave_v(5.0f, 1.0f, 0.0f);
+        wave_v.apply(mesh);
         CHECK(mesh.vertex_count() == 9);
 
         // Test skew_horizontal
-        simplex::effects::skew_horizontal(mesh, 10.0f);
+        simplex::skew_horizontal_effect skew_h(10.0f);
+        skew_h.apply(mesh);
         CHECK(mesh.vertex_count() == 9);
 
         // Test skew_vertical
-        simplex::effects::skew_vertical(mesh, 10.0f);
+        simplex::skew_vertical_effect skew_v(10.0f);
+        skew_v.apply(mesh);
         CHECK(mesh.vertex_count() == 9);
 
         // Test perspective
-        simplex::effects::perspective(mesh, 0.8f, 1.2f);
+        simplex::perspective_effect persp(0.8f, 1.2f);
+        persp.apply(mesh);
         CHECK(mesh.vertex_count() == 9);
 
         // Test pinch_punch
-        simplex::effects::pinch_punch(mesh, 0.5f, 0.5f, 0.5f, 0.2f);
+        simplex::pinch_punch_effect pinch(0.5f, 0.5f, 0.5f, 0.2f);
+        pinch.apply(mesh);
         CHECK(mesh.vertex_count() == 9);
 
         // Test rotate_3d
-        simplex::effects::rotate_3d(mesh, euler::degreef(10.0f), euler::radianf(0.2f), euler::degreef(15.0f));
+        simplex::rotate_3d_effect rot(euler::degreef(10.0f), euler::radianf(0.2f), euler::degreef(15.0f));
+        rot.apply(mesh);
         CHECK(mesh.vertex_count() == 9);
     }
 }
