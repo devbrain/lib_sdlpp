@@ -239,33 +239,7 @@ namespace simplex {
 
     sdlpp::expected<void, std::string> application::draw_line_dashed(const point& p1, const point& p2, dp dash,
         dp gap) {
-        // Walk the segment in design space and emit a solid draw_line for each
-        // `dash` run; draw_line handles the dp -> physical-pixel scaling.
-        const float x1 = p1.x.design();
-        const float y1 = p1.y.design();
-        const float dx = p2.x.design() - x1;
-        const float dy = p2.y.design() - y1;
-        const float length = std::sqrt(dx * dx + dy * dy);
-        const float period = dash.design() + gap.design();
-
-        if (length <= 0.0f || period <= 0.0f) {
-            return draw_line(p1, p2);
-        }
-
-        const float ux = dx / length;
-        const float uy = dy / length;
-        const float run = dash.design();
-
-        sdlpp::expected<void, std::string> result{};
-        for (float s = 0.0f; s < length; s += period) {
-            const float e = std::min(s + run, length);
-            result = draw_line(point{dp{x1 + ux * s}, dp{y1 + uy * s}},
-                               point{dp{x1 + ux * e}, dp{y1 + uy * e}});
-            if (!result) {
-                return result;
-            }
-        }
-        return result;
+        return get_renderer().draw_line_dashed(p1.x.px(), p1.y.px(), p2.x.px(), p2.y.px(), dash.px(), gap.px());
     }
 
     sdlpp::expected<void, std::string> application::draw_line_dashed(const point& p1, const point& p2, dp dash,
@@ -285,28 +259,7 @@ namespace simplex {
     }
 
     sdlpp::expected<void, std::string> application::draw_line_dotted(const point& p1, const point& p2, dp spacing) {
-        const float x1 = p1.x.design();
-        const float y1 = p1.y.design();
-        const float dx = p2.x.design() - x1;
-        const float dy = p2.y.design() - y1;
-        const float length = std::sqrt(dx * dx + dy * dy);
-        const float step = spacing.design();
-
-        if (length <= 0.0f || step <= 0.0f) {
-            return draw_point(p1);
-        }
-
-        const float ux = dx / length;
-        const float uy = dy / length;
-
-        sdlpp::expected<void, std::string> result{};
-        for (float s = 0.0f; s <= length; s += step) {
-            result = draw_point(point{dp{x1 + ux * s}, dp{y1 + uy * s}});
-            if (!result) {
-                return result;
-            }
-        }
-        return result;
+        return get_renderer().draw_line_dotted(p1.x.px(), p1.y.px(), p2.x.px(), p2.y.px(), spacing.px());
     }
 
     sdlpp::expected<void, std::string> application::draw_line_dotted(const point& p1, const point& p2, dp spacing,
