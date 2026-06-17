@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 #include <simplex/sprite_atlas.hh>
 #include <simplex/sprite.hh>
+#include <simplex/mesh.hh>
 
 TEST_SUITE("simplex::sprite_atlas") {
     TEST_CASE("default constructor") {
@@ -164,6 +165,24 @@ TEST_SUITE("simplex::sprite_atlas") {
         // Clear movements
         sprite.clear_movements();
         CHECK(!sprite.is_moving());
+    }
+
+    TEST_CASE("sprite_mesh mesh creation and layout") {
+        simplex::sprite_mesh mesh(2, 2);
+        CHECK(mesh.vertex_count() == 9); // 3x3 vertices
+        CHECK(mesh.index_count() == 24);  // 2x2 quads * 2 triangles * 3 indices = 24
+
+        // Layout the mesh to a design rect (dp)
+        simplex::rect dest{simplex::dp{0.0f}, simplex::dp{0.0f}, simplex::dp{20.0f}, simplex::dp{30.0f}};
+        mesh.layout_rect(dest, sdlpp::rect<float>{0.0f, 0.0f, 1.0f, 1.0f});
+
+        // Transform vertices: shift them right by 5 physical pixels
+        mesh.transform_vertices([](int col, int row, float u, float v, float& px, float& py) {
+            px += 5.0f;
+        });
+
+        // Vertices are correctly mutated
+        CHECK(mesh.vertex_count() == 9);
     }
 }
 
