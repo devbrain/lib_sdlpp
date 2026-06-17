@@ -1685,6 +1685,83 @@ private:
             }
         }
     }
+
+    class draw_color_guard {
+        private:
+            surface_renderer& r_;
+            color prev_color_;
+        public:
+            draw_color_guard(surface_renderer& r, const color& c) : r_(r) {
+                auto prev = r_.get_draw_color();
+                prev_color_ = prev ? *prev : colors::black;
+                r_.set_draw_color(c);
+            }
+            ~draw_color_guard() {
+                r_.set_draw_color(prev_color_);
+            }
+            draw_color_guard(const draw_color_guard&) = delete;
+            draw_color_guard& operator=(const draw_color_guard&) = delete;
+            draw_color_guard(draw_color_guard&&) = delete;
+            draw_color_guard& operator=(draw_color_guard&&) = delete;
+    };
+
+    class draw_blend_mode_guard {
+        private:
+            surface_renderer& r_;
+            blend_mode prev_mode_;
+        public:
+            draw_blend_mode_guard(surface_renderer& r, blend_mode mode) : r_(r) {
+                auto prev = r_.get_draw_blend_mode();
+                prev_mode_ = prev ? *prev : blend_mode::none;
+                r_.set_draw_blend_mode(mode);
+            }
+            ~draw_blend_mode_guard() {
+                r_.set_draw_blend_mode(prev_mode_);
+            }
+            draw_blend_mode_guard(const draw_blend_mode_guard&) = delete;
+            draw_blend_mode_guard& operator=(const draw_blend_mode_guard&) = delete;
+            draw_blend_mode_guard(draw_blend_mode_guard&&) = delete;
+            draw_blend_mode_guard& operator=(draw_blend_mode_guard&&) = delete;
+    };
+
+    class line_style_guard {
+        private:
+            surface_renderer& r_;
+            line_style prev_style_;
+        public:
+            line_style_guard(surface_renderer& r, const line_style& style) : r_(r) {
+                auto prev = r_.get_line_style();
+                prev_style_ = prev ? *prev : line_style::solid();
+                r_.set_line_style(style);
+            }
+            ~line_style_guard() {
+                r_.set_line_style(prev_style_);
+            }
+            line_style_guard(const line_style_guard&) = delete;
+            line_style_guard& operator=(const line_style_guard&) = delete;
+            line_style_guard(line_style_guard&&) = delete;
+            line_style_guard& operator=(line_style_guard&&) = delete;
+    };
+
+    class clip_rect_guard {
+        private:
+            surface_renderer& r_;
+            std::optional <rect<int>> prev_clip_;
+        public:
+            template<rect_like R>
+            clip_rect_guard(surface_renderer& r, const std::optional <R>& clip) : r_(r) {
+                auto prev = r_.get_clip_rect();
+                prev_clip_ = prev ? *prev : std::nullopt;
+                r_.set_clip_rect(clip);
+            }
+            ~clip_rect_guard() {
+                r_.set_clip_rect(prev_clip_);
+            }
+            clip_rect_guard(const clip_rect_guard&) = delete;
+            clip_rect_guard& operator=(const clip_rect_guard&) = delete;
+            clip_rect_guard(clip_rect_guard&&) = delete;
+            clip_rect_guard& operator=(clip_rect_guard&&) = delete;
+    };
 };
 
 } // namespace sdlpp

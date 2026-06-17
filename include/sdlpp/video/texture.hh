@@ -425,6 +425,82 @@ namespace sdlpp {
 
                 return texture(t);
             }
+
+            class blend_mode_guard {
+                private:
+                    texture& t_;
+                    blend_mode prev_mode_;
+                public:
+                    blend_mode_guard(texture& t, blend_mode mode) : t_(t) {
+                        auto prev = t_.get_blend_mode();
+                        prev_mode_ = prev ? *prev : blend_mode::none;
+                        t_.set_blend_mode(mode);
+                    }
+                    ~blend_mode_guard() {
+                        t_.set_blend_mode(prev_mode_);
+                    }
+                    blend_mode_guard(const blend_mode_guard&) = delete;
+                    blend_mode_guard& operator=(const blend_mode_guard&) = delete;
+                    blend_mode_guard(blend_mode_guard&&) = delete;
+                    blend_mode_guard& operator=(blend_mode_guard&&) = delete;
+            };
+
+            class color_mod_guard {
+                private:
+                    texture& t_;
+                    color prev_color_;
+                public:
+                    color_mod_guard(texture& t, const color& c) : t_(t) {
+                        auto prev = t_.get_color_mod();
+                        prev_color_ = prev ? *prev : color{255, 255, 255, 255};
+                        t_.set_color_mod(c);
+                    }
+                    ~color_mod_guard() {
+                        t_.set_color_mod(prev_color_);
+                    }
+                    color_mod_guard(const color_mod_guard&) = delete;
+                    color_mod_guard& operator=(const color_mod_guard&) = delete;
+                    color_mod_guard(color_mod_guard&&) = delete;
+                    color_mod_guard& operator=(color_mod_guard&&) = delete;
+            };
+
+            class alpha_mod_guard {
+                private:
+                    texture& t_;
+                    uint8_t prev_alpha_;
+                public:
+                    alpha_mod_guard(texture& t, uint8_t alpha) : t_(t) {
+                        auto prev = t_.get_alpha_mod();
+                        prev_alpha_ = prev ? *prev : 255;
+                        t_.set_alpha_mod(alpha);
+                    }
+                    ~alpha_mod_guard() {
+                        t_.set_alpha_mod(prev_alpha_);
+                    }
+                    alpha_mod_guard(const alpha_mod_guard&) = delete;
+                    alpha_mod_guard& operator=(const alpha_mod_guard&) = delete;
+                    alpha_mod_guard(alpha_mod_guard&&) = delete;
+                    alpha_mod_guard& operator=(alpha_mod_guard&&) = delete;
+            };
+
+            class scale_mode_guard {
+                private:
+                    texture& t_;
+                    scale_mode prev_mode_;
+                public:
+                    scale_mode_guard(texture& t, scale_mode mode) : t_(t) {
+                        auto prev = t_.get_scale_mode();
+                        prev_mode_ = prev ? *prev : scale_mode::linear;
+                        t_.set_scale_mode(mode);
+                    }
+                    ~scale_mode_guard() {
+                        t_.set_scale_mode(prev_mode_);
+                    }
+                    scale_mode_guard(const scale_mode_guard&) = delete;
+                    scale_mode_guard& operator=(const scale_mode_guard&) = delete;
+                    scale_mode_guard(scale_mode_guard&&) = delete;
+                    scale_mode_guard& operator=(scale_mode_guard&&) = delete;
+            };
     };
 
     // Now add texture-related methods to renderer
@@ -702,4 +778,22 @@ namespace sdlpp {
 
         return {};
     }
+
+    class renderer::target_guard {
+        private:
+            renderer& r_;
+            SDL_Texture* prev_target_;
+        public:
+            target_guard(renderer& r, const texture& target) : r_(r) {
+                prev_target_ = SDL_GetRenderTarget(r_.get());
+                r_.set_target(target);
+            }
+            ~target_guard() {
+                SDL_SetRenderTarget(r_.get(), prev_target_);
+            }
+            target_guard(const target_guard&) = delete;
+            target_guard& operator=(const target_guard&) = delete;
+            target_guard(target_guard&&) = delete;
+            target_guard& operator=(target_guard&&) = delete;
+    };
 } // namespace sdlpp

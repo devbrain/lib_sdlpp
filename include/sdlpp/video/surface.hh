@@ -507,6 +507,40 @@ namespace sdlpp {
             }
 
             /**
+             * @brief Get color modulation
+             * @return Expected containing color, or error message
+             */
+            expected <color, std::string> get_color_mod() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid surface");
+                }
+
+                uint8_t r, g, b;
+                if (!SDL_GetSurfaceColorMod(ptr.get(), &r, &g, &b)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return color{r, g, b, 255};
+            }
+
+            /**
+             * @brief Get alpha modulation
+             * @return Expected containing alpha value, or error message
+             */
+            expected <uint8_t, std::string> get_alpha_mod() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid surface");
+                }
+
+                uint8_t alpha;
+                if (!SDL_GetSurfaceAlphaMod(ptr.get(), &alpha)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return alpha;
+            }
+
+            /**
              * @brief Convert surface to a different pixel format
              * @param format Target pixel format
              * @return Expected containing new surface, or error message
@@ -748,6 +782,60 @@ namespace sdlpp {
             }
 
             /**
+             * @brief Set surface clipping rectangle
+             * @tparam R Rectangle type (must satisfy rect_like)
+             * @param clip Optional rectangle defining the clipping area (nullopt to disable)
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            template<rect_like R = void>
+            expected <void, std::string> set_clip_rect(const std::optional <R>& clip) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid surface");
+                }
+
+                if (clip) {
+                    SDL_Rect sdl_rect{
+                        static_cast<int>(get_x(*clip)),
+                        static_cast<int>(get_y(*clip)),
+                        static_cast<int>(get_width(*clip)),
+                        static_cast<int>(get_height(*clip))
+                    };
+                    if (!SDL_SetSurfaceClipRect(ptr.get(), &sdl_rect)) {
+                        return make_unexpectedf(get_error());
+                    }
+                } else {
+                    if (!SDL_SetSurfaceClipRect(ptr.get(), nullptr)) {
+                        return make_unexpectedf(get_error());
+                    }
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get surface clipping rectangle
+             * @tparam R Rectangle type to return (defaults to built-in rect if available)
+             * @return Expected containing clipping rectangle (nullopt if disabled), or error message
+             */
+            template<rect_like R = rect_i>
+            expected <std::optional <R>, std::string> get_clip_rect() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid surface");
+                }
+
+                SDL_Rect clip;
+                if (!SDL_GetSurfaceClipRect(ptr.get(), &clip)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                if (clip.w == 0 || clip.h == 0) {
+                    return std::nullopt;
+                }
+
+                return R{clip.x, clip.y, clip.w, clip.h};
+            }
+
+            /**
              * @brief Save surface to BMP format using an iostream
              * @param stream Output stream to write to
              * @return Expected<void> - empty on success, error message on failure
@@ -863,6 +951,83 @@ namespace sdlpp {
             [[nodiscard]] int get_pitch() const {
                 return ptr ? ptr->pitch : 0;
             }
+
+            class blend_mode_guard {
+                private:
+                    surface& s_;
+                    blend_mode prev_mode_;
+                public:
+                    blend_mode_guard(surface& s, blend_mode mode) : s_(s) {
+                        auto prev = s_.get_blend_mode();
+                        prev_mode_ = prev ? *prev : blend_mode::none;
+                        s_.set_blend_mode(mode);
+                    }
+                    ~blend_mode_guard() {
+                        s_.set_blend_mode(prev_mode_);
+                    }
+                    blend_mode_guard(const blend_mode_guard&) = delete;
+                    blend_mode_guard& operator=(const blend_mode_guard&) = delete;
+                    blend_mode_guard(blend_mode_guard&&) = delete;
+                    blend_mode_guard& operator=(blend_mode_guard&&) = delete;
+            };
+
+            class color_mod_guard {
+                private:
+                    surface& s_;
+                    color prev_color_;
+                public:
+                    color_mod_guard(surface& s, const color& c) : s_(s) {
+                        auto prev = s_.get_color_mod();
+                        prev_color_ = prev ? *prev : color{255, 255, 255, 255};
+                        s_.set_color_mod(c);
+                    }
+                    ~color_mod_guard() {
+                        s_.set_color_mod(prev_color_);
+                    }
+                    color_mod_guard(const color_mod_guard&) = delete;
+                    color_mod_guard& operator=(const color_mod_guard&) = delete;
+                    color_mod_guard(color_mod_guard&&) = delete;
+                    color_mod_guard& operator=(color_mod_guard&&) = delete;
+            };
+
+            class alpha_mod_guard {
+                private:
+                    surface& s_;
+                    uint8_t prev_alpha_;
+                public:
+                    alpha_mod_guard(surface& s, uint8_t alpha) : s_(s) {
+                        auto prev = s_.get_alpha_mod();
+                        prev_alpha_ = prev ? *prev : 255;
+                        s_.set_alpha_mod(alpha);
+                    }
+                    ~alpha_mod_guard() {
+                        s_.set_alpha_mod(prev_alpha_);
+                    }
+                    alpha_mod_guard(const alpha_mod_guard&) = delete;
+                    alpha_mod_guard& operator=(const alpha_mod_guard&) = delete;
+                    alpha_mod_guard(alpha_mod_guard&&) = delete;
+                    alpha_mod_guard& operator=(alpha_mod_guard&&) = delete;
+            };
+
+            class clip_rect_guard {
+                private:
+                    surface& s_;
+                    std::optional <rect_i> prev_clip_;
+                public:
+                    template<rect_like R>
+                    clip_rect_guard(surface& s, const std::optional <R>& clip) : s_(s) {
+                        auto prev = s_.template get_clip_rect<rect_i>();
+                        prev_clip_ = prev ? *prev : std::nullopt;
+                        s_.set_clip_rect(clip);
+                    }
+                    ~clip_rect_guard() {
+                        s_.set_clip_rect(prev_clip_);
+                    }
+                    clip_rect_guard(const clip_rect_guard&) = delete;
+                    clip_rect_guard& operator=(const clip_rect_guard&) = delete;
+                    clip_rect_guard(clip_rect_guard&&) = delete;
+                    clip_rect_guard& operator=(clip_rect_guard&&) = delete;
+            };
     };
 
     /**

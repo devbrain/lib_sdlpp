@@ -165,6 +165,87 @@ TEST_SUITE("renderer and texture") {
             REQUIRE(get_style_res.has_value());
             CHECK(get_style_res->type == line_style_type::solid);
         }
+
+        SUBCASE("RAII mode guards") {
+            // Test draw_color_guard
+            {
+                auto color_res = rend.set_draw_color(colors::red);
+                REQUIRE(color_res.has_value());
+                {
+                    renderer::draw_color_guard color_g(rend, colors::blue);
+                    auto current = rend.get_draw_color();
+                    REQUIRE(current.has_value());
+                    CHECK(*current == colors::blue);
+                }
+                auto current = rend.get_draw_color();
+                REQUIRE(current.has_value());
+                CHECK(*current == colors::red);
+            }
+
+            // Test draw_blend_mode_guard
+            {
+                auto blend_res = rend.set_draw_blend_mode(blend_mode::blend);
+                REQUIRE(blend_res.has_value());
+                {
+                    renderer::draw_blend_mode_guard blend_g(rend, blend_mode::add);
+                    auto current = rend.get_draw_blend_mode();
+                    REQUIRE(current.has_value());
+                    CHECK(*current == blend_mode::add);
+                }
+                auto current = rend.get_draw_blend_mode();
+                REQUIRE(current.has_value());
+                CHECK(*current == blend_mode::blend);
+            }
+
+            // Test line_style_guard
+            {
+                auto style_res = rend.set_line_style(line_style::solid());
+                REQUIRE(style_res.has_value());
+                {
+                    renderer::line_style_guard style_g(rend, line_style::dashed(8.0f, 4.0f));
+                    auto current = rend.get_line_style();
+                    REQUIRE(current.has_value());
+                    CHECK(current->type == line_style_type::dashed);
+                    CHECK(current->dash == 8.0f);
+                }
+                auto current = rend.get_line_style();
+                REQUIRE(current.has_value());
+                CHECK(current->type == line_style_type::solid);
+            }
+
+            // Test scale_guard
+            {
+                auto scale_res = rend.set_scale(1.0f, 1.0f);
+                REQUIRE(scale_res.has_value());
+                {
+                    renderer::scale_guard scale_g(rend, 2.0f, 3.0f);
+                    auto current = rend.template get_scale<point_f>();
+                    REQUIRE(current.has_value());
+                    CHECK(current->x == 2.0f);
+                    CHECK(current->y == 3.0f);
+                }
+                auto current = rend.template get_scale<point_f>();
+                REQUIRE(current.has_value());
+                CHECK(current->x == 1.0f);
+                CHECK(current->y == 1.0f);
+            }
+
+            // Test target_guard
+            {
+                texture tex(SDL_CreateTexture(rend.get(), SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, 100, 100));
+                if (tex) {
+                    {
+                        renderer::target_guard target_g(rend, tex);
+                        auto current = rend.get_target();
+                        REQUIRE(current.has_value());
+                        CHECK(current->get() == tex.get());
+                    }
+                    auto current = rend.get_target();
+                    REQUIRE(current.has_value());
+                    CHECK(current->get() == nullptr);
+                }
+            }
+        }
         
         SUBCASE("draw multiple primitives") {
             std::vector<point_i> points = {
