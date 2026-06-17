@@ -124,3 +124,8 @@ set_target_properties(sdlpp_unittest PROPERTIES
 # Register tests with CTest
 include(CTest)
 add_test(NAME sdlpp_unittest COMMAND sdlpp_unittest)
+
+if (SDLPP_WITH_IMAGE AND SDLPP_WITH_FONT)
+    target_link_libraries(sdlpp_unittest PRIVATE simplex)
+    target_sources(sdlpp_unittest PRIVATE video/test_sprite_atlas.cc)
+endif ()
