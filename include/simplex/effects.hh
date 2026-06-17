@@ -53,4 +53,24 @@ namespace simplex::effects {
      * @param amount The deformation intensity (negative for pinch, positive for bulge/punch).
      */
     void SIMPLEX_EXPORT pinch_punch(sprite_mesh& mesh, float center_u, float center_v, float radius, float amount) noexcept;
+
+    /**
+     * @brief Apply a 3D rotation (pitch, yaw, roll) using the Euler library and perspective projection.
+     * @param mesh The sprite mesh to deform (must be laid out first).
+     * @param pitch Rotation angle around the X-axis (in radians).
+     * @param yaw Rotation angle around the Y-axis (in radians).
+     * @param roll Rotation angle around the Z-axis (in radians).
+     * @param pivot_u Relative X pivot coordinate [0.0f, 1.0f] (default is 0.5f, center).
+     * @param pivot_v Relative Y pivot coordinate [0.0f, 1.0f] (default is 0.5f, center).
+     * @param perspective_factor Distance of the virtual camera (lower = more perspective distortion, default = 2.0f).
+     */
+    void SIMPLEX_EXPORT rotate_3d(
+        sprite_mesh& mesh,
+        float pitch,
+        float yaw,
+        float roll,
+        float pivot_u = 0.5f,
+        float pivot_v = 0.5f,
+        float perspective_factor = 2.0f
+    ) noexcept;
 } // namespace simplex::effects

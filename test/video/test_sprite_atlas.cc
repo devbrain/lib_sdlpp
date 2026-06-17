@@ -214,6 +214,10 @@ TEST_SUITE("simplex::sprite_atlas") {
         // Test pinch_punch
         simplex::effects::pinch_punch(mesh, 0.5f, 0.5f, 0.5f, 0.2f);
         CHECK(mesh.vertex_count() == 9);
+
+        // Test rotate_3d
+        simplex::effects::rotate_3d(mesh, 0.1f, 0.2f, 0.3f);
+        CHECK(mesh.vertex_count() == 9);
     }
 }
 
