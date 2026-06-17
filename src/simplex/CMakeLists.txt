@@ -33,6 +33,7 @@ target_sources(simplex PRIVATE
         ${PROJECT_ROOT}/include/simplex/sprite_atlas.hh
         ${PROJECT_ROOT}/include/simplex/sprite.hh
         ${PROJECT_ROOT}/include/simplex/mesh.hh
+        ${PROJECT_ROOT}/include/simplex/effects.hh
         ${PROJECT_ROOT}/include/simplex/collide/shapes.hh
         ${PROJECT_ROOT}/include/simplex/collide/bridge.hh
 
@@ -41,6 +42,7 @@ target_sources(simplex PRIVATE
         sprite_atlas.cc
         sprite.cc
         mesh.cc
+        effects.cc
 )
 
 # =============================================================================

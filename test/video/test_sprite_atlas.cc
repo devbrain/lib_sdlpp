@@ -2,6 +2,7 @@
 #include <simplex/sprite_atlas.hh>
 #include <simplex/sprite.hh>
 #include <simplex/mesh.hh>
+#include <simplex/effects.hh>
 
 TEST_SUITE("simplex::sprite_atlas") {
     TEST_CASE("default constructor") {
@@ -182,6 +183,36 @@ TEST_SUITE("simplex::sprite_atlas") {
         });
 
         // Vertices are correctly mutated
+        CHECK(mesh.vertex_count() == 9);
+    }
+
+    TEST_CASE("sprite_mesh effects library") {
+        simplex::sprite_mesh mesh(2, 2);
+        simplex::rect dest{simplex::dp{0.0f}, simplex::dp{0.0f}, simplex::dp{20.0f}, simplex::dp{30.0f}};
+        mesh.layout_rect(dest, sdlpp::rect<float>{0.0f, 0.0f, 1.0f, 1.0f});
+
+        // Test wave_horizontal
+        simplex::effects::wave_horizontal(mesh, 0.0f, 5.0f, 1.0f);
+        CHECK(mesh.vertex_count() == 9);
+
+        // Test wave_vertical
+        simplex::effects::wave_vertical(mesh, 0.0f, 5.0f, 1.0f);
+        CHECK(mesh.vertex_count() == 9);
+
+        // Test skew_horizontal
+        simplex::effects::skew_horizontal(mesh, 10.0f);
+        CHECK(mesh.vertex_count() == 9);
+
+        // Test skew_vertical
+        simplex::effects::skew_vertical(mesh, 10.0f);
+        CHECK(mesh.vertex_count() == 9);
+
+        // Test perspective
+        simplex::effects::perspective(mesh, 0.8f, 1.2f);
+        CHECK(mesh.vertex_count() == 9);
+
+        // Test pinch_punch
+        simplex::effects::pinch_punch(mesh, 0.5f, 0.5f, 0.5f, 0.2f);
         CHECK(mesh.vertex_count() == 9);
     }
 }

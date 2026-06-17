@@ -2,6 +2,7 @@
 #include <simplex/sprite_atlas.hh>
 #include <simplex/sprite.hh>
 #include <simplex/mesh.hh>
+#include <simplex/effects.hh>
 #include <sdlpp/app/entry_point.hh>
 #include <sdlpp/image/image.hh>
 #include <random>
@@ -148,10 +149,7 @@ namespace simplex {
             // Draw background as a waving flag mesh stretched to fit (320x200)
             if (m_background) {
                 m_background_mesh.layout_rect(rect{0_dp, 0_dp, 320_dp, 200_dp});
-                m_background_mesh.transform_vertices([this](int col, int row, float u, float v, float& px, float& py) {
-                    // Apply horizontal wave translation along the vertical axis (v) over time
-                    px += std::sin(v * 2.0f * 3.14159f + m_wave_time * 2.5f) * 6.0f * scale();
-                });
+                simplex::effects::wave_horizontal(m_background_mesh, m_wave_time * 2.5f, 6.0f * scale(), 1.0f);
                 m_background_mesh.render(r, *m_background);
             }
 

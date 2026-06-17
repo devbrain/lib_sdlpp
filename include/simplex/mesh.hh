@@ -101,6 +101,11 @@ namespace simplex {
             [[nodiscard]] std::size_t vertex_count() const noexcept { return m_vertices.size(); }
             [[nodiscard]] std::size_t index_count() const noexcept { return m_indices.size(); }
 
+            [[nodiscard]] int cols() const noexcept { return m_cols; }
+            [[nodiscard]] int rows() const noexcept { return m_rows; }
+            [[nodiscard]] std::vector<SDL_Vertex>& vertices() noexcept { return m_vertices; }
+            [[nodiscard]] const std::vector<SDL_Vertex>& vertices() const noexcept { return m_vertices; }
+
         private:
             template<typename T>
             static constexpr float to_physical(T val) noexcept {
