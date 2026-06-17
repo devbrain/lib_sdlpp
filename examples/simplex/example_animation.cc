@@ -171,8 +171,8 @@ namespace simplex {
                     m_sprite_mesh.layout_rect(dest, *m_atlas, frame_index);
 
                     // Apply coin effect: rotate around Y-axis (yaw)
-                    float yaw = m_wave_time * 4.0f + static_cast<float>(i) * 0.5f;
-                    simplex::effects::rotate_3d(m_sprite_mesh, 0.0f, yaw, 0.0f);
+                    euler::radianf yaw(m_wave_time * 4.0f + static_cast<float>(i) * 0.5f);
+                    simplex::effects::rotate_3d(m_sprite_mesh, euler::radianf(0.0f), yaw, euler::radianf(0.0f));
 
                     m_sprite_mesh.render(r, m_atlas->texture());
                 }

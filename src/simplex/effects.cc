@@ -140,7 +140,7 @@ namespace simplex::effects {
         }
     }
 
-    void rotate_3d(sprite_mesh& mesh, float pitch, float yaw, float roll, float pivot_u, float pivot_v, float perspective_factor) noexcept {
+    void rotate_3d(sprite_mesh& mesh, euler::radianf pitch, euler::radianf yaw, euler::radianf roll, float pivot_u, float pivot_v, float perspective_factor) noexcept {
         auto& verts = mesh.vertices();
         if (verts.empty()) return;
 
@@ -165,9 +165,9 @@ namespace simplex::effects {
         if (max_dim <= 0.0f) max_dim = 1.0f;
         float camera_distance = perspective_factor * max_dim;
 
-        auto m_x = euler::rotation_matrix3_x(euler::radian<float>(pitch));
-        auto m_y = euler::rotation_matrix3_y(euler::radian<float>(yaw));
-        auto m_z = euler::rotation_matrix3_z(euler::radian<float>(roll));
+        auto m_x = euler::rotation_matrix3_x(pitch);
+        auto m_y = euler::rotation_matrix3_y(yaw);
+        auto m_z = euler::rotation_matrix3_z(roll);
         auto rot_matrix = m_x * m_y * m_z;
 
         for (auto& vert : verts) {

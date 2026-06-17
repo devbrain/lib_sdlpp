@@ -216,7 +216,7 @@ TEST_SUITE("simplex::sprite_atlas") {
         CHECK(mesh.vertex_count() == 9);
 
         // Test rotate_3d
-        simplex::effects::rotate_3d(mesh, 0.1f, 0.2f, 0.3f);
+        simplex::effects::rotate_3d(mesh, euler::degreef(10.0f), euler::radianf(0.2f), euler::degreef(15.0f));
         CHECK(mesh.vertex_count() == 9);
     }
 }
