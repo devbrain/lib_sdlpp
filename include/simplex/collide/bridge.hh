@@ -56,6 +56,24 @@ namespace simplex {
     }
 
     // -------------------------------------------------------------------------
+    // displacement/direction vector (translation-invariant)
+    // -------------------------------------------------------------------------
+
+    [[nodiscard]] inline point to_design_vector(const collide::vec& world_vec, const view& v) noexcept {
+        const float dx = world_vec.x() * v.pixels_per_unit;
+        const float wy = world_vec.y();
+        const float dy = (v.y_up ? -wy : wy) * v.pixels_per_unit;
+        return {dp{dx}, dp{dy}};
+    }
+
+    [[nodiscard]] inline collide::vec to_world_vector(const point& design_vec, const view& v) noexcept {
+        const float wx = design_vec.x.design() / v.pixels_per_unit;
+        const float dy = design_vec.y.design() / v.pixels_per_unit;
+        const float wy = v.y_up ? -dy : dy;
+        return collide::vec{wx, wy};
+    }
+
+    // -------------------------------------------------------------------------
     // rect  <->  aabb   (corners re-derived: a y-flip swaps top/bottom)
     // -------------------------------------------------------------------------
 
