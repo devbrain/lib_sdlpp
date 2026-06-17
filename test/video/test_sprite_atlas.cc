@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <simplex/sprite_atlas.hh>
+#include <simplex/sprite.hh>
 
 TEST_SUITE("simplex::sprite_atlas") {
     TEST_CASE("default constructor") {
@@ -112,4 +113,57 @@ TEST_SUITE("simplex::sprite_atlas") {
         CHECK(m1.width() == 0);
         CHECK(m1.height() == 0);
     }
+
+    TEST_CASE("sprite movement queue") {
+        simplex::animated_sprite sprite;
+        sprite.position = {simplex::dp{10.0f}, simplex::dp{20.0f}};
+
+        CHECK(!sprite.is_moving());
+
+        // Queue a linear movement: offset +30x, +40y over 2.0 seconds
+        sprite.queue_movement({
+            .target_offset = {simplex::dp{30.0f}, simplex::dp{40.0f}},
+            .duration = 2.0f
+        });
+
+        CHECK(sprite.is_moving());
+
+        // Update by 0.5s (25% progress)
+        sprite.update(0.5f);
+        CHECK(sprite.position.x.design() == doctest::Approx(17.5f));
+        CHECK(sprite.position.y.design() == doctest::Approx(30.0f));
+        CHECK(sprite.is_moving());
+
+        // Update by 1.5s (reaches end of step, snaps to target)
+        sprite.update(1.5f);
+        CHECK(sprite.position.x.design() == doctest::Approx(40.0f));
+        CHECK(sprite.position.y.design() == doctest::Approx(60.0f));
+        CHECK(!sprite.is_moving());
+
+        // Queue a zero-duration teleport step
+        sprite.queue_movement({
+            .target_offset = {simplex::dp{-10.0f}, simplex::dp{-10.0f}},
+            .duration = 0.0f
+        });
+        CHECK(sprite.is_moving());
+        sprite.update(0.1f);
+        CHECK(sprite.position.x.design() == doctest::Approx(30.0f));
+        CHECK(sprite.position.y.design() == doctest::Approx(50.0f));
+        CHECK(!sprite.is_moving());
+
+        // Queue multiple steps and check sequence
+        sprite.queue_movement({.target_offset = {simplex::dp{10.0f}, simplex::dp{0.0f}}, .duration = 1.0f});
+        sprite.queue_movement({.target_offset = {simplex::dp{0.0f}, simplex::dp{10.0f}}, .duration = 1.0f});
+
+        // Update by 1.5s (should complete step 1, and be 50% through step 2)
+        sprite.update(1.5f);
+        CHECK(sprite.position.x.design() == doctest::Approx(40.0f)); // 30 + 10
+        CHECK(sprite.position.y.design() == doctest::Approx(55.0f)); // 50 + 5
+        CHECK(sprite.is_moving());
+
+        // Clear movements
+        sprite.clear_movements();
+        CHECK(!sprite.is_moving());
+    }
 }
+

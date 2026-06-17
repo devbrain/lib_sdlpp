@@ -3,6 +3,8 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <deque>
+#include <functional>
 #include <simplex/detail/export.hh>
 #include <simplex/geometry.hh>
 
@@ -14,6 +16,15 @@ namespace simplex {
         std::vector<std::size_t> frames; ///< Indices of the atlas frames
         float fps{10.0f};                ///< Frames per second
         bool loop{true};                 ///< Whether the animation loops
+    };
+
+    /**
+     * @brief A single step in an automated sprite movement script.
+     */
+    struct SIMPLEX_EXPORT movement_step {
+        point target_offset{};                          ///< Relative offset to move from the start of the step.
+        float duration{0.0f};                           ///< Duration of this step in seconds.
+        std::function<float(float)> easing_fn{nullptr}; ///< Optional easing function mapping [0,1]->[0,1].
     };
 
     /**
@@ -61,11 +72,32 @@ namespace simplex {
                 return m_current_anim;
             }
 
+            /**
+             * @brief Queue a movement step.
+             */
+            void queue_movement(movement_step step);
+
+            /**
+             * @brief Clear all queued movements and stop active movement.
+             */
+            void clear_movements() noexcept;
+
+            /**
+             * @brief Check if the sprite is currently executing a movement script.
+             */
+            [[nodiscard]] bool is_moving() const noexcept {
+                return !m_movement_queue.empty();
+            }
+
         private:
             std::unordered_map<std::string, animation_sequence> m_animations;
             std::string m_current_anim;
             std::size_t m_current_frame_idx{0};
             std::size_t m_active_frame{0};
             float m_timer{0.0f};
+
+            std::deque<movement_step> m_movement_queue;
+            float m_move_timer{0.0f};
+            point m_move_start_pos{};
     };
 } // namespace simplex
