@@ -25,6 +25,7 @@ namespace simplex {
         std::vector<sprite_data> m_sprites;
         simplex::animated_sprite m_scripted_sprite;
         simplex::sprite_mesh m_background_mesh;
+        simplex::sprite_mesh m_sprite_mesh;
         float m_wave_time{0.0f};
 
         void on_ready() override {
@@ -89,6 +90,9 @@ namespace simplex {
 
             // Initialize background mesh with 20x20 grid subdivision
             m_background_mesh = simplex::sprite_mesh(20, 20);
+
+            // Initialize sprite mesh with 10x10 grid subdivision for 3D coin spin effect
+            m_sprite_mesh = simplex::sprite_mesh(10, 10);
         }
 
         void on_update(float dt) override {
@@ -155,8 +159,22 @@ namespace simplex {
 
             // Draw all sprites via the atlas
             if (m_atlas) {
-                for (const auto& s : m_sprites) {
-                    draw_sprite(*m_atlas, s.sprite);
+                auto& r = get_renderer();
+                for (std::size_t i = 0; i < m_sprites.size(); ++i) {
+                    const auto& s = m_sprites[i].sprite;
+                    if (!s.visible) continue;
+
+                    std::size_t frame_index = s.current_frame();
+                    auto frame_size = m_atlas->get_frame_size(frame_index);
+                    rect dest{s.position.x, s.position.y, frame_size.width, frame_size.height};
+
+                    m_sprite_mesh.layout_rect(dest, *m_atlas, frame_index);
+
+                    // Apply coin effect: rotate around Y-axis (yaw)
+                    float yaw = m_wave_time * 4.0f + static_cast<float>(i) * 0.5f;
+                    simplex::effects::rotate_3d(m_sprite_mesh, 0.0f, yaw, 0.0f);
+
+                    m_sprite_mesh.render(r, m_atlas->texture());
                 }
                 // Draw the automated scripted sprite
                 draw_sprite(*m_atlas, m_scripted_sprite);
