@@ -150,10 +150,15 @@ namespace simplex {
         void on_render(sdlpp::renderer& r) override {
             r.clear();
 
-            // Draw background as a waving flag mesh stretched to fit (320x200)
+            // Draw background as a 3D-rotated perspective mesh
             if (m_background) {
                 m_background_mesh.layout_rect(rect{0_dp, 0_dp, 320_dp, 200_dp});
-                simplex::effects::wave_horizontal(m_background_mesh, m_wave_time * 2.5f, 6.0f * scale(), 1.0f);
+
+                // Tilt back by 35 degrees (pitch) and rotate slowly around Y (yaw)
+                euler::radianf pitch = euler::degreef(35.0f);
+                euler::radianf yaw(m_wave_time * 0.3f);
+
+                simplex::effects::rotate_3d(m_background_mesh, pitch, yaw, euler::radianf(0.0f), 0.5f, 0.5f, 1.8f);
                 m_background_mesh.render(r, *m_background);
             }
 
