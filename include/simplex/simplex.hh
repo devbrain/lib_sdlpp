@@ -135,17 +135,7 @@ namespace simplex {
             [[nodiscard]] point get_mouse_pos() const noexcept;
             [[nodiscard]] point get_window_mouse() const noexcept;
 
-            [[deprecated("Use get_mouse_x() instead")]]
-            [[nodiscard]] inline dp get_mouse_x_dp() const noexcept { return get_mouse_x(); }
 
-            [[deprecated("Use get_mouse_y() instead")]]
-            [[nodiscard]] inline dp get_mouse_y_dp() const noexcept { return get_mouse_y(); }
-
-            [[deprecated("Use get_mouse_pos() instead")]]
-            [[nodiscard]] inline point get_mouse_pos_dp() const noexcept { return get_mouse_pos(); }
-
-            [[deprecated("Use get_window_mouse() instead")]]
-            [[nodiscard]] inline point get_window_mouse_dp() const noexcept { return get_window_mouse(); }
 
         private:
             void on_window_display_scale_changed(float scale) override;

@@ -504,6 +504,7 @@ TEST_SUITE("renderer and texture") {
             CHECK(copy_f.has_value());
         }
 
+#if SDL_VERSION_ATLEAST(3, 4, 0)
         SUBCASE("texture palette") {
             auto tex_result = texture::create(
                 rend,
@@ -531,6 +532,7 @@ TEST_SUITE("renderer and texture") {
                 CHECK(get_pal_res->get_color(0) == colors::red);
             }
         }
+#endif
         
         SUBCASE("render target texture") {
             auto target_tex = texture::create(

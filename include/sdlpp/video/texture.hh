@@ -332,6 +332,7 @@ namespace sdlpp {
                 }
             }
 
+#if SDL_VERSION_ATLEAST(3, 4, 0)
             /**
              * @brief Set the palette used by this texture.
              * @param palette The palette structure to use.
@@ -362,6 +363,7 @@ namespace sdlpp {
                 SDL_Palette* pal = SDL_GetTexturePalette(ptr.get());
                 return const_palette_ref(pal);
             }
+#endif
 
             /**
              * @brief RAII lock guard for texture pixel access
