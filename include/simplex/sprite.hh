@@ -22,9 +22,21 @@ namespace simplex {
      * @brief A single step in an automated sprite movement script.
      */
     struct SIMPLEX_EXPORT movement_step {
-        point target_offset{};                          ///< Relative offset to move from the start of the step.
-        float duration{0.0f};                           ///< Duration of this step in seconds.
-        std::function<float(float)> easing_fn{nullptr}; ///< Optional easing function mapping [0,1]->[0,1].
+        point target_offset{};        ///< Relative offset to move from the start of the step.
+        float duration{0.0f};         ///< Duration of this step in seconds.
+
+        /**
+         * @brief Optional easing function mapping normalized time [0.0, 1.0] to progress [0.0, 1.0].
+         *
+         * If nullptr, linear interpolation is used (constant velocity).
+         * 
+         * Easing functions alter the velocity profile. Examples:
+         * - Quadratic Ease-In:     [](float t) { return t * t; }
+         * - Quadratic Ease-Out:    [](float t) { return t * (2.0f - t); }
+         * - Quadratic Ease-InOut:  [](float t) { return t < 0.5f ? 2.0f * t * t : 1.0f - std::pow(-2.0f * t + 2.0f, 2.0f) / 2.0f; }
+         * - Back Out (Overshoot):  [](float t) { float t1 = t - 1.0f; return 1.0f + 2.70158f * std::pow(t1, 3.0f) + 1.70158f * std::pow(t1, 2.0f); }
+         */
+        std::function<float(float)> easing_fn{nullptr};
     };
 
     /**
