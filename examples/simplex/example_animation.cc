@@ -4,6 +4,7 @@
 #include <sdlpp/app/entry_point.hh>
 #include <sdlpp/image/image.hh>
 #include <random>
+#include <cmath>
 
 using namespace simplex::literals;
 
@@ -20,6 +21,7 @@ namespace simplex {
             simplex::size size{};
         };
         std::vector<sprite_data> m_sprites;
+        simplex::animated_sprite m_scripted_sprite;
 
         void on_ready() override {
             simplex::application::on_ready();
@@ -75,6 +77,11 @@ namespace simplex {
 
                 m_sprites.push_back(std::move(s));
             }
+
+            // Initialize scripted sprite starting at (60, 50)
+            m_scripted_sprite.add_animation("run", run_seq);
+            m_scripted_sprite.play("run");
+            m_scripted_sprite.position = {60_dp, 50_dp};
         }
 
         void on_update(float dt) override {
@@ -112,6 +119,18 @@ namespace simplex {
                     s.dy = -s.dy;
                 }
             }
+
+            // Update the automated scripted sprite and queue path if not moving
+            m_scripted_sprite.update(dt);
+            if (!m_scripted_sprite.is_moving()) {
+                auto ease_in_out = [](float t) {
+                    return t < 0.5f ? 2.0f * t * t : 1.0f - std::pow(-2.0f * t + 2.0f, 2.0f) / 2.0f;
+                };
+                m_scripted_sprite.queue_movement({.target_offset = {200_dp, 0_dp}, .duration = 2.0f, .easing_fn = ease_in_out});
+                m_scripted_sprite.queue_movement({.target_offset = {0_dp, 100_dp}, .duration = 1.0f, .easing_fn = ease_in_out});
+                m_scripted_sprite.queue_movement({.target_offset = {-200_dp, 0_dp}, .duration = 2.0f, .easing_fn = ease_in_out});
+                m_scripted_sprite.queue_movement({.target_offset = {0_dp, -100_dp}, .duration = 1.0f, .easing_fn = ease_in_out});
+            }
         }
 
         void on_render(sdlpp::renderer& r) override {
@@ -129,6 +148,8 @@ namespace simplex {
                 for (const auto& s : m_sprites) {
                     draw_sprite(*m_atlas, s.sprite);
                 }
+                // Draw the automated scripted sprite
+                draw_sprite(*m_atlas, m_scripted_sprite);
             }
 
             simplex::application::on_render(r);
