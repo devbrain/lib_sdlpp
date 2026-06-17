@@ -1452,6 +1452,62 @@ namespace sdlpp {
             }
 
             /**
+             * @brief Draw a dashed line
+             * @param x1 Starting X coordinate
+             * @param y1 Starting Y coordinate
+             * @param x2 Ending X coordinate
+             * @param y2 Ending Y coordinate
+             * @param dash Length of solid dash in pixels
+             * @param gap Length of gap in pixels
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            SDLPP_EXPORT expected<void, std::string> draw_line_dashed(float x1, float y1, float x2, float y2, float dash, float gap);
+
+            /**
+             * @brief Draw a dashed line
+             * @param start Starting point
+             * @param end Ending point
+             * @param dash Length of solid dash in pixels
+             * @param gap Length of gap in pixels
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            template<point_like P1, point_like P2>
+            expected<void, std::string> draw_line_dashed(const P1& start, const P2& end, float dash, float gap) {
+                return draw_line_dashed(static_cast<float>(get_x(start)), 
+                                        static_cast<float>(get_y(start)), 
+                                        static_cast<float>(get_x(end)), 
+                                        static_cast<float>(get_y(end)), 
+                                        dash, gap);
+            }
+
+            /**
+             * @brief Draw a dotted line
+             * @param x1 Starting X coordinate
+             * @param y1 Starting Y coordinate
+             * @param x2 Ending X coordinate
+             * @param y2 Ending Y coordinate
+             * @param spacing Space between dots in pixels
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            SDLPP_EXPORT expected<void, std::string> draw_line_dotted(float x1, float y1, float x2, float y2, float spacing);
+
+            /**
+             * @brief Draw a dotted line
+             * @param start Starting point
+             * @param end Ending point
+             * @param spacing Space between dots in pixels
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            template<point_like P1, point_like P2>
+            expected<void, std::string> draw_line_dotted(const P1& start, const P2& end, float spacing) {
+                return draw_line_dotted(static_cast<float>(get_x(start)), 
+                                        static_cast<float>(get_y(start)), 
+                                        static_cast<float>(get_x(end)), 
+                                        static_cast<float>(get_y(end)), 
+                                        spacing);
+            }
+
+            /**
              * @brief Draw an arrow using lines
              * @param x1 Starting X coordinate
              * @param y1 Starting Y coordinate

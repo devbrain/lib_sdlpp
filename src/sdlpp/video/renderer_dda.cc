@@ -361,6 +361,60 @@ expected<void, std::string> renderer::draw_bezier_cubic(float x0, float y0, floa
     return {};
 }
 
+expected<void, std::string> renderer::draw_line_dashed(float x1, float y1, float x2, float y2, float dash, float gap) {
+    if (!ptr) {
+        return make_unexpectedf("Invalid renderer");
+    }
+
+    const float dx = x2 - x1;
+    const float dy = y2 - y1;
+    const float length = std::sqrt(dx * dx + dy * dy);
+    const float period = dash + gap;
+
+    if (length <= 0.0f || period <= 0.0f) {
+        return draw_line(x1, y1, x2, y2);
+    }
+
+    const float ux = dx / length;
+    const float uy = dy / length;
+
+    expected<void, std::string> res{};
+    for (float s = 0.0f; s < length; s += period) {
+        const float e = std::min(s + dash, length);
+        res = draw_line(x1 + ux * s, y1 + uy * s, x1 + ux * e, y1 + uy * e);
+        if (!res) {
+            return res;
+        }
+    }
+    return res;
+}
+
+expected<void, std::string> renderer::draw_line_dotted(float x1, float y1, float x2, float y2, float spacing) {
+    if (!ptr) {
+        return make_unexpectedf("Invalid renderer");
+    }
+
+    const float dx = x2 - x1;
+    const float dy = y2 - y1;
+    const float length = std::sqrt(dx * dx + dy * dy);
+
+    if (length <= 0.0f || spacing <= 0.0f) {
+        return draw_point(x1, y1);
+    }
+
+    const float ux = dx / length;
+    const float uy = dy / length;
+
+    expected<void, std::string> res{};
+    for (float s = 0.0f; s <= length; s += spacing) {
+        res = draw_point(x1 + ux * s, y1 + uy * s);
+        if (!res) {
+            return res;
+        }
+    }
+    return res;
+}
+
 expected<void, std::string> renderer::draw_arrow(float x1, float y1, float x2, float y2, float head_size, float head_angle, float thickness) {
     if (!ptr) {
         return make_unexpectedf("Invalid renderer");

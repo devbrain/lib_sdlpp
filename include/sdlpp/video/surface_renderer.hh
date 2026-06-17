@@ -436,6 +436,90 @@ public:
     }
 
     /**
+     * @brief Draw a dashed line
+     * @param start Starting point
+     * @param end Ending point
+     * @param dash Length of solid dash in pixels
+     * @param gap Length of gap in pixels
+     * @return Expected<void> - empty on success, error message on failure
+     */
+    template<point_like P1, point_like P2>
+    expected<void, std::string> draw_line_dashed(const P1& start, const P2& end, float dash, float gap) {
+        if (!surface_) {
+            return make_unexpectedf("Invalid surface");
+        }
+
+        const float x1 = static_cast<float>(get_x(start));
+        const float y1 = static_cast<float>(get_y(start));
+        const float x2 = static_cast<float>(get_x(end));
+        const float y2 = static_cast<float>(get_y(end));
+
+        const float dx = x2 - x1;
+        const float dy = y2 - y1;
+        const float length = std::sqrt(dx * dx + dy * dy);
+        const float period = dash + gap;
+
+        if (length <= 0.0f || period <= 0.0f) {
+            return draw_line(start, end);
+        }
+
+        const float ux = dx / length;
+        const float uy = dy / length;
+
+        expected<void, std::string> res{};
+        for (float s = 0.0f; s < length; s += period) {
+            const float e = std::min(s + dash, length);
+            euler::point2f p0{x1 + ux * s, y1 + uy * s};
+            euler::point2f p1{x1 + ux * e, y1 + uy * e};
+            res = draw_line(p0, p1);
+            if (!res) {
+                return res;
+            }
+        }
+        return res;
+    }
+
+    /**
+     * @brief Draw a dotted line
+     * @param start Starting point
+     * @param end Ending point
+     * @param spacing Space between dots in pixels
+     * @return Expected<void> - empty on success, error message on failure
+     */
+    template<point_like P1, point_like P2>
+    expected<void, std::string> draw_line_dotted(const P1& start, const P2& end, float spacing) {
+        if (!surface_) {
+            return make_unexpectedf("Invalid surface");
+        }
+
+        const float x1 = static_cast<float>(get_x(start));
+        const float y1 = static_cast<float>(get_y(start));
+        const float x2 = static_cast<float>(get_x(end));
+        const float y2 = static_cast<float>(get_y(end));
+
+        const float dx = x2 - x1;
+        const float dy = y2 - y1;
+        const float length = std::sqrt(dx * dx + dy * dy);
+
+        if (length <= 0.0f || spacing <= 0.0f) {
+            return draw_point(start);
+        }
+
+        const float ux = dx / length;
+        const float uy = dy / length;
+
+        expected<void, std::string> res{};
+        for (float s = 0.0f; s <= length; s += spacing) {
+            euler::point2f p{x1 + ux * s, y1 + uy * s};
+            res = draw_point(p);
+            if (!res) {
+                return res;
+            }
+        }
+        return res;
+    }
+
+    /**
      * @brief Draw an arrow using lines
      * @param start Starting point
      * @param end Ending point
