@@ -1452,6 +1452,61 @@ namespace sdlpp {
             }
 
             /**
+             * @brief Draw an arrow using lines
+             * @param x1 Starting X coordinate
+             * @param y1 Starting Y coordinate
+             * @param x2 Ending X coordinate
+             * @param y2 Ending Y coordinate
+             * @param head_size Arrow head length in pixels
+             * @param head_angle Arrow head wing angle in degrees
+             * @param thickness Line thickness in pixels
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            SDLPP_EXPORT expected<void, std::string> draw_arrow(float x1, float y1, float x2, float y2, float head_size = 10.0f, float head_angle = 30.0f, float thickness = 1.0f);
+
+            /**
+             * @brief Draw an arrow using lines
+             * @param start Starting point
+             * @param end Ending point
+             * @param head_size Arrow head length in pixels
+             * @param head_angle Arrow head wing angle in degrees
+             * @param thickness Line thickness in pixels
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            template<point_like P1, point_like P2>
+            expected<void, std::string> draw_arrow(const P1& start, const P2& end, float head_size = 10.0f, float head_angle = 30.0f, float thickness = 1.0f) {
+                return draw_arrow(static_cast<float>(get_x(start)), 
+                                  static_cast<float>(get_y(start)), 
+                                  static_cast<float>(get_x(end)), 
+                                  static_cast<float>(get_y(end)), 
+                                  head_size, head_angle, thickness);
+            }
+
+            /**
+             * @brief Draw a cross shape (X marker)
+             * @param x Center X coordinate
+             * @param y Center Y coordinate
+             * @param size Extent of cross in pixels
+             * @param thickness Line thickness in pixels
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            SDLPP_EXPORT expected<void, std::string> draw_cross(float x, float y, float size = 5.0f, float thickness = 1.0f);
+
+            /**
+             * @brief Draw a cross shape (X marker)
+             * @param center Center point
+             * @param size Extent of cross in pixels
+             * @param thickness Line thickness in pixels
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            template<point_like P>
+            expected<void, std::string> draw_cross(const P& center, float size = 5.0f, float thickness = 1.0f) {
+                return draw_cross(static_cast<float>(get_x(center)), 
+                                  static_cast<float>(get_y(center)), 
+                                  size, thickness);
+            }
+
+            /**
              * @brief Draw a circle outline using DDA algorithm
              * @param x Center X coordinate
              * @param y Center Y coordinate

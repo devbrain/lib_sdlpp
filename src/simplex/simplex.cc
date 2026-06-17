@@ -369,6 +369,50 @@ namespace simplex {
         });
     }
 
+    sdlpp::expected<void, std::string> application::draw_arrow(const point& from, const point& to, dp head_size, float head_angle, float thickness) {
+        return get_renderer().draw_arrow(from.x.px(), from.y.px(), to.x.px(), to.y.px(), head_size.px(), head_angle, thickness * scale());
+    }
+
+    sdlpp::expected<void, std::string> application::draw_arrow(const point& from, const point& to, dp head_size, float head_angle, const sdlpp::color& c) {
+        return with_draw_color(get_renderer(), c, [&]() {
+            return draw_arrow(from, to, head_size, head_angle);
+        });
+    }
+
+    sdlpp::expected<void, std::string> application::draw_arrow(const point& from, const point& to, dp head_size, float head_angle, float thickness, const sdlpp::color& c) {
+        return with_draw_color(get_renderer(), c, [&]() {
+            return draw_arrow(from, to, head_size, head_angle, thickness);
+        });
+    }
+
+    sdlpp::expected<void, std::string> application::draw_arrow(const line& l, dp head_size, float head_angle, float thickness) {
+        return draw_arrow(l.start(), l.end(), head_size, head_angle, thickness);
+    }
+
+    sdlpp::expected<void, std::string> application::draw_arrow(const line& l, dp head_size, float head_angle, const sdlpp::color& c) {
+        return draw_arrow(l.start(), l.end(), head_size, head_angle, c);
+    }
+
+    sdlpp::expected<void, std::string> application::draw_arrow(const line& l, dp head_size, float head_angle, float thickness, const sdlpp::color& c) {
+        return draw_arrow(l.start(), l.end(), head_size, head_angle, thickness, c);
+    }
+
+    sdlpp::expected<void, std::string> application::draw_cross(const point& center, dp size, float thickness) {
+        return get_renderer().draw_cross(center.x.px(), center.y.px(), size.px(), thickness * scale());
+    }
+
+    sdlpp::expected<void, std::string> application::draw_cross(const point& center, dp size, const sdlpp::color& c) {
+        return with_draw_color(get_renderer(), c, [&]() {
+            return draw_cross(center, size);
+        });
+    }
+
+    sdlpp::expected<void, std::string> application::draw_cross(const point& center, dp size, float thickness, const sdlpp::color& c) {
+        return with_draw_color(get_renderer(), c, [&]() {
+            return draw_cross(center, size, thickness);
+        });
+    }
+
     dp application::get_width() const {
         const auto w = get_window().get_dimensions()->width;
         return dp{static_cast <float>(w.value())};

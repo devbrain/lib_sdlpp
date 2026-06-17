@@ -361,6 +361,73 @@ expected<void, std::string> renderer::draw_bezier_cubic(float x0, float y0, floa
     return {};
 }
 
+expected<void, std::string> renderer::draw_arrow(float x1, float y1, float x2, float y2, float head_size, float head_angle, float thickness) {
+    if (!ptr) {
+        return make_unexpectedf("Invalid renderer");
+    }
+
+    expected<void, std::string> res;
+    if (thickness > 1.0f) {
+        res = draw_line_thick(x1, y1, x2, y2, thickness);
+    } else {
+        res = draw_line(x1, y1, x2, y2);
+    }
+    if (!res) return res;
+
+    const float dx = x2 - x1;
+    const float dy = y2 - y1;
+    const float len = std::sqrt(dx * dx + dy * dy);
+    if (len > 0.0f && head_size > 0.0f) {
+        const float ux = dx / len;
+        const float uy = dy / len;
+
+        const float rad = head_angle * 3.141592653589793f / 180.0f;
+        const float cos_a = std::cos(rad);
+        const float sin_a = std::sin(rad);
+
+        const float w1_x = -ux * cos_a + uy * sin_a;
+        const float w1_y = -ux * sin_a - uy * cos_a;
+
+        const float w2_x = -ux * cos_a - uy * sin_a;
+        const float w2_y = ux * sin_a - uy * cos_a;
+
+        const float wx1 = x2 + head_size * w1_x;
+        const float wy1 = y2 + head_size * w1_y;
+        const float wx2 = x2 + head_size * w2_x;
+        const float wy2 = y2 + head_size * w2_y;
+
+        if (thickness > 1.0f) {
+            res = draw_line_thick(x2, y2, wx1, wy1, thickness);
+            if (!res) return res;
+            res = draw_line_thick(x2, y2, wx2, wy2, thickness);
+        } else {
+            res = draw_line(x2, y2, wx1, wy1);
+            if (!res) return res;
+            res = draw_line(x2, y2, wx2, wy2);
+        }
+    }
+    return res;
+}
+
+expected<void, std::string> renderer::draw_cross(float x, float y, float size, float thickness) {
+    if (!ptr) {
+        return make_unexpectedf("Invalid renderer");
+    }
+
+    const float h = size / 2.0f;
+    expected<void, std::string> res;
+    if (thickness > 1.0f) {
+        res = draw_line_thick(x - h, y - h, x + h, y + h, thickness);
+        if (!res) return res;
+        res = draw_line_thick(x - h, y + h, x + h, y - h, thickness);
+    } else {
+        res = draw_line(x - h, y - h, x + h, y + h);
+        if (!res) return res;
+        res = draw_line(x - h, y + h, x + h, y - h);
+    }
+    return res;
+}
+
 // Explicit template instantiations for process_pixel_batch
 template void process_pixel_batch<euler::dda::pixel<int>>(SDL_Renderer*, const euler::dda::pixel_batch<euler::dda::pixel<int>>&);
 template void process_pixel_batch<euler::dda::aa_pixel<float>>(SDL_Renderer*, const euler::dda::pixel_batch<euler::dda::aa_pixel<float>>&);

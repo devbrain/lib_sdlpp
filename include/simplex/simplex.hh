@@ -97,6 +97,17 @@ namespace simplex {
             sdlpp::expected<void, std::string>  draw_circle_fill(const circle& c);
             sdlpp::expected<void, std::string>  draw_circle_fill(const circle& shape, const sdlpp::color& c);
 
+            sdlpp::expected <void, std::string> draw_arrow(const point& from, const point& to, dp head_size = 8_dp, float head_angle = 30.0f, float thickness = 1.0f);
+            sdlpp::expected <void, std::string> draw_arrow(const point& from, const point& to, dp head_size, float head_angle, const sdlpp::color& c);
+            sdlpp::expected <void, std::string> draw_arrow(const point& from, const point& to, dp head_size, float head_angle, float thickness, const sdlpp::color& c);
+            sdlpp::expected <void, std::string> draw_arrow(const line& l, dp head_size = 8_dp, float head_angle = 30.0f, float thickness = 1.0f);
+            sdlpp::expected <void, std::string> draw_arrow(const line& l, dp head_size, float head_angle, const sdlpp::color& c);
+            sdlpp::expected <void, std::string> draw_arrow(const line& l, dp head_size, float head_angle, float thickness, const sdlpp::color& c);
+
+            sdlpp::expected <void, std::string> draw_cross(const point& center, dp size = 5_dp, float thickness = 1.0f);
+            sdlpp::expected <void, std::string> draw_cross(const point& center, dp size, const sdlpp::color& c);
+            sdlpp::expected <void, std::string> draw_cross(const point& center, dp size, float thickness, const sdlpp::color& c);
+
             sdlpp::expected<void, std::string> clear(const sdlpp::color& c = sdlpp::colors::black);
 
             [[nodiscard]] dp get_width() const;

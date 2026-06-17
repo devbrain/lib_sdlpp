@@ -434,7 +434,104 @@ public:
         
         return {};
     }
-    
+
+    /**
+     * @brief Draw an arrow using lines
+     * @param start Starting point
+     * @param end Ending point
+     * @param head_size Arrow head length in pixels
+     * @param head_angle Arrow head wing angle in degrees
+     * @param thickness Line thickness in pixels
+     * @return Expected<void> - empty on success, error message on failure
+     */
+    template<point_like P1, point_like P2>
+    expected<void, std::string> draw_arrow(const P1& start, const P2& end, float head_size = 10.0f, float head_angle = 30.0f, float thickness = 1.0f) {
+        if (!surface_) {
+            return make_unexpectedf("Invalid surface");
+        }
+
+        const float x1 = static_cast<float>(get_x(start));
+        const float y1 = static_cast<float>(get_y(start));
+        const float x2 = static_cast<float>(get_x(end));
+        const float y2 = static_cast<float>(get_y(end));
+
+        expected<void, std::string> res;
+        if (thickness > 1.0f) {
+            res = draw_line_thick(start, end, thickness);
+        } else {
+            res = draw_line(start, end);
+        }
+        if (!res) return res;
+
+        const float dx = x2 - x1;
+        const float dy = y2 - y1;
+        const float len = std::sqrt(dx * dx + dy * dy);
+        if (len > 0.0f && head_size > 0.0f) {
+            const float ux = dx / len;
+            const float uy = dy / len;
+
+            const float rad = head_angle * 3.141592653589793f / 180.0f;
+            const float cos_a = std::cos(rad);
+            const float sin_a = std::sin(rad);
+
+            const float w1_x = -ux * cos_a + uy * sin_a;
+            const float w1_y = -ux * sin_a - uy * cos_a;
+
+            const float w2_x = -ux * cos_a - uy * sin_a;
+            const float w2_y = ux * sin_a - uy * cos_a;
+
+            const euler::point2f p_end{x2, y2};
+            const euler::point2f w1{x2 + head_size * w1_x, y2 + head_size * w1_y};
+            const euler::point2f w2{x2 + head_size * w2_x, y2 + head_size * w2_y};
+
+            if (thickness > 1.0f) {
+                res = draw_line_thick(p_end, w1, thickness);
+                if (!res) return res;
+                res = draw_line_thick(p_end, w2, thickness);
+            } else {
+                res = draw_line(p_end, w1);
+                if (!res) return res;
+                res = draw_line(p_end, w2);
+            }
+        }
+        return res;
+    }
+
+    /**
+     * @brief Draw a cross shape (X marker)
+     * @param center Center point
+     * @param size Extent of cross in pixels
+     * @param thickness Line thickness in pixels
+     * @return Expected<void> - empty on success, error message on failure
+     */
+    template<point_like P>
+    expected<void, std::string> draw_cross(const P& center, float size = 5.0f, float thickness = 1.0f) {
+        if (!surface_) {
+            return make_unexpectedf("Invalid surface");
+        }
+
+        const float cx = static_cast<float>(get_x(center));
+        const float cy = static_cast<float>(get_y(center));
+        const float h = size / 2.0f;
+
+        const euler::point2f p0{cx - h, cy - h};
+        const euler::point2f p1{cx + h, cy + h};
+        const euler::point2f p2{cx - h, cy + h};
+        const euler::point2f p3{cx + h, cy - h};
+
+        expected<void, std::string> res;
+        if (thickness > 1.0f) {
+            res = draw_line_thick(p0, p1, thickness);
+            if (!res) return res;
+            res = draw_line_thick(p2, p3, thickness);
+        } else {
+            res = draw_line(p0, p1);
+            if (!res) return res;
+            res = draw_line(p2, p3);
+        }
+        return res;
+    }
+
     // Phase 3: Circle and Ellipse Drawing
     
     /**

@@ -66,7 +66,7 @@ class example : public simplex::application {
             draw_rect(r, colors::blue);
 
             if (line_ends[0]) {
-                draw_cross(*line_ends[0], colors::aquamarine, 3_dp);
+                draw_cross(*line_ends[0], 8_dp, colors::aquamarine);
                 const auto end_point = !line_ends[1] ? get_mouse_pos() : *line_ends[1];
 
                 collide::segment seg  = simplex::to_world({*line_ends[0], end_point}, world_view);
@@ -88,26 +88,15 @@ class example : public simplex::application {
                         const float dy = (world_view.y_up ? -n.y() : n.y()) * normal_len;
                         return simplex::point{simplex::dp{dx}, simplex::dp{dy}};
                     };
-                    draw_line_thick(p1, p1 + get_design_normal(ir.entry_normal), 2, colors::red);
-                    draw_line_thick(p2, p2 + get_design_normal(ir.exit_normal), 2, colors::green);
+                    draw_arrow(p1, p1 + get_design_normal(ir.entry_normal), 6_dp, 30.0f, 2.0f, colors::red);
+                    draw_arrow(p2, p2 + get_design_normal(ir.exit_normal), 6_dp, 30.0f, 2.0f, colors::green);
 
                 } else {
                     draw_line(*line_ends[0], end_point,  colors::aquamarine);
                 }
 
-                draw_cross(end_point, colors::aquamarine, 3_dp);
+                draw_cross(end_point, 8_dp, colors::aquamarine);
             }
-        }
-
-        void draw_cross(const simplex::point& center, const color& c, const simplex::dp& size) {
-            static constexpr float sqrt2 = 1.41421356237f;
-            const auto x1 = -sqrt2 * size +  center.x;
-            const auto x2 =  sqrt2 * size +  center.x;
-            const auto y1 = -sqrt2 * size +  center.y;
-            const auto y2 =  sqrt2 * size +  center.y;
-
-            draw_line({x1, y1}, {x2, y2}, c);
-            draw_line({x1, y2}, {x2, y1}, c);
         }
 };
 
