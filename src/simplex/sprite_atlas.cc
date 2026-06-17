@@ -209,12 +209,17 @@ namespace simplex {
             return sdlpp::make_unexpected("Could not open WGT sprite file: " + path.string());
         }
 
-        char sig[18];
-        if (!file.read(sig, 18)) {
+        uint16_t version = 0;
+        if (!file.read(reinterpret_cast<char*>(&version), 2)) {
+            return sdlpp::make_unexpected("Failed to read WGT version");
+        }
+
+        char sig[13];
+        if (!file.read(sig, 13)) {
             return sdlpp::make_unexpected("Failed to read WGT header signature");
         }
 
-        if (sig[0] != 4 || sig[1] != 0 || std::string_view(sig + 2, 13) != " Sprite File ") {
+        if (std::string_view(sig, 13) != " Sprite File ") {
             return sdlpp::make_unexpected("Invalid WGT sprite file signature");
         }
 
@@ -223,56 +228,57 @@ namespace simplex {
             return sdlpp::make_unexpected("Failed to read WGT palette data");
         }
 
-        uint16_t total_minus_1;
-        if (!file.read(reinterpret_cast<char*>(&total_minus_1), 2)) {
-            return sdlpp::make_unexpected("Failed to read WGT sprite count");
+        uint16_t maxsprite = 0;
+        if (!file.read(reinterpret_cast<char*>(&maxsprite), 2)) {
+            return sdlpp::make_unexpected("Failed to read WGT maxsprite");
         }
-        int total_sprites = total_minus_1 + 1;
 
-        uint16_t mode;
-        if (!file.read(reinterpret_cast<char*>(&mode), 2)) {
-            return sdlpp::make_unexpected("Failed to read WGT sprite mode");
-        }
+        int startingsprite = (version <= 3) ? 1 : 0;
+        int total_sprites_bound = maxsprite + 1;
 
         struct wgt_block {
             uint16_t w, h;
             std::vector<uint8_t> pixels;
         };
         std::vector<wgt_block> blocks;
-        blocks.reserve(static_cast<std::size_t>(total_sprites));
+        blocks.reserve(static_cast<std::size_t>(total_sprites_bound));
 
         int max_w = 0;
         int max_h = 0;
 
-        for (std::size_t i = 0; i < static_cast<std::size_t>(total_sprites); ++i) {
-            if (i > 0) {
-                uint16_t sprite_idx;
-                if (!file.read(reinterpret_cast<char*>(&sprite_idx), 2)) {
-                    return sdlpp::make_unexpected("Failed to read sprite block index");
+        for (int i = startingsprite; i <= maxsprite; ++i) {
+            uint16_t spritemade = 0;
+            if (!file.read(reinterpret_cast<char*>(&spritemade), 2)) {
+                return sdlpp::make_unexpected("Failed to read spritemade flag at sprite " + std::to_string(i));
+            }
+
+            if (spritemade == 1) {
+                uint16_t w, h;
+                if (!file.read(reinterpret_cast<char*>(&w), 2) || !file.read(reinterpret_cast<char*>(&h), 2)) {
+                    return sdlpp::make_unexpected("Failed to read dimensions at sprite " + std::to_string(i));
                 }
-            }
 
-            uint16_t w, h;
-            if (!file.read(reinterpret_cast<char*>(&w), 2) || !file.read(reinterpret_cast<char*>(&h), 2)) {
-                return sdlpp::make_unexpected("Failed to read sprite block dimensions");
-            }
+                std::vector<uint8_t> pixels(static_cast<std::size_t>(w * h));
+                if (!file.read(reinterpret_cast<char*>(pixels.data()), w * h)) {
+                    return sdlpp::make_unexpected("Failed to read pixel data at sprite " + std::to_string(i));
+                }
 
-            std::vector<uint8_t> pixels(static_cast<std::size_t>(w * h));
-            if (!file.read(reinterpret_cast<char*>(pixels.data()), w * h)) {
-                return sdlpp::make_unexpected("Failed to read sprite block pixel data");
+                blocks.push_back({w, h, std::move(pixels)});
+                max_w = std::max(max_w, static_cast<int>(w));
+                max_h = std::max(max_h, static_cast<int>(h));
+            } else {
+                // Keep the sprite index aligned by placing an empty placeholder
+                blocks.push_back({0, 0, {}});
             }
-
-            blocks.push_back({w, h, std::move(pixels)});
-            max_w = std::max(max_w, static_cast<int>(w));
-            max_h = std::max(max_h, static_cast<int>(h));
         }
 
-        if (blocks.empty() || max_w <= 0 || max_h <= 0) {
+        int total_loaded_sprites = static_cast<int>(blocks.size());
+        if (total_loaded_sprites == 0 || max_w <= 0 || max_h <= 0) {
             return sdlpp::make_unexpected("No valid sprites loaded from WGT sprite file");
         }
 
         int cols = 5;
-        int rows = (total_sprites + cols - 1) / cols;
+        int rows = (total_loaded_sprites + cols - 1) / cols;
 
         int atlas_w = cols * max_w;
         int atlas_h = rows * max_h;
@@ -286,12 +292,12 @@ namespace simplex {
         surf.fill(sdlpp::color{0, 0, 0, 0});
 
         std::vector<sdlpp::rect<int>> frames;
-        frames.reserve(static_cast<std::size_t>(total_sprites));
+        frames.reserve(static_cast<std::size_t>(total_loaded_sprites));
 
         {
             sdlpp::surface::lock_guard lock(surf);
 
-            for (std::size_t i = 0; i < static_cast<std::size_t>(total_sprites); ++i) {
+            for (std::size_t i = 0; i < static_cast<std::size_t>(total_loaded_sprites); ++i) {
                 const auto& b = blocks[i];
                 int col = static_cast<int>(i) % cols;
                 int row = static_cast<int>(i) / cols;
@@ -300,6 +306,11 @@ namespace simplex {
                 int frame_y = row * max_h;
 
                 frames.emplace_back(frame_x, frame_y, b.w, b.h);
+
+                // Skip processing pixels for empty placeholder frames
+                if (b.w == 0 || b.h == 0) {
+                    continue;
+                }
 
                 for (int y = 0; y < b.h; ++y) {
                     for (int x = 0; x < b.w; ++x) {
