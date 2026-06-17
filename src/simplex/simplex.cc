@@ -421,10 +421,24 @@ namespace simplex {
         if (!sprite.visible) {
             return {};
         }
-        return draw_sprite(atlas, sprite.current_frame(), sprite.position);
+        return draw_sprite(
+            atlas,
+            sprite.current_frame(),
+            sprite.position,
+            sprite.flip_horizontal,
+            sprite.flip_vertical,
+            sprite.flip_diagonal
+        );
     }
 
-    sdlpp::expected<void, std::string> application::draw_sprite(const sprite_atlas& atlas, std::size_t frame_index, const point& p) {
+    sdlpp::expected<void, std::string> application::draw_sprite(
+        const sprite_atlas& atlas,
+        std::size_t frame_index,
+        const point& p,
+        bool flip_h,
+        bool flip_v,
+        bool flip_d
+    ) {
         if (!atlas) {
             return sdlpp::make_unexpected("Invalid sprite atlas");
         }
@@ -443,6 +457,43 @@ namespace simplex {
 
         std::optional<sdlpp::rect<float>> src_opt = sdlpp::rect<float>(src_rect);
         std::optional<sdlpp::rect<float>> dst_opt = sdlpp::rect<float>{dest_x, dest_y, dest_w, dest_h};
+
+        if (flip_h || flip_v || flip_d) {
+            double angle = 0.0;
+            sdlpp::flip_mode flip = sdlpp::flip_mode::none;
+
+            if (flip_d) {
+                if (flip_h && flip_v) {
+                    angle = 90.0;
+                    flip = sdlpp::flip_mode::vertical;
+                } else if (flip_h) {
+                    angle = 90.0;
+                    flip = sdlpp::flip_mode::none;
+                } else if (flip_v) {
+                    angle = 270.0;
+                    flip = sdlpp::flip_mode::none;
+                } else {
+                    angle = 90.0;
+                    flip = sdlpp::flip_mode::horizontal;
+                }
+            } else {
+                if (flip_h && flip_v) {
+                    flip = sdlpp::flip_mode::horizontal | sdlpp::flip_mode::vertical;
+                } else if (flip_h) {
+                    flip = sdlpp::flip_mode::horizontal;
+                } else if (flip_v) {
+                    flip = sdlpp::flip_mode::vertical;
+                }
+            }
+            return get_renderer().copy_ex(
+                atlas.texture(),
+                src_opt,
+                dst_opt,
+                angle,
+                std::optional<sdlpp::point<float>>{},
+                flip
+            );
+        }
 
         return get_renderer().copy(atlas.texture(), src_opt, dst_opt);
     }

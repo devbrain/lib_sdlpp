@@ -116,7 +116,14 @@ namespace simplex {
             sdlpp::expected <void, std::string> draw_cross(const point& center, dp size, float thickness, const sdlpp::color& c);
 
             sdlpp::expected<void, std::string> draw_sprite(const sprite_atlas& atlas, const animated_sprite& sprite);
-            sdlpp::expected<void, std::string> draw_sprite(const sprite_atlas& atlas, std::size_t frame_index, const point& p);
+            sdlpp::expected<void, std::string> draw_sprite(
+                const sprite_atlas& atlas,
+                std::size_t frame_index,
+                const point& p,
+                bool flip_h = false,
+                bool flip_v = false,
+                bool flip_d = false
+            );
 
             sdlpp::expected<void, std::string> clear(const sdlpp::color& c = sdlpp::colors::black);
 

@@ -46,6 +46,9 @@ namespace simplex {
         public:
             point position{};
             bool visible{true};
+            bool flip_horizontal{false};
+            bool flip_vertical{false};
+            bool flip_diagonal{false};
 
             animated_sprite() = default;
 

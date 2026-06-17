@@ -201,6 +201,7 @@ namespace simplex {
             cfg.title = "WGT Animation Port to Simplex";
             cfg.width = 960;  // 3x integer scaling width
             cfg.height = 600; // 3x integer scaling height
+
             return cfg;
         }
     };

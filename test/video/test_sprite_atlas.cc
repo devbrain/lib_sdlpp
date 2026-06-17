@@ -226,5 +226,20 @@ TEST_SUITE("simplex::sprite_atlas") {
         rot.apply(mesh);
         CHECK(mesh.vertex_count() == 9);
     }
+
+    TEST_CASE("animated_sprite flip flags") {
+        simplex::animated_sprite sprite;
+        CHECK(sprite.flip_horizontal == false);
+        CHECK(sprite.flip_vertical == false);
+        CHECK(sprite.flip_diagonal == false);
+
+        sprite.flip_horizontal = true;
+        sprite.flip_vertical = true;
+        sprite.flip_diagonal = true;
+
+        CHECK(sprite.flip_horizontal == true);
+        CHECK(sprite.flip_vertical == true);
+        CHECK(sprite.flip_diagonal == true);
+    }
 }
 
