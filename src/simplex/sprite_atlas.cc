@@ -1,6 +1,8 @@
 #include <simplex/sprite_atlas.hh>
 #include <sdlpp/image/image.hh>
 #include <algorithm>
+#include <fstream>
+#include <string_view>
 
 namespace simplex {
     // =========================================================================
@@ -195,5 +197,126 @@ namespace simplex {
         }
 
         return sprite_atlas(r, *surf_res, std::move(frames), generate_masks);
+    }
+
+    sdlpp::expected<sprite_atlas, std::string> sprite_atlas::load_wgt_spr(
+        sdlpp::renderer& r,
+        const std::filesystem::path& path,
+        bool generate_masks) {
+
+        std::ifstream file(path, std::ios::binary);
+        if (!file) {
+            return sdlpp::make_unexpected("Could not open WGT sprite file: " + path.string());
+        }
+
+        char sig[18];
+        if (!file.read(sig, 18)) {
+            return sdlpp::make_unexpected("Failed to read WGT header signature");
+        }
+
+        if (sig[0] != 4 || sig[1] != 0 || std::string_view(sig + 2, 13) != " Sprite File ") {
+            return sdlpp::make_unexpected("Invalid WGT sprite file signature");
+        }
+
+        uint8_t pal_raw[768];
+        if (!file.read(reinterpret_cast<char*>(pal_raw), 768)) {
+            return sdlpp::make_unexpected("Failed to read WGT palette data");
+        }
+
+        uint16_t total_minus_1;
+        if (!file.read(reinterpret_cast<char*>(&total_minus_1), 2)) {
+            return sdlpp::make_unexpected("Failed to read WGT sprite count");
+        }
+        int total_sprites = total_minus_1 + 1;
+
+        uint16_t mode;
+        if (!file.read(reinterpret_cast<char*>(&mode), 2)) {
+            return sdlpp::make_unexpected("Failed to read WGT sprite mode");
+        }
+
+        struct wgt_block {
+            uint16_t w, h;
+            std::vector<uint8_t> pixels;
+        };
+        std::vector<wgt_block> blocks;
+        blocks.reserve(static_cast<std::size_t>(total_sprites));
+
+        int max_w = 0;
+        int max_h = 0;
+
+        for (std::size_t i = 0; i < static_cast<std::size_t>(total_sprites); ++i) {
+            if (i > 0) {
+                uint16_t sprite_idx;
+                if (!file.read(reinterpret_cast<char*>(&sprite_idx), 2)) {
+                    return sdlpp::make_unexpected("Failed to read sprite block index");
+                }
+            }
+
+            uint16_t w, h;
+            if (!file.read(reinterpret_cast<char*>(&w), 2) || !file.read(reinterpret_cast<char*>(&h), 2)) {
+                return sdlpp::make_unexpected("Failed to read sprite block dimensions");
+            }
+
+            std::vector<uint8_t> pixels(static_cast<std::size_t>(w * h));
+            if (!file.read(reinterpret_cast<char*>(pixels.data()), w * h)) {
+                return sdlpp::make_unexpected("Failed to read sprite block pixel data");
+            }
+
+            blocks.push_back({w, h, std::move(pixels)});
+            max_w = std::max(max_w, static_cast<int>(w));
+            max_h = std::max(max_h, static_cast<int>(h));
+        }
+
+        if (blocks.empty() || max_w <= 0 || max_h <= 0) {
+            return sdlpp::make_unexpected("No valid sprites loaded from WGT sprite file");
+        }
+
+        int cols = 5;
+        int rows = (total_sprites + cols - 1) / cols;
+
+        int atlas_w = cols * max_w;
+        int atlas_h = rows * max_h;
+
+        auto surf_res = sdlpp::surface::create_rgb(atlas_w, atlas_h, sdlpp::pixel_format_enum::RGBA8888);
+        if (!surf_res) {
+            return sdlpp::make_unexpected("Failed to create atlas surface: " + surf_res.error());
+        }
+        auto& surf = *surf_res;
+
+        surf.fill(sdlpp::color{0, 0, 0, 0});
+
+        std::vector<sdlpp::rect<int>> frames;
+        frames.reserve(static_cast<std::size_t>(total_sprites));
+
+        {
+            sdlpp::surface::lock_guard lock(surf);
+
+            for (std::size_t i = 0; i < static_cast<std::size_t>(total_sprites); ++i) {
+                const auto& b = blocks[i];
+                int col = static_cast<int>(i) % cols;
+                int row = static_cast<int>(i) / cols;
+
+                int frame_x = col * max_w;
+                int frame_y = row * max_h;
+
+                frames.emplace_back(frame_x, frame_y, b.w, b.h);
+
+                for (int y = 0; y < b.h; ++y) {
+                    for (int x = 0; x < b.w; ++x) {
+                        uint8_t idx = b.pixels[static_cast<std::size_t>(y * b.w + x)];
+                        if (idx == 0) {
+                            surf.put_pixel(frame_x + x, frame_y + y, sdlpp::color{0, 0, 0, 0});
+                        } else {
+                            uint8_t r_val = pal_raw[idx * 3] * 4;
+                            uint8_t g_val = pal_raw[idx * 3 + 1] * 4;
+                            uint8_t b_val = pal_raw[idx * 3 + 2] * 4;
+                            surf.put_pixel(frame_x + x, frame_y + y, sdlpp::color{r_val, g_val, b_val, 255});
+                        }
+                    }
+                }
+            }
+        }
+
+        return sprite_atlas(r, surf, std::move(frames), generate_masks);
     }
 } // namespace simplex

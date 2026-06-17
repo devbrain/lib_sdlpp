@@ -31,12 +31,14 @@ target_sources(simplex PRIVATE
         ${PROJECT_ROOT}/include/simplex/dp.hh
         ${PROJECT_ROOT}/include/simplex/geometry.hh
         ${PROJECT_ROOT}/include/simplex/sprite_atlas.hh
+        ${PROJECT_ROOT}/include/simplex/sprite.hh
         ${PROJECT_ROOT}/include/simplex/collide/shapes.hh
         ${PROJECT_ROOT}/include/simplex/collide/bridge.hh
 
         dp.cc
         simplex.cc
         sprite_atlas.cc
+        sprite.cc
 )
 
 # =============================================================================

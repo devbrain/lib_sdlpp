@@ -5,6 +5,8 @@
 
 #include <simplex/simplex.hh>
 #include <simplex/dp.hh>
+#include <simplex/sprite_atlas.hh>
+#include <simplex/sprite.hh>
 
 namespace simplex {
     namespace {
@@ -413,6 +415,36 @@ namespace simplex {
 
     point application::get_window_mouse() const noexcept {
         return get_mouse_pos();
+    }
+
+    sdlpp::expected<void, std::string> application::draw_sprite(const sprite_atlas& atlas, const animated_sprite& sprite) {
+        if (!sprite.visible) {
+            return {};
+        }
+        return draw_sprite(atlas, sprite.current_frame(), sprite.position);
+    }
+
+    sdlpp::expected<void, std::string> application::draw_sprite(const sprite_atlas& atlas, std::size_t frame_index, const point& p) {
+        if (!atlas) {
+            return sdlpp::make_unexpected("Invalid sprite atlas");
+        }
+
+        if (frame_index >= atlas.frame_count()) {
+            return sdlpp::make_unexpected("Frame index out of bounds");
+        }
+
+        auto src_rect = atlas.get_frame_rect(frame_index);
+        
+        float dest_w = static_cast<float>(src_rect.w) * scale();
+        float dest_h = static_cast<float>(src_rect.h) * scale();
+
+        float dest_x = p.x.px();
+        float dest_y = p.y.px();
+
+        std::optional<sdlpp::rect<float>> src_opt = sdlpp::rect<float>(src_rect);
+        std::optional<sdlpp::rect<float>> dst_opt = sdlpp::rect<float>{dest_x, dest_y, dest_w, dest_h};
+
+        return get_renderer().copy(atlas.texture(), src_opt, dst_opt);
     }
 
     void application::on_window_display_scale_changed(float scale) {

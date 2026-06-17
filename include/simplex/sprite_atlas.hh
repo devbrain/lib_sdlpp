@@ -198,6 +198,18 @@ namespace simplex {
                 std::vector<sdlpp::rect<int>> frames,
                 bool generate_masks = false);
 
+            /**
+             * @brief Load a vintage WGT .spr file and automatically generate a sprite atlas.
+             * @param r Renderer context to upload the texture to.
+             * @param path File system path to the .spr file.
+             * @param generate_masks If true, bitmasks are generated from the sprite alpha channel.
+             * @return Expected containing the sprite_atlas, or error message.
+             */
+            [[nodiscard]] static sdlpp::expected<sprite_atlas, std::string> load_wgt_spr(
+                sdlpp::renderer& r,
+                const std::filesystem::path& path,
+                bool generate_masks = false);
+
         private:
             void slice_grid(int frame_width, int frame_height);
             void generate_bitmasks_from_surface(const sdlpp::surface& surf);

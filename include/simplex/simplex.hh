@@ -12,6 +12,9 @@
 
 
 namespace simplex {
+    class sprite_atlas;
+    class animated_sprite;
+
     class SIMPLEX_EXPORT application : public sdlpp::game_application {
         public:
             application();
@@ -111,6 +114,9 @@ namespace simplex {
             sdlpp::expected <void, std::string> draw_cross(const point& center, dp size = 5_dp, float thickness = 1.0f);
             sdlpp::expected <void, std::string> draw_cross(const point& center, dp size, const sdlpp::color& c);
             sdlpp::expected <void, std::string> draw_cross(const point& center, dp size, float thickness, const sdlpp::color& c);
+
+            sdlpp::expected<void, std::string> draw_sprite(const sprite_atlas& atlas, const animated_sprite& sprite);
+            sdlpp::expected<void, std::string> draw_sprite(const sprite_atlas& atlas, std::size_t frame_index, const point& p);
 
             sdlpp::expected<void, std::string> clear(const sdlpp::color& c = sdlpp::colors::black);
 

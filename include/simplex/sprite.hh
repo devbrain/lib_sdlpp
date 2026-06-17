@@ -1,0 +1,71 @@
+#pragma once
+
+#include <vector>
+#include <string>
+#include <unordered_map>
+#include <simplex/detail/export.hh>
+#include <simplex/geometry.hh>
+
+namespace simplex {
+    /**
+     * @brief Defines a sequence of frame indices and playback properties.
+     */
+    struct SIMPLEX_EXPORT animation_sequence {
+        std::vector<std::size_t> frames; ///< Indices of the atlas frames
+        float fps{10.0f};                ///< Frames per second
+        bool loop{true};                 ///< Whether the animation loops
+    };
+
+    /**
+     * @brief An automated animated sprite state machine, wrapping animation timers.
+     */
+    class SIMPLEX_EXPORT animated_sprite {
+        public:
+            point position{};
+            bool visible{true};
+
+            animated_sprite() = default;
+
+            /**
+             * @brief Add a named animation sequence.
+             */
+            void add_animation(std::string name, animation_sequence seq);
+
+            /**
+             * @brief Play a named animation sequence.
+             */
+            void play(const std::string& name);
+
+            /**
+             * @brief Stop the current animation.
+             */
+            void stop() noexcept;
+
+            /**
+             * @brief Update the animation timeline.
+             * @param dt Delta time in seconds.
+             */
+            void update(float dt);
+
+            /**
+             * @brief Get the currently active frame index of the atlas.
+             */
+            [[nodiscard]] std::size_t current_frame() const noexcept {
+                return m_active_frame;
+            }
+
+            /**
+             * @brief Get the name of the currently playing animation.
+             */
+            [[nodiscard]] const std::string& current_animation() const noexcept {
+                return m_current_anim;
+            }
+
+        private:
+            std::unordered_map<std::string, animation_sequence> m_animations;
+            std::string m_current_anim;
+            std::size_t m_current_frame_idx{0};
+            std::size_t m_active_frame{0};
+            float m_timer{0.0f};
+    };
+} // namespace simplex
