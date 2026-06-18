@@ -668,15 +668,18 @@ namespace simplex::collide {
     /**
      * @brief CCD query for a moving AABB vs a (possibly moving) segment over [0, time].
      *
-     * First contact between two translating convex shapes is always a vertex/edge event, so
-     * the swept overlap interval is the union (min entry, max exit) of two feature families:
-     * each segment endpoint swept against the box (in the box's rest frame the endpoint moves
-     * by -rel), and each box corner swept against the segment.
+     * Transitions into/out of overlap between two translating convex shapes are vertex/edge
+     * events, captured by two feature families: each segment endpoint swept against the box
+     * (in the box's rest frame the endpoint moves by -rel), and each box corner swept against
+     * the segment. Those give the entry/exit *times*. The interval is then anchored on actual
+     * overlap at the window ends (a segment can already cross the box interior at t=0 with no
+     * vertex event): if overlapping at t=0 the entry is 0, and if still overlapping at t=time
+     * the overlap runs to the end of the window.
      *
      * @param abox Moving box.        @param avel Its velocity (world units / s).
      * @param seg  The segment.       @param svel Its velocity (world units / s).
      * @param time Query duration (s).
-     * @return A @ref swept_hit (normal of first contact: a box face or the segment), or std::nullopt.
+     * @return A @ref swept_hit (normals point outward from the segment), or std::nullopt.
      */
     [[nodiscard]] inline std::optional <swept_hit> swept_intersection(
         const aabb& abox, const vec& avel,
@@ -710,9 +713,47 @@ namespace simplex::collide {
                 update(*h);
             }
         }
-        if (!entry_hit) {
-            return std::nullopt;
+
+        // Anchor the interval on real overlap at the window ends (covers the segment crossing
+        // the box interior at t=0 with no vertex event, and overlap persisting through t=time).
+        const bool start_overlap = intersects(seg, abox);
+        const aabb end_box{abox.min + d, abox.max + d};
+        const bool end_overlap = intersects(seg, end_box);
+
+        if (!start_overlap && !end_overlap && !entry_hit) {
+            return std::nullopt; // never overlap within the window
         }
-        return to_swept_hit(*entry_hit, *exit_hit, time);
+
+        // Unit segment normal oriented toward `toward`, the push-out direction used for an
+        // already-overlapping end of the interval (where there is no vertex/edge entry event).
+        const auto seg_push_normal = [&](const vec& toward) -> vec {
+            vec n{seg.from.y() - seg.to.y(), seg.to.x() - seg.from.x()};
+            const float l = euler::length(n);
+            if (l <= constants::NORMALIZE_EPS) {
+                return vec{0.0f, 0.0f};
+            }
+            n = n / l;
+            if (euler::dot(n, toward - seg.from) < 0.0f) {
+                n = -n;
+            }
+            return n;
+        };
+
+        swept_hit out;
+        if (start_overlap || !entry_hit) {
+            out.entry_time = 0.0f;
+            out.entry_normal = seg_push_normal(abox.center());
+        } else {
+            out.entry_time = std::max(0.0f, entry_hit->entry_param) * time;
+            out.entry_normal = entry_hit->entry_normal;
+        }
+        if (end_overlap || !exit_hit) {
+            out.exit_time = time;
+            out.exit_normal = seg_push_normal(end_box.center());
+        } else {
+            out.exit_time = std::min(exit_hit->exit_param, 1.0f) * time;
+            out.exit_normal = exit_hit->exit_normal;
+        }
+        return out;
     }
 } // namespace simplex::collide

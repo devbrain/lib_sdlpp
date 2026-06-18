@@ -844,6 +844,20 @@ TEST_SUITE("simplex::collide") {
             REQUIRE(r.has_value());
             CHECK(r->entry_time == doctest::Approx(0.3f)); // right edge reaches x=5 at t=0.3
         }
+        SUBCASE("segment crosses the box interior at t=0 (no vertex event)") {
+            // Both endpoints outside, no corner on the segment: overlap exists at t=0.
+            segment thru{{-1.0f, 1.0f}, {3.0f, 1.0f}};
+            // Zero velocity: overlap holds for the whole window.
+            auto stat = swept_intersection(bx, vec{0.0f, 0.0f}, thru, vec{0.0f, 0.0f}, 1.0f);
+            REQUIRE(stat.has_value());
+            CHECK(stat->entry_time == doctest::Approx(0.0f));
+            CHECK(stat->exit_time == doctest::Approx(1.0f));
+            // Moving up: already overlapping at t=0, separates when the bottom edge passes y=1.
+            auto up = swept_intersection(bx, vec{0.0f, 10.0f}, thru, vec{0.0f, 0.0f}, 1.0f);
+            REQUIRE(up.has_value());
+            CHECK(up->entry_time == doctest::Approx(0.0f)); // NOT 0.1 — overlapping at t=0
+            CHECK(up->exit_time == doctest::Approx(0.1f));
+        }
     }
 
     // ------------------------------------------------------------------
