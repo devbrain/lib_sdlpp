@@ -777,6 +777,76 @@ TEST_SUITE("simplex::collide") {
     }
 
     // ------------------------------------------------------------------
+    // CCD: moving circle / AABB vs a segment (capsule / feature decomposition)
+    // ------------------------------------------------------------------
+    TEST_CASE("swept_intersection(circle, segment)") {
+        segment hx{{-5.0f, 0.0f}, {5.0f, 0.0f}}; // wall along x at y=0
+
+        SUBCASE("approach the flat side from above") {
+            auto r = swept_intersection(circle{{0.0f, 5.0f}, 1.0f}, vec{0.0f, -10.0f}, hx, vec{0.0f, 0.0f}, 1.0f);
+            REQUIRE(r.has_value());
+            CHECK(r->entry_time == doctest::Approx(0.4f)); // centre reaches y=1
+            CHECK(r->exit_time == doctest::Approx(0.6f));  // centre reaches y=-1
+            CHECK(vapprox(r->entry_normal, vec{0.0f, 1.0f}));
+        }
+        SUBCASE("miss a short segment") {
+            CHECK_FALSE(swept_intersection(circle{{0.0f, 5.0f}, 1.0f}, vec{0.0f, -10.0f},
+                                           segment{{-5.0f, 0.0f}, {-3.0f, 0.0f}}, vec{0.0f, 0.0f}, 1.0f)
+                            .has_value());
+        }
+        SUBCASE("graze an endpoint cap") {
+            auto r = swept_intersection(circle{{5.0f, 2.0f}, 1.0f}, vec{0.0f, -10.0f}, hx, vec{0.0f, 0.0f}, 1.0f);
+            REQUIRE(r.has_value());
+            CHECK(r->entry_time == doctest::Approx(0.1f));
+            CHECK(is_unit(r->entry_normal));
+        }
+        SUBCASE("already overlapping -> entry clamped to 0") {
+            auto r = swept_intersection(circle{{0.0f, 0.5f}, 1.0f}, vec{0.0f, -10.0f}, hx, vec{0.0f, 0.0f}, 1.0f);
+            REQUIRE(r.has_value());
+            CHECK(r->entry_time == doctest::Approx(0.0f));
+        }
+        SUBCASE("only relative velocity matters") {
+            auto r = swept_intersection(circle{{0.0f, 5.0f}, 1.0f}, vec{0.0f, -5.0f}, hx, vec{0.0f, 5.0f}, 1.0f);
+            REQUIRE(r.has_value());
+            CHECK(r->entry_time == doctest::Approx(0.4f)); // rel velocity (0,-10), same as static wall
+        }
+        SUBCASE("degenerate segment behaves like a circle") {
+            segment pt{{0.0f, 0.0f}, {0.0f, 0.0f}};
+            auto r = swept_intersection(circle{{0.0f, 5.0f}, 1.0f}, vec{0.0f, -10.0f}, pt, vec{0.0f, 0.0f}, 1.0f);
+            REQUIRE(r.has_value());
+            CHECK(r->entry_time == doctest::Approx(0.4f));
+        }
+    }
+
+    TEST_CASE("swept_intersection(aabb, segment)") {
+        aabb bx{{0.0f, 0.0f}, {2.0f, 2.0f}};
+        segment wall{{5.0f, 0.0f}, {5.0f, 2.0f}}; // vertical wall at x=5
+
+        SUBCASE("box drives into a wall") {
+            auto r = swept_intersection(bx, vec{10.0f, 0.0f}, wall, vec{0.0f, 0.0f}, 1.0f);
+            REQUIRE(r.has_value());
+            CHECK(r->entry_time == doctest::Approx(0.3f)); // right edge x=2 reaches x=5
+            CHECK(r->exit_time == doctest::Approx(0.5f));  // left edge x=0 reaches x=5
+            CHECK(vapprox(r->entry_normal, vec{-1.0f, 0.0f})); // push the box back -x
+        }
+        SUBCASE("miss (wall below the box's path)") {
+            CHECK_FALSE(swept_intersection(bx, vec{10.0f, 0.0f}, segment{{5.0f, -5.0f}, {5.0f, -3.0f}},
+                                           vec{0.0f, 0.0f}, 1.0f)
+                            .has_value());
+        }
+        SUBCASE("already overlapping -> entry clamped to 0") {
+            auto r = swept_intersection(bx, vec{10.0f, 0.0f}, segment{{1.0f, 0.0f}, {1.0f, 2.0f}}, vec{0.0f, 0.0f}, 1.0f);
+            REQUIRE(r.has_value());
+            CHECK(r->entry_time == doctest::Approx(0.0f));
+        }
+        SUBCASE("diagonal approach") {
+            auto r = swept_intersection(bx, vec{10.0f, 10.0f}, segment{{5.0f, 0.0f}, {5.0f, 8.0f}}, vec{0.0f, 0.0f}, 1.0f);
+            REQUIRE(r.has_value());
+            CHECK(r->entry_time == doctest::Approx(0.3f)); // right edge reaches x=5 at t=0.3
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Static circle/AABB: exact corner tangent (3-4-5)
     // ------------------------------------------------------------------
     TEST_CASE("intersects(circle, aabb) exact corner tangent") {

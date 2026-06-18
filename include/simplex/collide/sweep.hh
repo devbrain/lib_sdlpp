@@ -602,4 +602,117 @@ namespace simplex::collide {
         float time) noexcept {
         return swept_intersection(ccirc, cvel, abox, avel, time);
     }
+
+    /**
+     * @brief CCD query for a moving circle vs a (possibly moving) segment over [0, time].
+     *
+     * The Minkowski sum of the circle and the segment is a capsule (the segment thickened
+     * by the radius). Working in the segment's local frame (x along the segment, y across),
+     * the capsule splits into an axis-aligned core box {{0,-R},{L,R}} plus the two endpoint
+     * circles of radius R; their union is the capsule and it is convex, so the swept point's
+     * crossing is the single interval [min entry, max exit] over those sub-shapes.
+     *
+     * @param acirc Moving circle.    @param avel Its velocity (world units / s).
+     * @param seg   The segment.      @param svel Its velocity (world units / s).
+     * @param time  Query duration (s).
+     * @return A @ref swept_hit (normals point outward from the segment), or std::nullopt.
+     */
+    [[nodiscard]] inline std::optional <swept_hit> swept_intersection(
+        const circle& acirc, const vec& avel,
+        const segment& seg, const vec& svel,
+        float time) noexcept {
+        const vec rel = avel - svel;
+        const vec a = acirc.center;
+        const segment path{a, a + rel * time};
+        const float R = acirc.radius;
+
+        const vec seg_d = seg.to - seg.from;
+        if (euler::approx_zero(seg_d, constants::POINT_EPS)) {
+            // Degenerate segment: the capsule is a single circle of radius R at seg.from.
+            const auto h = intersect_param(circle{seg.from, R}, path);
+            if (!h || !h->segment_overlaps()) {
+                return std::nullopt;
+            }
+            return to_swept_hit(*h, *h, time);
+        }
+
+        // Local frame: x along the segment, y across it.
+        const float len = euler::length(seg_d);
+        const vec ux = seg_d / len;
+        const vec uy{-ux.y(), ux.x()};
+        const auto to_local = [&](const vec& p) {
+            const vec q = p - seg.from;
+            return vec{euler::dot(q, ux), euler::dot(q, uy)};
+        };
+        const segment lpath{to_local(a), to_local(a + rel * time)};
+
+        std::optional<line_hit> entry_hit, exit_hit;
+        const auto update = [&](const line_hit& h) {
+            if (!entry_hit || h.entry_param < entry_hit->entry_param) { entry_hit = h; }
+            if (!exit_hit || h.exit_param > exit_hit->exit_param) { exit_hit = h; }
+        };
+        if (const auto h = intersect_param(aabb{{0.0f, -R}, {len, R}}, lpath); h && h->segment_overlaps()) { update(*h); }
+        if (const auto h = intersect_param(circle{{0.0f, 0.0f}, R}, lpath); h && h->segment_overlaps()) { update(*h); }
+        if (const auto h = intersect_param(circle{{len, 0.0f}, R}, lpath); h && h->segment_overlaps()) { update(*h); }
+        if (!entry_hit) {
+            return std::nullopt;
+        }
+
+        // Rotate the local-frame contact normals back to world.
+        const auto to_world = [&](const vec& n) { return n.x() * ux + n.y() * uy; };
+        entry_hit->entry_normal = to_world(entry_hit->entry_normal);
+        exit_hit->exit_normal = to_world(exit_hit->exit_normal);
+        return to_swept_hit(*entry_hit, *exit_hit, time);
+    }
+
+    /**
+     * @brief CCD query for a moving AABB vs a (possibly moving) segment over [0, time].
+     *
+     * First contact between two translating convex shapes is always a vertex/edge event, so
+     * the swept overlap interval is the union (min entry, max exit) of two feature families:
+     * each segment endpoint swept against the box (in the box's rest frame the endpoint moves
+     * by -rel), and each box corner swept against the segment.
+     *
+     * @param abox Moving box.        @param avel Its velocity (world units / s).
+     * @param seg  The segment.       @param svel Its velocity (world units / s).
+     * @param time Query duration (s).
+     * @return A @ref swept_hit (normal of first contact: a box face or the segment), or std::nullopt.
+     */
+    [[nodiscard]] inline std::optional <swept_hit> swept_intersection(
+        const aabb& abox, const vec& avel,
+        const segment& seg, const vec& svel,
+        float time) noexcept {
+        const vec d = (avel - svel) * time; // relative displacement of the box
+
+        std::optional<line_hit> entry_hit, exit_hit;
+        const auto update = [&](const line_hit& h) {
+            if (!entry_hit || h.entry_param < entry_hit->entry_param) { entry_hit = h; }
+            if (!exit_hit || h.exit_param > exit_hit->exit_param) { exit_hit = h; }
+        };
+
+        // Each segment endpoint vs the box (box's rest frame: the endpoint moves by -d).
+        // intersect_param yields the box-face outward normal (along the box's motion); negate
+        // it so every contact reports the same convention: the way to push the box to separate.
+        for (const vec& ep : {seg.from, seg.to}) {
+            if (auto h = intersect_param(abox, segment{ep, ep - d}); h && h->segment_overlaps()) {
+                h->entry_normal = -h->entry_normal;
+                h->exit_normal = -h->exit_normal;
+                update(*h);
+            }
+        }
+        // Each box corner sweeping by +d, vs the segment.
+        const vec corners[4] = {
+            {abox.min.x(), abox.min.y()}, {abox.max.x(), abox.min.y()},
+            {abox.min.x(), abox.max.y()}, {abox.max.x(), abox.max.y()}
+        };
+        for (const vec& c : corners) {
+            if (const auto h = intersect_param(segment{c, c + d}, seg); h && h->segment_overlaps()) {
+                update(*h);
+            }
+        }
+        if (!entry_hit) {
+            return std::nullopt;
+        }
+        return to_swept_hit(*entry_hit, *exit_hit, time);
+    }
 } // namespace simplex::collide

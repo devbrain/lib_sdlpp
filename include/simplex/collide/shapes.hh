@@ -33,7 +33,8 @@
 //   intersects (static): every pair of {point,segment,circle,aabb} (point via contains)
 //   overlap (MTV):       (aabb,aabb) (circle,circle) (circle,aabb)|(aabb,circle)  -> penetration
 //   intersect_param:     (aabb,segment) (circle,segment) (segment,segment)   -> line_hit
-//   swept_intersection:  (aabb,aabb) (circle,circle) (circle,aabb)|(aabb,circle) -> swept_hit
+//   swept_intersection:  (aabb,aabb) (circle,circle) (circle,aabb)|(aabb,circle)
+//                         (circle,segment) (aabb,segment)                       -> swept_hit
 //   closest_point:       (point, segment|aabb|circle)
 //   squared_distance:    every pair of {point,segment,circle,aabb} (filled regions; 0 if overlapping)
 //
