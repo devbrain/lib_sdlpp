@@ -83,25 +83,25 @@ class example : public simplex::application {
 
                 // AABB Intersection
                 collide::aabb rect = simplex::to_world(box, world_view);
-                auto ir_box = collide::intersect_times(rect, seg);
-                if (collide::segment_intersects(ir_box)) {
-                    auto p1 = simplex::to_design(seg.point_in_time(ir_box.entry), world_view);
-                    auto p2 = simplex::to_design(seg.point_in_time(ir_box.exit), world_view);
+                auto ir_box = collide::intersect_param(rect, seg);
+                if (ir_box && ir_box->segment_overlaps()) {
+                    auto p1 = simplex::to_design(seg.point_in_time(ir_box->entry_param), world_view);
+                    auto p2 = simplex::to_design(seg.point_in_time(ir_box->exit_param), world_view);
 
                     draw_line_thick(p1, p2, 4, colors::yellow);
 
                     set_line_style(line_style::dashed(4.0f, 2.0f));
-                    draw_arrow(p1, p1 + get_design_normal(ir_box.entry_normal), 6_dp, 30.0f, 2.0f, colors::red);
+                    draw_arrow(p1, p1 + get_design_normal(ir_box->entry_normal), 6_dp, 30.0f, 2.0f, colors::red);
                     set_line_style(line_style::solid());
-                    draw_arrow(p2, p2 + get_design_normal(ir_box.exit_normal), 6_dp, 30.0f, 2.0f, colors::green);
+                    draw_arrow(p2, p2 + get_design_normal(ir_box->exit_normal), 6_dp, 30.0f, 2.0f, colors::green);
                 }
 
                 // Circle Intersection
                 collide::circle circ = simplex::to_world(static_circle, world_view);
-                auto ir_circ = collide::intersect_times(circ, seg);
-                if (ir_circ && collide::segment_intersects(*ir_circ)) {
-                    auto p1 = simplex::to_design(seg.point_in_time(ir_circ->entry), world_view);
-                    auto p2 = simplex::to_design(seg.point_in_time(ir_circ->exit), world_view);
+                auto ir_circ = collide::intersect_param(circ, seg);
+                if (ir_circ && ir_circ->segment_overlaps()) {
+                    auto p1 = simplex::to_design(seg.point_in_time(ir_circ->entry_param), world_view);
+                    auto p2 = simplex::to_design(seg.point_in_time(ir_circ->exit_param), world_view);
 
                     draw_line_thick(p1, p2, 4, colors::yellow);
 

@@ -105,6 +105,7 @@ add_executable(sdlpp_unittest
 
     # Simplex tests
     simplex/test_collide.cc
+    simplex/test_bridge.cc
 
     # General/support tests
     test_type_safety.cc

@@ -10,12 +10,16 @@
 // point-to-segment distance, scale-consistent degeneracy thresholds, tangent
 // circle hits, deterministic collinear normals, and convex exit selection.
 //
+// Query categories under test:
+//   intersects(A, B)              -> bool       static overlap
+//   intersect_param(shape, seg)   -> line_hit   raw geometry (segment parameters)
+//   swept_intersection(A,av,B,bv,t) -> swept_hit  CCD (absolute seconds)
+//
 
 #include <doctest/doctest.h>
 #include <cmath>
 
 #include <simplex/collide/shapes.hh>
-#include <simplex/collide/bridge.hh>
 
 using namespace simplex::collide;
 
@@ -30,11 +34,43 @@ namespace {
 
     bool finite(float f) { return std::isfinite(f); }
 
-    bool finite(const entry_exit_times& e) {
-        return finite(e.entry) && finite(e.exit) &&
+    bool finite(const line_hit& e) {
+        return finite(e.entry_param) && finite(e.exit_param) &&
                finite(e.entry_normal.x()) && finite(e.entry_normal.y()) &&
                finite(e.exit_normal.x()) && finite(e.exit_normal.y());
     }
+
+    bool finite(const swept_hit& e) {
+        return finite(e.entry_time) && finite(e.exit_time) &&
+               finite(e.entry_normal.x()) && finite(e.entry_normal.y()) &&
+               finite(e.exit_normal.x()) && finite(e.exit_normal.y());
+    }
+}
+
+// Compile-time contract: the queries documented as constexpr must evaluate at compile time.
+namespace constexpr_checks {
+    constexpr aabb box{{0.0f, 0.0f}, {4.0f, 2.0f}};
+    constexpr circle circ{{1.0f, 1.0f}, 1.0f};
+    constexpr segment seg{{0.0f, 0.0f}, {10.0f, 4.0f}};
+
+    static_assert(box.size().x() == 4.0f && box.center().y() == 1.0f);
+    static_assert(seg.point_in_time(0.5f).x() == 5.0f);
+    static_assert(contains(box, vec{2.0f, 1.0f}));
+    static_assert(intersects(box, aabb{{1.0f, 1.0f}, {3.0f, 3.0f}}));
+    static_assert(intersects(circ, box) && intersects(box, circ));   // both overloads, constexpr
+    static_assert(squared_distance(vec{6.0f, 1.0f}, box) == 4.0f);
+    static_assert(intersect_param(box, seg).has_value());
+    static_assert(closest_point(vec{-1.0f, 1.0f}, box).x() == 0.0f);
+
+    // Newly constexpr now that euler's expression evaluation is constexpr:
+    // point/segment distance + closest point, and the aabb/aabb sweep.
+    constexpr segment hseg{{0.0f, 0.0f}, {10.0f, 0.0f}};
+    static_assert(closest_parameter(vec{5.0f, 5.0f}, hseg) == 0.5f);
+    static_assert(closest_point(vec{5.0f, 5.0f}, hseg).x() == 5.0f);
+    static_assert(squared_distance(vec{5.0f, 3.0f}, hseg) == 9.0f);
+    static_assert(swept_intersection(aabb{{0.0f, 0.0f}, {2.0f, 2.0f}}, vec{10.0f, 0.0f},
+                                     aabb{{5.0f, 0.0f}, {7.0f, 2.0f}}, vec{0.0f, 0.0f}, 1.0f)
+                      ->entry_time == 0.3f);
 }
 
 TEST_SUITE("simplex::collide") {
@@ -102,60 +138,61 @@ TEST_SUITE("simplex::collide") {
     }
 
     // ------------------------------------------------------------------
-    // line_intersects / segment_intersects predicates
+    // line_hit interval predicates (methods)
     // ------------------------------------------------------------------
-    TEST_CASE("line / segment interval predicates") {
-        CHECK(line_intersects(entry_exit_times{0.2f, 0.8f, {}, {}}));
-        CHECK_FALSE(line_intersects(entry_exit_times{0.8f, 0.2f, {}, {}}));   // entry > exit
+    TEST_CASE("line_hit overlap predicates") {
+        CHECK(line_hit{0.2f, 0.8f, {}, {}}.line_overlaps());
+        CHECK_FALSE(line_hit{0.8f, 0.2f, {}, {}}.line_overlaps());   // entry > exit
 
-        CHECK(segment_intersects(entry_exit_times{0.2f, 0.8f, {}, {}}));
-        CHECK(segment_intersects(entry_exit_times{-0.3f, 0.5f, {}, {}}));     // starts inside
-        CHECK_FALSE(segment_intersects(entry_exit_times{1.2f, 1.5f, {}, {}})); // entry past end
-        CHECK_FALSE(segment_intersects(entry_exit_times{-0.9f, -0.2f, {}, {}}));// exit before start
+        CHECK(line_hit{0.2f, 0.8f, {}, {}}.segment_overlaps());
+        CHECK(line_hit{-0.3f, 0.5f, {}, {}}.segment_overlaps());     // starts inside
+        CHECK_FALSE(line_hit{1.2f, 1.5f, {}, {}}.segment_overlaps()); // entry past end
+        CHECK_FALSE(line_hit{-0.9f, -0.2f, {}, {}}.segment_overlaps());// exit before start
     }
 
     // ------------------------------------------------------------------
-    // Slab method: intersect_times(aabb, segment)
+    // Slab method: intersect_param(aabb, segment)
     // ------------------------------------------------------------------
-    TEST_CASE("intersect_times(aabb, segment)") {
+    TEST_CASE("intersect_param(aabb, segment)") {
         aabb box{{0.0f, 0.0f}, {2.0f, 2.0f}};
 
         SUBCASE("horizontal crossing through the middle") {
             segment s{{-1.0f, 1.0f}, {3.0f, 1.0f}};   // dx = 4
-            auto e = intersect_times(box, s);
-            CHECK(e.entry == doctest::Approx(0.25f));
-            CHECK(e.exit == doctest::Approx(0.75f));
-            CHECK(vapprox(e.entry_normal, vec{-1.0f, 0.0f}));
-            CHECK(vapprox(e.exit_normal, vec{1.0f, 0.0f}));
-            CHECK(segment_intersects(e));
+            auto e = intersect_param(box, s);
+            REQUIRE(e.has_value());
+            CHECK(e->entry_param == doctest::Approx(0.25f));
+            CHECK(e->exit_param == doctest::Approx(0.75f));
+            CHECK(vapprox(e->entry_normal, vec{-1.0f, 0.0f}));
+            CHECK(vapprox(e->exit_normal, vec{1.0f, 0.0f}));
+            CHECK(e->segment_overlaps());
         }
 
         SUBCASE("vertical segment inside the x-slab (dx == 0)") {
             segment s{{1.0f, -1.0f}, {1.0f, 3.0f}};   // dx = 0, x in [0,2]
-            auto e = intersect_times(box, s);
-            CHECK(e.entry == doctest::Approx(0.25f));
-            CHECK(e.exit == doctest::Approx(0.75f));
-            CHECK(segment_intersects(e));
+            auto e = intersect_param(box, s);
+            REQUIRE(e.has_value());
+            CHECK(e->entry_param == doctest::Approx(0.25f));
+            CHECK(e->exit_param == doctest::Approx(0.75f));
+            CHECK(e->segment_overlaps());
         }
 
         SUBCASE("vertical segment outside the x-slab misses") {
             segment s{{5.0f, -1.0f}, {5.0f, 3.0f}};   // dx = 0, x outside [0,2]
-            auto e = intersect_times(box, s);
-            CHECK_FALSE(line_intersects(e));
+            CHECK_FALSE(intersect_param(box, s).has_value());
         }
 
         SUBCASE("segment starting inside the box yields entry < 0") {
             segment s{{1.0f, 1.0f}, {5.0f, 1.0f}};
-            auto e = intersect_times(box, s);
-            CHECK(e.entry < 0.0f);
-            CHECK(e.exit > 0.0f);
-            CHECK(segment_intersects(e));
+            auto e = intersect_param(box, s);
+            REQUIRE(e.has_value());
+            CHECK(e->entry_param < 0.0f);
+            CHECK(e->exit_param > 0.0f);
+            CHECK(e->segment_overlaps());
         }
 
         SUBCASE("parallel miss above the box") {
             segment s{{-1.0f, 5.0f}, {3.0f, 5.0f}};   // dy = 0, y outside [0,2]
-            auto e = intersect_times(box, s);
-            CHECK_FALSE(line_intersects(e));
+            CHECK_FALSE(intersect_param(box, s).has_value());
         }
     }
 
@@ -230,61 +267,83 @@ TEST_SUITE("simplex::collide") {
     }
 
     // ------------------------------------------------------------------
-    // intersect_times(circle, segment)
+    // intersect_param(circle, segment)
     // ------------------------------------------------------------------
-    TEST_CASE("intersect_times(circle, segment)") {
+    TEST_CASE("intersect_param(circle, segment)") {
         circle c{{0.0f, 0.0f}, 1.0f};
 
         SUBCASE("secant line through the circle") {
             segment s{{-2.0f, 0.0f}, {2.0f, 0.0f}};
-            auto r = intersect_times(c, s);
+            auto r = intersect_param(c, s);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.25f));
-            CHECK(r->exit == doctest::Approx(0.75f));
+            CHECK(r->entry_param == doctest::Approx(0.25f));
+            CHECK(r->exit_param == doctest::Approx(0.75f));
             CHECK(vapprox(r->entry_normal, vec{-1.0f, 0.0f}));
             CHECK(vapprox(r->exit_normal, vec{1.0f, 0.0f}));
-            CHECK(segment_intersects(*r));
+            CHECK(r->segment_overlaps());
         }
 
         SUBCASE("line misses the circle entirely") {
             segment s{{-2.0f, 5.0f}, {2.0f, 5.0f}};
-            CHECK_FALSE(intersect_times(c, s).has_value());
+            CHECK_FALSE(intersect_param(c, s).has_value());
         }
 
         SUBCASE("tangent line yields a single grazing contact") {
             segment s{{-2.0f, 1.0f}, {2.0f, 1.0f}};   // touches top of circle at (0,1)
-            auto r = intersect_times(c, s);
+            auto r = intersect_param(c, s);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.5f));
-            CHECK(r->exit == doctest::Approx(0.5f));
+            CHECK(r->entry_param == doctest::Approx(0.5f));
+            CHECK(r->exit_param == doctest::Approx(0.5f));
             CHECK(vapprox(r->entry_normal, vec{0.0f, 1.0f}));
         }
 
         SUBCASE("degenerate (point) segment inside the circle") {
             segment s{{0.0f, 0.0f}, {0.0f, 0.0f}};
-            auto r = intersect_times(c, s);
+            auto r = intersect_param(c, s);
             REQUIRE(r.has_value());
-            CHECK(r->entry == constants::NEG_INF);
-            CHECK(r->exit == constants::INF);
+            CHECK(r->entry_param == constants::NEG_INF);
+            CHECK(r->exit_param == constants::INF);
         }
 
         SUBCASE("degenerate (point) segment outside the circle") {
             segment s{{5.0f, 5.0f}, {5.0f, 5.0f}};
-            CHECK_FALSE(intersect_times(c, s).has_value());
+            CHECK_FALSE(intersect_param(c, s).has_value());
+        }
+
+        SUBCASE("far-from-origin miss is not swallowed by discriminant cancellation") {
+            // Unit circle at origin; a long horizontal segment at y = 10 misses by 9.
+            // The b^2 - 4ac discriminant cancels catastrophically at this scale and used
+            // to (wrongly) report a tangent hit at param 0.5.
+            CHECK_FALSE(intersect_param(c, segment{{-10000.0f, 10.0f}, {10000.0f, 10.0f}}).has_value());
+            // A near-grazing pass just inside the radius must still register.
+            auto graze = intersect_param(c, segment{{-10000.0f, 0.99f}, {10000.0f, 0.99f}});
+            REQUIRE(graze.has_value());
+            CHECK(graze->segment_overlaps());
+        }
+
+        SUBCASE("far-from-origin secant reports a correct chord") {
+            // Circle of radius 5 centred far from the origin; horizontal secant at the
+            // centre height crosses at center.x +/- 5.
+            circle big{{100000.0f, 100000.0f}, 5.0f};
+            auto r = intersect_param(big, segment{{90000.0f, 100000.0f}, {110000.0f, 100000.0f}});
+            REQUIRE(r.has_value());
+            // entry at x = 99995 => param (99995-90000)/20000 = 0.49975
+            CHECK(r->entry_param == doctest::Approx(0.49975f).epsilon(0.001));
+            CHECK(r->exit_param == doctest::Approx(0.50025f).epsilon(0.001));
         }
     }
 
     // ------------------------------------------------------------------
     // Segment / segment
     // ------------------------------------------------------------------
-    TEST_CASE("intersect_times(segment, segment)") {
+    TEST_CASE("intersect_param(segment, segment)") {
         SUBCASE("crossing diagonals") {
             segment a{{0.0f, 0.0f}, {2.0f, 2.0f}};
             segment b{{0.0f, 2.0f}, {2.0f, 0.0f}};
-            auto r = intersect_times(a, b);
+            auto r = intersect_param(a, b);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.5f));
-            CHECK(r->exit == doctest::Approx(0.5f));
+            CHECK(r->entry_param == doctest::Approx(0.5f));
+            CHECK(r->exit_param == doctest::Approx(0.5f));
             CHECK(is_unit(r->entry_normal));
             CHECK(intersects(a, b));
         }
@@ -292,33 +351,33 @@ TEST_SUITE("simplex::collide") {
         SUBCASE("T-intersection") {
             segment a{{0.0f, 0.0f}, {4.0f, 0.0f}};
             segment b{{2.0f, -1.0f}, {2.0f, 1.0f}};
-            auto r = intersect_times(a, b);
+            auto r = intersect_param(a, b);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.5f));
+            CHECK(r->entry_param == doctest::Approx(0.5f));
             CHECK(intersects(a, b));
         }
 
         SUBCASE("parallel, non-collinear miss") {
             segment a{{0.0f, 0.0f}, {1.0f, 0.0f}};
             segment b{{2.0f, 1.0f}, {3.0f, 1.0f}};
-            CHECK_FALSE(intersect_times(a, b).has_value());
+            CHECK_FALSE(intersect_param(a, b).has_value());
             CHECK_FALSE(intersects(a, b));
         }
 
         SUBCASE("disjoint, non-parallel miss") {
             segment a{{0.0f, 0.0f}, {1.0f, 0.0f}};
             segment b{{5.0f, -1.0f}, {5.0f, 1.0f}};   // would cross at x=5, off segment a
-            CHECK_FALSE(intersect_times(a, b).has_value());
+            CHECK_FALSE(intersect_param(a, b).has_value());
             CHECK_FALSE(intersects(a, b));
         }
 
         SUBCASE("collinear overlap has a deterministic unit normal") {
             segment a{{0.0f, 0.0f}, {4.0f, 0.0f}};
             segment b{{2.0f, 0.0f}, {6.0f, 0.0f}};   // overlap [2,4]
-            auto r = intersect_times(a, b);
+            auto r = intersect_param(a, b);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.5f));
-            CHECK(r->exit == doctest::Approx(1.0f));
+            CHECK(r->entry_param == doctest::Approx(0.5f));
+            CHECK(r->exit_param == doctest::Approx(1.0f));
             CHECK(is_unit(r->entry_normal));
             CHECK(vapprox(r->entry_normal, r->exit_normal));
             CHECK(intersects(a, b));
@@ -327,229 +386,234 @@ TEST_SUITE("simplex::collide") {
         SUBCASE("degenerate segment a is a point lying mid-segment of b") {
             segment a{{0.0f, 0.0f}, {0.0f, 0.0f}};
             segment b{{-1.0f, 0.0f}, {1.0f, 0.0f}};
-            auto r = intersect_times(a, b);
+            auto r = intersect_param(a, b);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.0f));
+            CHECK(r->entry_param == doctest::Approx(0.0f));
             CHECK(intersects(a, b));
         }
 
         SUBCASE("degenerate segment a is a point off segment b") {
             segment a{{0.0f, 5.0f}, {0.0f, 5.0f}};
             segment b{{-1.0f, 0.0f}, {1.0f, 0.0f}};
-            CHECK_FALSE(intersect_times(a, b).has_value());
+            CHECK_FALSE(intersect_param(a, b).has_value());
             CHECK_FALSE(intersects(a, b));
         }
 
         SUBCASE("point b on segment a reports its parameter along a") {
             segment a{{0.0f, 0.0f}, {4.0f, 0.0f}};
             segment b{{2.0f, 0.0f}, {2.0f, 0.0f}};   // point at the midpoint of a
-            auto r = intersect_times(a, b);
+            auto r = intersect_param(a, b);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.5f));
-            CHECK(r->exit == doctest::Approx(0.5f));
+            CHECK(r->entry_param == doctest::Approx(0.5f));
+            CHECK(r->exit_param == doctest::Approx(0.5f));
         }
 
-        SUBCASE("intersects matches intersect_times.has_value()") {
+        SUBCASE("intersects matches intersect_param.has_value()") {
             segment a{{0.0f, 0.0f}, {2.0f, 2.0f}};
             segment b{{0.0f, 2.0f}, {2.0f, 0.0f}};
-            CHECK(intersects(a, b) == intersect_times(a, b).has_value());
+            CHECK(intersects(a, b) == intersect_param(a, b).has_value());
             segment c{{10.0f, 10.0f}, {11.0f, 11.0f}};
-            CHECK(intersects(a, c) == intersect_times(a, c).has_value());
+            CHECK(intersects(a, c) == intersect_param(a, c).has_value());
         }
     }
 
     // ------------------------------------------------------------------
     // CCD: moving AABB vs moving AABB
     // ------------------------------------------------------------------
-    TEST_CASE("intersects(aabb, vel, aabb, vel, time)") {
+    TEST_CASE("swept_intersection(aabb, aabb)") {
         SUBCASE("head-on approach collides partway through") {
             aabb a{{0.0f, 0.0f}, {2.0f, 2.0f}};
             aabb b{{5.0f, 0.0f}, {7.0f, 2.0f}};
-            auto r = intersects(a, vec{10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
+            auto r = swept_intersection(a, vec{10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.3f));
-            CHECK(r->exit == doctest::Approx(0.7f));
-            CHECK(r->entry >= 0.0f);
-            CHECK(r->exit <= 1.0f);
+            CHECK(r->entry_time == doctest::Approx(0.3f));
+            CHECK(r->exit_time == doctest::Approx(0.7f));
+            CHECK(r->entry_time >= 0.0f);
+            CHECK(r->exit_time <= 1.0f);
         }
 
         SUBCASE("moving apart never collides") {
             aabb a{{0.0f, 0.0f}, {2.0f, 2.0f}};
             aabb b{{5.0f, 0.0f}, {7.0f, 2.0f}};
-            CHECK_FALSE(intersects(a, vec{-10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f).has_value());
+            CHECK_FALSE(swept_intersection(a, vec{-10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f).has_value());
         }
 
         SUBCASE("zero-duration sweep of overlapping boxes does not produce NaN") {
             aabb a{{0.0f, 0.0f}, {2.0f, 2.0f}};
             aabb b{{1.0f, 1.0f}, {3.0f, 3.0f}};
-            auto r = intersects(a, vec{0.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.0f);
+            auto r = swept_intersection(a, vec{0.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.0f);
             REQUIRE(r.has_value());
             CHECK(finite(*r));
-            CHECK(r->entry == doctest::Approx(0.0f));
-            CHECK(r->exit == doctest::Approx(0.0f));
+            CHECK(r->entry_time == doctest::Approx(0.0f));
+            CHECK(r->exit_time == doctest::Approx(0.0f));
         }
 
         SUBCASE("already-overlapping boxes with zero relative velocity") {
             aabb a{{0.0f, 0.0f}, {2.0f, 2.0f}};
             aabb b{{1.0f, 1.0f}, {3.0f, 3.0f}};
-            auto r = intersects(a, vec{0.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.5f);
+            auto r = swept_intersection(a, vec{0.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.5f);
             REQUIRE(r.has_value());
             CHECK(finite(*r));
-            CHECK(r->entry == doctest::Approx(0.0f));
-            CHECK(r->exit <= 0.5f);
+            CHECK(r->entry_time == doctest::Approx(0.0f));
+            CHECK(r->exit_time <= 0.5f);
         }
     }
 
     // ------------------------------------------------------------------
     // CCD: moving circle vs moving circle
     // ------------------------------------------------------------------
-    TEST_CASE("intersects(circle, vel, circle, vel, time)") {
+    TEST_CASE("swept_intersection(circle, circle)") {
         SUBCASE("head-on approach collides partway through") {
             circle a{{0.0f, 0.0f}, 1.0f};
             circle b{{5.0f, 0.0f}, 1.0f};
-            auto r = intersects(a, vec{10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
+            auto r = swept_intersection(a, vec{10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.3f));
-            CHECK(r->exit == doctest::Approx(0.7f));
+            CHECK(r->entry_time == doctest::Approx(0.3f));
+            CHECK(r->exit_time == doctest::Approx(0.7f));
         }
 
         SUBCASE("passing wide misses") {
             circle a{{0.0f, 0.0f}, 1.0f};
             circle b{{5.0f, 10.0f}, 1.0f};
-            CHECK_FALSE(intersects(a, vec{10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f).has_value());
+            CHECK_FALSE(swept_intersection(a, vec{10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f).has_value());
         }
 
         SUBCASE("resting overlap with zero relative velocity does not produce NaN") {
             circle a{{0.0f, 0.0f}, 1.0f};
             circle b{{0.5f, 0.0f}, 1.0f};   // already overlapping
-            auto r = intersects(a, vec{0.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.016f);
+            auto r = swept_intersection(a, vec{0.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.016f);
             REQUIRE(r.has_value());
             CHECK(finite(*r));
-            CHECK(r->entry == doctest::Approx(0.0f));
-            CHECK(r->exit <= 0.016f);
+            CHECK(r->entry_time == doctest::Approx(0.0f));
+            CHECK(r->exit_time <= 0.016f);
         }
 
         SUBCASE("zero-duration overlap does not produce NaN") {
             circle a{{0.0f, 0.0f}, 1.0f};
             circle b{{0.5f, 0.0f}, 1.0f};
-            auto r = intersects(a, vec{0.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.0f);
+            auto r = swept_intersection(a, vec{0.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.0f);
             REQUIRE(r.has_value());
             CHECK(finite(*r));
-            CHECK(r->entry == doctest::Approx(0.0f));
-            CHECK(r->exit == doctest::Approx(0.0f));
+            CHECK(r->entry_time == doctest::Approx(0.0f));
+            CHECK(r->exit_time == doctest::Approx(0.0f));
         }
     }
 
     // ------------------------------------------------------------------
     // CCD: moving circle vs moving AABB
     // ------------------------------------------------------------------
-    TEST_CASE("intersects(circle, vel, aabb, vel, time)") {
+    TEST_CASE("swept_intersection(circle, aabb)") {
         SUBCASE("axis-aligned approach hits the left face") {
             circle c{{0.0f, 0.0f}, 1.0f};
             aabb b{{5.0f, -1.0f}, {7.0f, 1.0f}};
-            auto r = intersects(c, vec{10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
+            auto r = swept_intersection(c, vec{10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.4f));   // center reaches x = 4 (min.x - R)
+            CHECK(r->entry_time == doctest::Approx(0.4f));   // center reaches x = 4 (min.x - R)
             CHECK(vapprox(r->entry_normal, vec{-1.0f, 0.0f}));
-            CHECK(r->entry >= 0.0f);
-            CHECK(r->exit <= 1.0f);
-            CHECK(r->exit >= r->entry);
+            CHECK(r->entry_time >= 0.0f);
+            CHECK(r->exit_time <= 1.0f);
+            CHECK(r->exit_time >= r->entry_time);
             CHECK(finite(*r));
         }
 
         SUBCASE("moving away misses") {
             circle c{{0.0f, 0.0f}, 1.0f};
             aabb b{{5.0f, -1.0f}, {7.0f, 1.0f}};
-            CHECK_FALSE(intersects(c, vec{-10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f).has_value());
+            CHECK_FALSE(swept_intersection(c, vec{-10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f).has_value());
         }
 
         SUBCASE("diagonal approach toward a corner collides") {
             circle c{{0.0f, 0.0f}, 1.0f};
             aabb b{{5.0f, 5.0f}, {7.0f, 7.0f}};
-            auto r = intersects(c, vec{10.0f, 10.0f}, b, vec{0.0f, 0.0f}, 1.0f);
+            auto r = swept_intersection(c, vec{10.0f, 10.0f}, b, vec{0.0f, 0.0f}, 1.0f);
             REQUIRE(r.has_value());
             CHECK(finite(*r));
-            CHECK(r->entry >= 0.0f);
-            CHECK(r->exit <= 1.0f);
-            CHECK(r->exit >= r->entry);
+            CHECK(r->entry_time >= 0.0f);
+            CHECK(r->exit_time <= 1.0f);
+            CHECK(r->exit_time >= r->entry_time);
             CHECK(is_unit(r->entry_normal));   // corner-circle contact -> radial unit normal
         }
 
         SUBCASE("zero-duration overlap does not produce NaN") {
             circle c{{0.0f, 0.0f}, 1.0f};
             aabb b{{-0.5f, -0.5f}, {0.5f, 0.5f}};   // box overlaps the circle center
-            auto r = intersects(c, vec{0.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.0f);
+            auto r = swept_intersection(c, vec{0.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.0f);
             REQUIRE(r.has_value());
             CHECK(finite(*r));
-            CHECK(r->entry == doctest::Approx(0.0f));
-            CHECK(r->exit == doctest::Approx(0.0f));
+            CHECK(r->entry_time == doctest::Approx(0.0f));
+            CHECK(r->exit_time == doctest::Approx(0.0f));
         }
     }
 
     // ------------------------------------------------------------------
     // Slab method: axis-parallel boundary cases (the original slab bug)
     // ------------------------------------------------------------------
-    TEST_CASE("intersect_times(aabb, segment) boundary-parallel cases") {
+    TEST_CASE("intersect_param(aabb, segment) boundary-parallel cases") {
         aabb box{{0.0f, 0.0f}, {2.0f, 2.0f}};
 
         SUBCASE("vertical segment exactly on x == min grazes the edge") {
-            auto e = intersect_times(box, segment{{0.0f, -1.0f}, {0.0f, 3.0f}});
-            CHECK(segment_intersects(e));
-            CHECK(e.entry == doctest::Approx(0.25f));
-            CHECK(e.exit == doctest::Approx(0.75f));
+            auto e = intersect_param(box, segment{{0.0f, -1.0f}, {0.0f, 3.0f}});
+            REQUIRE(e.has_value());
+            CHECK(e->segment_overlaps());
+            CHECK(e->entry_param == doctest::Approx(0.25f));
+            CHECK(e->exit_param == doctest::Approx(0.75f));
         }
 
         SUBCASE("vertical segment exactly on x == max grazes the edge") {
-            auto e = intersect_times(box, segment{{2.0f, -1.0f}, {2.0f, 3.0f}});
-            CHECK(segment_intersects(e));
-            CHECK(e.entry == doctest::Approx(0.25f));
-            CHECK(e.exit == doctest::Approx(0.75f));
+            auto e = intersect_param(box, segment{{2.0f, -1.0f}, {2.0f, 3.0f}});
+            REQUIRE(e.has_value());
+            CHECK(e->segment_overlaps());
+            CHECK(e->entry_param == doctest::Approx(0.25f));
+            CHECK(e->exit_param == doctest::Approx(0.75f));
         }
 
         SUBCASE("horizontal segment exactly on y == min grazes the edge") {
-            auto e = intersect_times(box, segment{{-1.0f, 0.0f}, {3.0f, 0.0f}});
-            CHECK(segment_intersects(e));
-            CHECK(e.entry == doctest::Approx(0.25f));
-            CHECK(e.exit == doctest::Approx(0.75f));
+            auto e = intersect_param(box, segment{{-1.0f, 0.0f}, {3.0f, 0.0f}});
+            REQUIRE(e.has_value());
+            CHECK(e->segment_overlaps());
+            CHECK(e->entry_param == doctest::Approx(0.25f));
+            CHECK(e->exit_param == doctest::Approx(0.75f));
         }
 
         SUBCASE("horizontal segment exactly on y == max grazes the edge") {
-            auto e = intersect_times(box, segment{{-1.0f, 2.0f}, {3.0f, 2.0f}});
-            CHECK(segment_intersects(e));
-            CHECK(e.entry == doctest::Approx(0.25f));
-            CHECK(e.exit == doctest::Approx(0.75f));
+            auto e = intersect_param(box, segment{{-1.0f, 2.0f}, {3.0f, 2.0f}});
+            REQUIRE(e.has_value());
+            CHECK(e->segment_overlaps());
+            CHECK(e->entry_param == doctest::Approx(0.25f));
+            CHECK(e->exit_param == doctest::Approx(0.75f));
         }
 
         SUBCASE("degenerate point segment inside the box") {
-            auto e = intersect_times(box, segment{{1.0f, 1.0f}, {1.0f, 1.0f}});
-            CHECK(segment_intersects(e));
-            CHECK(e.entry == constants::NEG_INF);
-            CHECK(e.exit == constants::INF);
+            auto e = intersect_param(box, segment{{1.0f, 1.0f}, {1.0f, 1.0f}});
+            REQUIRE(e.has_value());
+            CHECK(e->segment_overlaps());
+            CHECK(e->entry_param == constants::NEG_INF);
+            CHECK(e->exit_param == constants::INF);
         }
 
         SUBCASE("degenerate point segment on the boundary") {
-            auto e = intersect_times(box, segment{{0.0f, 1.0f}, {0.0f, 1.0f}});
-            CHECK(segment_intersects(e));
+            auto e = intersect_param(box, segment{{0.0f, 1.0f}, {0.0f, 1.0f}});
+            REQUIRE(e.has_value());
+            CHECK(e->segment_overlaps());
         }
 
         SUBCASE("degenerate point segment outside the box misses") {
-            auto e = intersect_times(box, segment{{5.0f, 5.0f}, {5.0f, 5.0f}});
-            CHECK_FALSE(line_intersects(e));
+            CHECK_FALSE(intersect_param(box, segment{{5.0f, 5.0f}, {5.0f, 5.0f}}).has_value());
         }
     }
 
     // ------------------------------------------------------------------
-    // intersect_times(circle, segment): infinite line hits, finite segment does not
+    // intersect_param(circle, segment): infinite line hits, finite segment does not
     // ------------------------------------------------------------------
-    TEST_CASE("intersect_times(circle, segment) finite-segment miss with a line hit") {
+    TEST_CASE("intersect_param(circle, segment) finite-segment miss with a line hit") {
         circle c{{0.0f, 0.0f}, 1.0f};
         // The x-axis crosses the circle at x = +/-1, but this finite segment lives
         // entirely at x in [-10, -5]: the line hits, the segment does not.
-        auto r = intersect_times(c, segment{{-10.0f, 0.0f}, {-5.0f, 0.0f}});
+        auto r = intersect_param(c, segment{{-10.0f, 0.0f}, {-5.0f, 0.0f}});
         REQUIRE(r.has_value());          // infinite line intersects
-        CHECK(r->entry > 1.0f);          // both crossings lie beyond the segment
-        CHECK(r->exit > 1.0f);
-        CHECK_FALSE(segment_intersects(*r));   // finite segment does not reach the circle
+        CHECK(r->entry_param > 1.0f);    // both crossings lie beyond the segment
+        CHECK(r->exit_param > 1.0f);
+        CHECK_FALSE(r->segment_overlaps());   // finite segment does not reach the circle
     }
 
     // ------------------------------------------------------------------
@@ -574,62 +638,62 @@ TEST_SUITE("simplex::collide") {
         }
 
         SUBCASE("segment through the point is a single finite contact, no NaN") {
-            auto r = intersect_times(z, segment{{-2.0f, 0.0f}, {2.0f, 0.0f}});
+            auto r = intersect_param(z, segment{{-2.0f, 0.0f}, {2.0f, 0.0f}});
             REQUIRE(r.has_value());
             CHECK(finite(*r));
-            CHECK(r->entry == doctest::Approx(0.5f));
-            CHECK(r->exit == doctest::Approx(0.5f));
-            CHECK(segment_intersects(*r));
+            CHECK(r->entry_param == doctest::Approx(0.5f));
+            CHECK(r->exit_param == doctest::Approx(0.5f));
+            CHECK(r->segment_overlaps());
         }
 
         SUBCASE("segment missing the point returns nullopt") {
-            CHECK_FALSE(intersect_times(z, segment{{-2.0f, 1.0f}, {2.0f, 1.0f}}).has_value());
+            CHECK_FALSE(intersect_param(z, segment{{-2.0f, 1.0f}, {2.0f, 1.0f}}).has_value());
         }
     }
 
     // ------------------------------------------------------------------
     // Segment / segment: the full collinear / degenerate matrix
     // ------------------------------------------------------------------
-    TEST_CASE("intersect_times(segment, segment) collinear and degenerate matrix") {
+    TEST_CASE("intersect_param(segment, segment) collinear and degenerate matrix") {
         segment a{{0.0f, 0.0f}, {4.0f, 0.0f}};
 
         SUBCASE("collinear but disjoint") {
-            CHECK_FALSE(intersect_times(a, segment{{6.0f, 0.0f}, {8.0f, 0.0f}}).has_value());
+            CHECK_FALSE(intersect_param(a, segment{{6.0f, 0.0f}, {8.0f, 0.0f}}).has_value());
             CHECK_FALSE(intersects(a, segment{{6.0f, 0.0f}, {8.0f, 0.0f}}));
         }
 
         SUBCASE("collinear endpoint-only touch") {
-            auto r = intersect_times(a, segment{{4.0f, 0.0f}, {8.0f, 0.0f}});
+            auto r = intersect_param(a, segment{{4.0f, 0.0f}, {8.0f, 0.0f}});
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(1.0f));
-            CHECK(r->exit == doctest::Approx(1.0f));
+            CHECK(r->entry_param == doctest::Approx(1.0f));
+            CHECK(r->exit_param == doctest::Approx(1.0f));
         }
 
         SUBCASE("identical segments fully overlap") {
-            auto r = intersect_times(a, segment{{0.0f, 0.0f}, {4.0f, 0.0f}});
+            auto r = intersect_param(a, segment{{0.0f, 0.0f}, {4.0f, 0.0f}});
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.0f));
-            CHECK(r->exit == doctest::Approx(1.0f));
+            CHECK(r->entry_param == doctest::Approx(0.0f));
+            CHECK(r->exit_param == doctest::Approx(1.0f));
         }
 
         SUBCASE("reversed segment overlapping in the middle") {
             // b runs from x=6 back to x=2, overlapping a on [2,4] => params [0.5,1.0] of a.
-            auto r = intersect_times(a, segment{{6.0f, 0.0f}, {2.0f, 0.0f}});
+            auto r = intersect_param(a, segment{{6.0f, 0.0f}, {2.0f, 0.0f}});
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.5f));
-            CHECK(r->exit == doctest::Approx(1.0f));
+            CHECK(r->entry_param == doctest::Approx(0.5f));
+            CHECK(r->exit_param == doctest::Approx(1.0f));
         }
 
         SUBCASE("both degenerate, coincident") {
-            auto r = intersect_times(segment{{1.0f, 1.0f}, {1.0f, 1.0f}},
+            auto r = intersect_param(segment{{1.0f, 1.0f}, {1.0f, 1.0f}},
                                      segment{{1.0f, 1.0f}, {1.0f, 1.0f}});
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.0f));
-            CHECK(r->exit == doctest::Approx(0.0f));
+            CHECK(r->entry_param == doctest::Approx(0.0f));
+            CHECK(r->exit_param == doctest::Approx(0.0f));
         }
 
         SUBCASE("both degenerate, distinct") {
-            CHECK_FALSE(intersect_times(segment{{1.0f, 1.0f}, {1.0f, 1.0f}},
+            CHECK_FALSE(intersect_param(segment{{1.0f, 1.0f}, {1.0f, 1.0f}},
                                         segment{{2.0f, 2.0f}, {2.0f, 2.0f}}).has_value());
         }
     }
@@ -643,17 +707,17 @@ TEST_SUITE("simplex::collide") {
 
         SUBCASE("collision exactly at time == time is reported") {
             // relative displacement v*T = 3 just reaches contact at the final instant.
-            auto r = intersects(a, vec{3.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
+            auto r = swept_intersection(a, vec{3.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(1.0f));   // entry == time
+            CHECK(r->entry_time == doctest::Approx(1.0f));   // entry == time
         }
 
         SUBCASE("contact just after the window is a miss") {
-            CHECK_FALSE(intersects(a, vec{3.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.9f).has_value());
+            CHECK_FALSE(swept_intersection(a, vec{3.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.9f).has_value());
         }
 
         SUBCASE("zero-duration query on non-overlapping boxes returns nullopt") {
-            CHECK_FALSE(intersects(a, vec{3.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.0f).has_value());
+            CHECK_FALSE(swept_intersection(a, vec{3.0f, 0.0f}, b, vec{0.0f, 0.0f}, 0.0f).has_value());
         }
     }
 
@@ -665,35 +729,35 @@ TEST_SUITE("simplex::collide") {
             aabb a{{0.0f, 0.0f}, {2.0f, 2.0f}};
             aabb b{{5.0f, 0.0f}, {7.0f, 2.0f}};
             // a moves +5, b moves -5 => relative speed 10, same as the head-on case.
-            auto r = intersects(a, vec{5.0f, 0.0f}, b, vec{-5.0f, 0.0f}, 1.0f);
+            auto r = swept_intersection(a, vec{5.0f, 0.0f}, b, vec{-5.0f, 0.0f}, 1.0f);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.3f));
-            CHECK(r->exit == doctest::Approx(0.7f));
+            CHECK(r->entry_time == doctest::Approx(0.3f));
+            CHECK(r->exit_time == doctest::Approx(0.7f));
         }
 
         SUBCASE("circle: only relative velocity matters") {
             circle a{{0.0f, 0.0f}, 1.0f};
             circle b{{5.0f, 0.0f}, 1.0f};
-            auto r = intersects(a, vec{5.0f, 0.0f}, b, vec{-5.0f, 0.0f}, 1.0f);
+            auto r = swept_intersection(a, vec{5.0f, 0.0f}, b, vec{-5.0f, 0.0f}, 1.0f);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.3f));
-            CHECK(r->exit == doctest::Approx(0.7f));
+            CHECK(r->entry_time == doctest::Approx(0.3f));
+            CHECK(r->exit_time == doctest::Approx(0.7f));
         }
     }
 
     // ------------------------------------------------------------------
     // CCD circle/AABB: convex exit selection (numeric exit + exit normal)
     // ------------------------------------------------------------------
-    TEST_CASE("CCD circle/aabb pass-through pins exit time and normal") {
+    TEST_CASE("swept_intersection(circle, aabb) pass-through pins exit time and normal") {
         circle c{{0.0f, 0.0f}, 1.0f};
         aabb b{{5.0f, -1.0f}, {7.0f, 1.0f}};
         // Center sweeps along y = 0 from x=0 to x=20. The rounded rectangle spans
         // x in [4, 8] on the center line, so entry/exit are exact and the exit comes
         // from the latest-exiting sub-shape (the horizontal expanded box).
-        auto r = intersects(c, vec{20.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
+        auto r = swept_intersection(c, vec{20.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
         REQUIRE(r.has_value());
-        CHECK(r->entry == doctest::Approx(0.2f));          // x = 4 at t = 0.2
-        CHECK(r->exit == doctest::Approx(0.4f));           // x = 8 at t = 0.4
+        CHECK(r->entry_time == doctest::Approx(0.2f));          // x = 4 at t = 0.2
+        CHECK(r->exit_time == doctest::Approx(0.4f));           // x = 8 at t = 0.4
         CHECK(vapprox(r->entry_normal, vec{-1.0f, 0.0f}));
         CHECK(vapprox(r->exit_normal, vec{1.0f, 0.0f}));
     }
@@ -709,16 +773,45 @@ TEST_SUITE("simplex::collide") {
     }
 
     // ------------------------------------------------------------------
+    // circle/aabb queries are argument-order independent
+    // ------------------------------------------------------------------
+    TEST_CASE("circle/aabb overloads are symmetric in argument order") {
+        SUBCASE("static intersects(aabb, circle) == intersects(circle, aabb)") {
+            circle c{{0.0f, 0.0f}, 1.0f};
+            aabb hit{{0.5f, 0.0f}, {3.0f, 3.0f}};
+            aabb miss{{2.0f, 2.0f}, {3.0f, 3.0f}};
+            CHECK(intersects(hit, c) == intersects(c, hit));
+            CHECK(intersects(miss, c) == intersects(c, miss));
+            CHECK(intersects(hit, c));
+            CHECK_FALSE(intersects(miss, c));
+        }
+
+        SUBCASE("swept_intersection(aabb, circle) matches the canonical (circle, aabb) form") {
+            circle c{{0.0f, 0.0f}, 1.0f};
+            aabb b{{5.0f, -1.0f}, {7.0f, 1.0f}};
+            // Same physical scenario, arguments swapped (and velocities with them).
+            auto canon = swept_intersection(c, vec{20.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
+            auto swapped = swept_intersection(b, vec{0.0f, 0.0f}, c, vec{20.0f, 0.0f}, 1.0f);
+            REQUIRE(canon.has_value());
+            REQUIRE(swapped.has_value());
+            CHECK(swapped->entry_time == doctest::Approx(canon->entry_time));
+            CHECK(swapped->exit_time == doctest::Approx(canon->exit_time));
+            CHECK(vapprox(swapped->entry_normal, canon->entry_normal));   // outward from the AABB either way
+            CHECK(vapprox(swapped->exit_normal, canon->exit_normal));
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Additional Extended Tests
     // ------------------------------------------------------------------
-    TEST_CASE("intersect_times(segment, segment) diagonal collinear and parallel extensions") {
+    TEST_CASE("intersect_param(segment, segment) diagonal collinear and parallel extensions") {
         SUBCASE("diagonal collinear overlap") {
             segment a{{0.0f, 0.0f}, {4.0f, 4.0f}};
             segment b{{2.0f, 2.0f}, {6.0f, 6.0f}};
-            auto r = intersect_times(a, b);
+            auto r = intersect_param(a, b);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.5f));
-            CHECK(r->exit == doctest::Approx(1.0f));
+            CHECK(r->entry_param == doctest::Approx(0.5f));
+            CHECK(r->exit_param == doctest::Approx(1.0f));
             CHECK(is_unit(r->entry_normal));
             CHECK(vapprox(r->entry_normal, r->exit_normal));
             CHECK(intersects(a, b));
@@ -727,10 +820,10 @@ TEST_SUITE("simplex::collide") {
         SUBCASE("diagonal collinear overlap reversed") {
             segment a{{0.0f, 0.0f}, {4.0f, 4.0f}};
             segment b{{6.0f, 6.0f}, {2.0f, 2.0f}};
-            auto r = intersect_times(a, b);
+            auto r = intersect_param(a, b);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.5f));
-            CHECK(r->exit == doctest::Approx(1.0f));
+            CHECK(r->entry_param == doctest::Approx(0.5f));
+            CHECK(r->exit_param == doctest::Approx(1.0f));
             CHECK(is_unit(r->entry_normal));
             CHECK(intersects(a, b));
         }
@@ -738,10 +831,10 @@ TEST_SUITE("simplex::collide") {
         SUBCASE("diagonal collinear fully inside") {
             segment a{{0.0f, 0.0f}, {4.0f, 4.0f}};
             segment b{{1.0f, 1.0f}, {3.0f, 3.0f}};
-            auto r = intersect_times(a, b);
+            auto r = intersect_param(a, b);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.25f));
-            CHECK(r->exit == doctest::Approx(0.75f));
+            CHECK(r->entry_param == doctest::Approx(0.25f));
+            CHECK(r->exit_param == doctest::Approx(0.75f));
             CHECK(is_unit(r->entry_normal));
             CHECK(intersects(a, b));
         }
@@ -749,34 +842,34 @@ TEST_SUITE("simplex::collide") {
         SUBCASE("diagonal collinear endpoint touch") {
             segment a{{0.0f, 0.0f}, {2.0f, 2.0f}};
             segment b{{2.0f, 2.0f}, {4.0f, 4.0f}};
-            auto r = intersect_times(a, b);
+            auto r = intersect_param(a, b);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(1.0f));
-            CHECK(r->exit == doctest::Approx(1.0f));
+            CHECK(r->entry_param == doctest::Approx(1.0f));
+            CHECK(r->exit_param == doctest::Approx(1.0f));
             CHECK(intersects(a, b));
         }
 
         SUBCASE("diagonal collinear disjoint") {
             segment a{{0.0f, 0.0f}, {2.0f, 2.0f}};
             segment b{{3.0f, 3.0f}, {5.0f, 5.0f}};
-            CHECK_FALSE(intersect_times(a, b).has_value());
+            CHECK_FALSE(intersect_param(a, b).has_value());
             CHECK_FALSE(intersects(a, b));
         }
 
         SUBCASE("diagonal parallel non-collinear miss") {
             segment a{{0.0f, 0.0f}, {2.0f, 2.0f}};
             segment b{{1.0f, 0.0f}, {3.0f, 2.0f}}; // parallel but shifted by (1, 0)
-            CHECK_FALSE(intersect_times(a, b).has_value());
+            CHECK_FALSE(intersect_param(a, b).has_value());
             CHECK_FALSE(intersects(a, b));
         }
 
         SUBCASE("point b on endpoint of segment a") {
             segment a{{0.0f, 0.0f}, {4.0f, 4.0f}};
             segment b{{4.0f, 4.0f}, {4.0f, 4.0f}};
-            auto r = intersect_times(a, b);
+            auto r = intersect_param(a, b);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(1.0f));
-            CHECK(r->exit == doctest::Approx(1.0f));
+            CHECK(r->entry_param == doctest::Approx(1.0f));
+            CHECK(r->exit_param == doctest::Approx(1.0f));
             CHECK(intersects(a, b));
         }
     }
@@ -785,7 +878,7 @@ TEST_SUITE("simplex::collide") {
         circle z{{0.0f, 0.0f}, 0.0f};
 
         SUBCASE("normals are exactly zero on collision") {
-            auto r = intersect_times(z, segment{{-2.0f, 0.0f}, {2.0f, 0.0f}});
+            auto r = intersect_param(z, segment{{-2.0f, 0.0f}, {2.0f, 0.0f}});
             REQUIRE(r.has_value());
             CHECK(vapprox(r->entry_normal, vec{0.0f, 0.0f}));
             CHECK(vapprox(r->exit_normal, vec{0.0f, 0.0f}));
@@ -794,10 +887,10 @@ TEST_SUITE("simplex::collide") {
         SUBCASE("CCD of two moving points (zero-radius circles) that cross") {
             circle a{{0.0f, 0.0f}, 0.0f};
             circle b{{5.0f, 0.0f}, 0.0f};
-            auto r = intersects(a, vec{10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
+            auto r = swept_intersection(a, vec{10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.5f));
-            CHECK(r->exit == doctest::Approx(0.5f));
+            CHECK(r->entry_time == doctest::Approx(0.5f));
+            CHECK(r->exit_time == doctest::Approx(0.5f));
             CHECK(vapprox(r->entry_normal, vec{0.0f, 0.0f}));
             CHECK(vapprox(r->exit_normal, vec{0.0f, 0.0f}));
         }
@@ -805,122 +898,59 @@ TEST_SUITE("simplex::collide") {
         SUBCASE("CCD of point (zero-radius circle) vs AABB") {
             circle c{{0.0f, 0.0f}, 0.0f};
             aabb b{{4.0f, -1.0f}, {6.0f, 1.0f}};
-            auto r = intersects(c, vec{10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
+            auto r = swept_intersection(c, vec{10.0f, 0.0f}, b, vec{0.0f, 0.0f}, 1.0f);
             REQUIRE(r.has_value());
-            CHECK(r->entry == doctest::Approx(0.4f)); // reaches x = 4 at t = 0.4
-            CHECK(r->exit == doctest::Approx(0.6f));  // leaves x = 6 at t = 0.6
+            CHECK(r->entry_time == doctest::Approx(0.4f)); // reaches x = 4 at t = 0.4
+            CHECK(r->exit_time == doctest::Approx(0.6f));  // leaves x = 6 at t = 0.6
             CHECK(vapprox(r->entry_normal, vec{-1.0f, 0.0f}));
             CHECK(vapprox(r->exit_normal, vec{1.0f, 0.0f}));
         }
     }
 
-    TEST_CASE("intersect_times(aabb, segment) additional boundary and interior cases") {
+    TEST_CASE("intersect_param(aabb, segment) additional boundary and interior cases") {
         aabb box{{0.0f, 0.0f}, {2.0f, 2.0f}};
 
         SUBCASE("vertical segment on x == min checks normals") {
-            auto e = intersect_times(box, segment{{0.0f, -1.0f}, {0.0f, 3.0f}});
-            REQUIRE(segment_intersects(e));
-            CHECK(vapprox(e.entry_normal, vec{0.0f, -1.0f}));
-            CHECK(vapprox(e.exit_normal, vec{0.0f, 1.0f}));
+            auto e = intersect_param(box, segment{{0.0f, -1.0f}, {0.0f, 3.0f}});
+            REQUIRE(e.has_value());
+            REQUIRE(e->segment_overlaps());
+            CHECK(vapprox(e->entry_normal, vec{0.0f, -1.0f}));
+            CHECK(vapprox(e->exit_normal, vec{0.0f, 1.0f}));
         }
 
         SUBCASE("vertical segment on x == max checks normals") {
-            auto e = intersect_times(box, segment{{2.0f, -1.0f}, {2.0f, 3.0f}});
-            REQUIRE(segment_intersects(e));
-            CHECK(vapprox(e.entry_normal, vec{0.0f, -1.0f}));
-            CHECK(vapprox(e.exit_normal, vec{0.0f, 1.0f}));
+            auto e = intersect_param(box, segment{{2.0f, -1.0f}, {2.0f, 3.0f}});
+            REQUIRE(e.has_value());
+            REQUIRE(e->segment_overlaps());
+            CHECK(vapprox(e->entry_normal, vec{0.0f, -1.0f}));
+            CHECK(vapprox(e->exit_normal, vec{0.0f, 1.0f}));
         }
 
         SUBCASE("horizontal segment on y == min checks normals") {
-            auto e = intersect_times(box, segment{{-1.0f, 0.0f}, {3.0f, 0.0f}});
-            REQUIRE(segment_intersects(e));
-            CHECK(vapprox(e.entry_normal, vec{-1.0f, 0.0f}));
-            CHECK(vapprox(e.exit_normal, vec{1.0f, 0.0f}));
+            auto e = intersect_param(box, segment{{-1.0f, 0.0f}, {3.0f, 0.0f}});
+            REQUIRE(e.has_value());
+            REQUIRE(e->segment_overlaps());
+            CHECK(vapprox(e->entry_normal, vec{-1.0f, 0.0f}));
+            CHECK(vapprox(e->exit_normal, vec{1.0f, 0.0f}));
         }
 
         SUBCASE("degenerate point segment inside the box checks normals") {
-            auto e = intersect_times(box, segment{{1.0f, 1.0f}, {1.0f, 1.0f}});
-            REQUIRE(segment_intersects(e));
-            CHECK(vapprox(e.entry_normal, vec{-1.0f, 0.0f}));
-            CHECK(vapprox(e.exit_normal, vec{1.0f, 0.0f}));
+            auto e = intersect_param(box, segment{{1.0f, 1.0f}, {1.0f, 1.0f}});
+            REQUIRE(e.has_value());
+            REQUIRE(e->segment_overlaps());
+            CHECK(vapprox(e->entry_normal, vec{-1.0f, 0.0f}));
+            CHECK(vapprox(e->exit_normal, vec{1.0f, 0.0f}));
         }
 
         SUBCASE("segment completely inside the box yields entry < 0 and exit > 1") {
             segment s{{0.5f, 0.5f}, {1.5f, 1.5f}};
-            auto e = intersect_times(box, s);
-            CHECK(e.entry == doctest::Approx(-0.5f));
-            CHECK(e.exit == doctest::Approx(1.5f));
-            CHECK(segment_intersects(e));
-            CHECK(vapprox(e.entry_normal, vec{-1.0f, 0.0f}));
-            CHECK(vapprox(e.exit_normal, vec{1.0f, 0.0f}));
-        }
-    }
-
-    TEST_CASE("coordinate bridge conversion tests") {
-        // Test with view v having origin at (10, 20), pixels_per_unit = 2.0f, y_up = true
-        simplex::view v{{10.0f, 20.0f}, 2.0f, true};
-
-        SUBCASE("point / vec conversions") {
-            simplex::point dp_pt = simplex::to_design(simplex::collide::vec{15.0f, 25.0f}, v);
-            CHECK(dp_pt.x.design() == doctest::Approx(10.0f));
-            CHECK(dp_pt.y.design() == doctest::Approx(-10.0f));
-
-            simplex::collide::vec w_pt = simplex::to_world(simplex::point{simplex::dp{10.0f}, simplex::dp{-10.0f}}, v);
-            CHECK(w_pt.x() == doctest::Approx(15.0f));
-            CHECK(w_pt.y() == doctest::Approx(25.0f));
-        }
-
-        SUBCASE("vector (translation-invariant) conversions") {
-            simplex::point dp_vec = simplex::to_design_vector(simplex::collide::vec{5.0f, 5.0f}, v);
-            CHECK(dp_vec.x.design() == doctest::Approx(10.0f));
-            CHECK(dp_vec.y.design() == doctest::Approx(-10.0f));
-
-            simplex::collide::vec w_vec = simplex::to_world_vector(simplex::point{simplex::dp{10.0f}, simplex::dp{-10.0f}}, v);
-            CHECK(w_vec.x() == doctest::Approx(5.0f));
-            CHECK(w_vec.y() == doctest::Approx(5.0f));
-        }
-
-        SUBCASE("rect / aabb conversions") {
-            simplex::rect r{simplex::dp{0.0f}, simplex::dp{0.0f}, simplex::dp{10.0f}, simplex::dp{20.0f}};
-            simplex::collide::aabb box = simplex::to_world(r, v);
-            CHECK(box.min.x() == doctest::Approx(10.0f));
-            CHECK(box.min.y() == doctest::Approx(10.0f));
-            CHECK(box.max.x() == doctest::Approx(15.0f));
-            CHECK(box.max.y() == doctest::Approx(20.0f));
-
-            simplex::rect r2 = simplex::to_design(box, v);
-            CHECK(r2.x.design() == doctest::Approx(0.0f));
-            CHECK(r2.y.design() == doctest::Approx(0.0f));
-            CHECK(r2.w.design() == doctest::Approx(10.0f));
-            CHECK(r2.h.design() == doctest::Approx(20.0f));
-        }
-
-        SUBCASE("circle conversions") {
-            simplex::circle c{simplex::point{simplex::dp{10.0f}, simplex::dp{-10.0f}}, simplex::dp{4.0f}};
-            simplex::collide::circle wc = simplex::to_world(c, v);
-            CHECK(wc.center.x() == doctest::Approx(15.0f));
-            CHECK(wc.center.y() == doctest::Approx(25.0f));
-            CHECK(wc.radius == doctest::Approx(2.0f));
-
-            simplex::circle c2 = simplex::to_design(wc, v);
-            CHECK(c2.center().x.design() == doctest::Approx(10.0f));
-            CHECK(c2.center().y.design() == doctest::Approx(-10.0f));
-            CHECK(c2.radius.design() == doctest::Approx(4.0f));
-        }
-
-        SUBCASE("line / segment conversions") {
-            simplex::line l{simplex::point{simplex::dp{0.0f}, simplex::dp{0.0f}}, simplex::point{simplex::dp{10.0f}, simplex::dp{-10.0f}}};
-            simplex::collide::segment ws_seg = simplex::to_world(l, v);
-            CHECK(ws_seg.from.x() == doctest::Approx(10.0f));
-            CHECK(ws_seg.from.y() == doctest::Approx(20.0f));
-            CHECK(ws_seg.to.x() == doctest::Approx(15.0f));
-            CHECK(ws_seg.to.y() == doctest::Approx(25.0f));
-
-            simplex::line l2 = simplex::to_design(ws_seg, v);
-            CHECK(l2.start().x.design() == doctest::Approx(0.0f));
-            CHECK(l2.start().y.design() == doctest::Approx(0.0f));
-            CHECK(l2.end().x.design() == doctest::Approx(10.0f));
-            CHECK(l2.end().y.design() == doctest::Approx(-10.0f));
+            auto e = intersect_param(box, s);
+            REQUIRE(e.has_value());
+            CHECK(e->entry_param == doctest::Approx(-0.5f));
+            CHECK(e->exit_param == doctest::Approx(1.5f));
+            CHECK(e->segment_overlaps());
+            CHECK(vapprox(e->entry_normal, vec{-1.0f, 0.0f}));
+            CHECK(vapprox(e->exit_normal, vec{1.0f, 0.0f}));
         }
     }
 }
