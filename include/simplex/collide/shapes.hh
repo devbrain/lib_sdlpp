@@ -26,14 +26,16 @@
 //   - swept_intersection(A,av,B,bv,time)
 //                                 -> swept_hit  : continuous collision; entry/exit
 //                                                 are absolute TIMES in seconds.
+//   - overlap(A, B)               -> penetration: static MTV to separate A from B.
 //
 // Supported shape pairs (argument order is interchangeable where both forms exist):
-//   contains:            (aabb|circle, point)
-//   intersects (static): (aabb,aabb) (circle,circle) (circle,aabb)|(aabb,circle) (segment,segment)
+//   contains:            (aabb|circle|segment, point)          -- full point row of the matrix
+//   intersects (static): every pair of {point,segment,circle,aabb} (point via contains)
+//   overlap (MTV):       (aabb,aabb) (circle,circle) (circle,aabb)|(aabb,circle)  -> penetration
 //   intersect_param:     (aabb,segment) (circle,segment) (segment,segment)   -> line_hit
 //   swept_intersection:  (aabb,aabb) (circle,circle) (circle,aabb)|(aabb,circle) -> swept_hit
 //   closest_point:       (point, segment|aabb|circle)
-//   squared_distance:    (point, segment|aabb|circle)
+//   squared_distance:    every pair of {point,segment,circle,aabb} (filled regions; 0 if overlapping)
 //
 // constexpr: a query is constexpr exactly when it avoids std::sqrt, which is not
 // constexpr in C++20 (euler's vector/matrix expression evaluation is otherwise

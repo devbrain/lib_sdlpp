@@ -162,4 +162,72 @@ namespace simplex::collide {
         const float len = euler::length(dir);
         return s.center + dir * (s.radius / len);
     }
+
+    // -------------------------------------------------------------------------
+    // Shape-to-shape squared distance.
+    //
+    // Distance between the *filled* regions: 0 when the shapes overlap or touch,
+    // otherwise the squared shortest gap. A filled circle is its centre inflated by
+    // its radius, so every circle pair reduces to a core point/segment/aabb distance
+    // minus the radii, clamped at 0. The segment/segment and segment/aabb pairs (which
+    // need an "intersecting => 0" test) live in <simplex/collide/sweep.hh>.
+    // -------------------------------------------------------------------------
+
+    /// @brief Squared distance between a point and a segment, argument-order flipped.
+    [[nodiscard]] constexpr float squared_distance(const segment& s, const vec& p) noexcept {
+        return squared_distance(p, s);
+    }
+
+    /// @brief Squared distance between a point and an AABB, argument-order flipped.
+    [[nodiscard]] constexpr float squared_distance(const aabb& s, const vec& p) noexcept {
+        return squared_distance(p, s);
+    }
+
+    /// @brief Squared distance between a point and a circle, argument-order flipped.
+    [[nodiscard]] inline float squared_distance(const circle& s, const vec& p) noexcept {
+        return squared_distance(p, s);
+    }
+
+    /**
+     * @brief Squared distance between two AABBs (0 if they overlap or touch).
+     */
+    [[nodiscard]] constexpr float squared_distance(const aabb& a, const aabb& b) noexcept {
+        const float gx = std::max({0.0f, a.min.x() - b.max.x(), b.min.x() - a.max.x()});
+        const float gy = std::max({0.0f, a.min.y() - b.max.y(), b.min.y() - a.max.y()});
+        return gx * gx + gy * gy;
+    }
+
+    /**
+     * @brief Squared distance between two circles (0 if they overlap or touch).
+     */
+    [[nodiscard]] inline float squared_distance(const circle& a, const circle& b) noexcept {
+        const float gap = euler::length(a.center - b.center) - a.radius - b.radius;
+        return gap > 0.0f ? gap * gap : 0.0f;
+    }
+
+    /**
+     * @brief Squared distance between a circle and an AABB (0 if they overlap or touch).
+     */
+    [[nodiscard]] inline float squared_distance(const circle& c, const aabb& b) noexcept {
+        const float gap = std::sqrt(squared_distance(c.center, b)) - c.radius;
+        return gap > 0.0f ? gap * gap : 0.0f;
+    }
+
+    /// @brief Argument-order-independent overload of @ref squared_distance(const circle&, const aabb&).
+    [[nodiscard]] inline float squared_distance(const aabb& b, const circle& c) noexcept {
+        return squared_distance(c, b);
+    }
+
+    /**
+     * @brief Squared distance between a circle and a segment (0 if they overlap or touch).
+     */
+    [[nodiscard]] inline float squared_distance(const circle& c, const segment& s) noexcept {
+        const float gap = std::sqrt(squared_distance(c.center, s)) - c.radius;
+        return gap > 0.0f ? gap * gap : 0.0f;
+    }
+
+    /// @brief Argument-order-independent overload of @ref squared_distance(const circle&, const segment&).
+    [[nodiscard]] inline float squared_distance(const segment& s, const circle& c) noexcept {
+        return squared_distance(c, s);
+    }
 } // namespace simplex::collide

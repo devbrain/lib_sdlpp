@@ -71,6 +71,20 @@ namespace constexpr_checks {
     static_assert(swept_intersection(aabb{{0.0f, 0.0f}, {2.0f, 2.0f}}, vec{10.0f, 0.0f},
                                      aabb{{5.0f, 0.0f}, {7.0f, 2.0f}}, vec{0.0f, 0.0f}, 1.0f)
                       ->entry_time == 0.3f);
+
+    // New static-overlap matrix entries (all constexpr):
+    static_assert(contains(hseg, vec{5.0f, 0.0f}));
+    static_assert(intersects(hseg, aabb{{4.0f, -1.0f}, {6.0f, 1.0f}}));
+    static_assert(intersects(box, hseg));
+    // overlap(aabb,aabb) MTV is pure float -> constexpr.
+    static_assert(overlap(aabb{{0.0f, 0.0f}, {2.0f, 2.0f}}, aabb{{1.0f, 0.0f}, {3.0f, 2.0f}})
+                      ->depth == 1.0f);
+    static_assert(!overlap(aabb{{0.0f, 0.0f}, {2.0f, 2.0f}}, aabb{{5.0f, 5.0f}, {7.0f, 7.0f}}));
+
+    // Shape-to-shape squared_distance that avoids sqrt is constexpr.
+    static_assert(squared_distance(aabb{{0.0f, 0.0f}, {2.0f, 2.0f}}, aabb{{5.0f, 0.0f}, {7.0f, 2.0f}}) == 9.0f);
+    static_assert(squared_distance(aabb{{0.0f, 0.0f}, {2.0f, 2.0f}}, aabb{{1.0f, 1.0f}, {3.0f, 3.0f}}) == 0.0f);
+    static_assert(squared_distance(segment{{5.0f, 0.0f}, {5.0f, 2.0f}}, aabb{{0.0f, 0.0f}, {2.0f, 2.0f}}) == 9.0f);
 }
 
 TEST_SUITE("simplex::collide") {
@@ -770,6 +784,179 @@ TEST_SUITE("simplex::collide") {
         CHECK(intersects(circle{{0.0f, 0.0f}, 5.0f}, aabb{{3.0f, 4.0f}, {10.0f, 10.0f}}));
         // Nudge the corner out to (4,4): distance sqrt(32) > 5 => no touch.
         CHECK_FALSE(intersects(circle{{0.0f, 0.0f}, 5.0f}, aabb{{4.0f, 4.0f}, {10.0f, 10.0f}}));
+    }
+
+    // ------------------------------------------------------------------
+    // Remaining static-overlap matrix entries (point/segment, segment/circle, segment/aabb)
+    // ------------------------------------------------------------------
+    TEST_CASE("contains(segment, point)") {
+        segment s{{0.0f, 0.0f}, {10.0f, 0.0f}};
+        CHECK(contains(s, vec{5.0f, 0.0f}));       // on the segment
+        CHECK(contains(s, vec{0.0f, 0.0f}));       // endpoint
+        CHECK_FALSE(contains(s, vec{5.0f, 0.5f})); // off the line
+        CHECK_FALSE(contains(s, vec{15.0f, 0.0f})); // on the line but past the end
+    }
+
+    TEST_CASE("intersects(segment, circle)") {
+        circle c{{0.0f, 0.0f}, 1.0f};
+        CHECK(intersects(segment{{-5.0f, 0.0f}, {5.0f, 0.0f}}, c));      // through centre
+        CHECK(intersects(c, segment{{-5.0f, 0.0f}, {5.0f, 0.0f}}));      // symmetric
+        CHECK(intersects(segment{{-5.0f, 0.9f}, {5.0f, 0.9f}}, c));      // chord
+        CHECK(intersects(segment{{0.0f, 1.0f}, {2.0f, 1.0f}}, c));       // tangent (touch)
+        CHECK_FALSE(intersects(segment{{-5.0f, 5.0f}, {5.0f, 5.0f}}, c));// far away
+        CHECK_FALSE(intersects(segment{{3.0f, 0.0f}, {5.0f, 0.0f}}, c)); // collinear but past the rim
+    }
+
+    TEST_CASE("intersects(segment, aabb)") {
+        aabb b{{0.0f, 0.0f}, {2.0f, 2.0f}};
+        CHECK(intersects(segment{{-1.0f, 1.0f}, {3.0f, 1.0f}}, b));      // crossing
+        CHECK(intersects(b, segment{{-1.0f, 1.0f}, {3.0f, 1.0f}}));      // symmetric
+        CHECK(intersects(segment{{0.5f, 0.5f}, {1.5f, 1.5f}}, b));       // wholly inside
+        CHECK_FALSE(intersects(segment{{-1.0f, 5.0f}, {3.0f, 5.0f}}, b));// passes above
+        CHECK_FALSE(intersects(segment{{3.0f, 0.0f}, {5.0f, 2.0f}}, b)); // to the right
+    }
+
+    // ------------------------------------------------------------------
+    // Penetration / MTV (overlap)
+    // ------------------------------------------------------------------
+    TEST_CASE("overlap(aabb, aabb) MTV") {
+        SUBCASE("least-overlap axis and depth") {
+            // a overlaps b on x by 1, on y fully (2); MTV is the smaller (x), pushing a in -x.
+            auto p = overlap(aabb{{0.0f, 0.0f}, {2.0f, 2.0f}}, aabb{{1.0f, 0.0f}, {3.0f, 2.0f}});
+            REQUIRE(p.has_value());
+            CHECK(vapprox(p->normal, vec{-1.0f, 0.0f}));
+            CHECK(p->depth == doctest::Approx(1.0f));
+        }
+        SUBCASE("vertical least-overlap") {
+            auto p = overlap(aabb{{0.0f, 0.0f}, {4.0f, 4.0f}}, aabb{{0.0f, 3.0f}, {4.0f, 7.0f}});
+            REQUIRE(p.has_value());
+            CHECK(vapprox(p->normal, vec{0.0f, -1.0f}));
+            CHECK(p->depth == doctest::Approx(1.0f));
+        }
+        SUBCASE("touching is not overlap") {
+            CHECK_FALSE(overlap(aabb{{0.0f, 0.0f}, {2.0f, 2.0f}}, aabb{{2.0f, 0.0f}, {4.0f, 2.0f}}).has_value());
+        }
+        SUBCASE("disjoint") {
+            CHECK_FALSE(overlap(aabb{{0.0f, 0.0f}, {2.0f, 2.0f}}, aabb{{5.0f, 5.0f}, {7.0f, 7.0f}}).has_value());
+        }
+        SUBCASE("MTV separates the boxes") {
+            aabb a{{0.0f, 0.0f}, {2.0f, 2.0f}};
+            aabb b{{1.0f, 0.0f}, {3.0f, 2.0f}};
+            auto p = overlap(a, b);
+            REQUIRE(p.has_value());
+            aabb moved{a.min + p->normal * p->depth, a.max + p->normal * p->depth};
+            CHECK_FALSE(overlap(moved, b).has_value()); // now separated
+        }
+    }
+
+    TEST_CASE("overlap(circle, circle) MTV") {
+        SUBCASE("along the centre line") {
+            auto p = overlap(circle{{0.0f, 0.0f}, 1.0f}, circle{{1.0f, 0.0f}, 1.0f});
+            REQUIRE(p.has_value());
+            CHECK(vapprox(p->normal, vec{-1.0f, 0.0f}));   // push a away from b (+x)
+            CHECK(p->depth == doctest::Approx(1.0f));      // (1+1) - 1
+        }
+        SUBCASE("touching / disjoint give no MTV") {
+            CHECK_FALSE(overlap(circle{{0.0f, 0.0f}, 1.0f}, circle{{2.0f, 0.0f}, 1.0f}).has_value());
+            CHECK_FALSE(overlap(circle{{0.0f, 0.0f}, 1.0f}, circle{{5.0f, 0.0f}, 1.0f}).has_value());
+        }
+        SUBCASE("concentric gets a finite arbitrary axis") {
+            auto p = overlap(circle{{0.0f, 0.0f}, 1.0f}, circle{{0.0f, 0.0f}, 2.0f});
+            REQUIRE(p.has_value());
+            CHECK(is_unit(p->normal));
+            CHECK(p->depth == doctest::Approx(3.0f));
+        }
+    }
+
+    TEST_CASE("overlap(circle, aabb) MTV") {
+        aabb b{{0.0f, 0.0f}, {2.0f, 2.0f}};
+        SUBCASE("centre outside: push along surface normal") {
+            auto p = overlap(circle{{2.5f, 1.0f}, 1.0f}, b);
+            REQUIRE(p.has_value());
+            CHECK(vapprox(p->normal, vec{1.0f, 0.0f}));
+            CHECK(p->depth == doctest::Approx(0.5f));      // r - dist = 1 - 0.5
+        }
+        SUBCASE("centre inside: exit nearest face") {
+            auto p = overlap(circle{{1.5f, 1.0f}, 1.0f}, b);
+            REQUIRE(p.has_value());
+            CHECK(vapprox(p->normal, vec{1.0f, 0.0f}));    // nearest face is +x (0.5 away)
+            CHECK(p->depth == doctest::Approx(1.5f));      // r + dist-to-face = 1 + 0.5
+        }
+        SUBCASE("symmetric overload negates the normal") {
+            auto p = overlap(b, circle{{2.5f, 1.0f}, 1.0f});
+            REQUIRE(p.has_value());
+            CHECK(vapprox(p->normal, vec{-1.0f, 0.0f}));
+            CHECK(p->depth == doctest::Approx(0.5f));
+        }
+        SUBCASE("disjoint") {
+            CHECK_FALSE(overlap(circle{{5.0f, 5.0f}, 1.0f}, b).has_value());
+        }
+        SUBCASE("centre just outside within normalize-epsilon does not falsely overlap") {
+            // Regression: a zero-radius centre 5e-7 outside the left face must NOT report a
+            // hit (previously fell into the nearest-face branch with a negative depth).
+            CHECK_FALSE(overlap(circle{{-5e-7f, 1.0f}, 0.0f}, b).has_value());
+            // Tiny radius that still doesn't reach the surface: also no overlap.
+            CHECK_FALSE(overlap(circle{{-1e-3f, 1.0f}, 1e-4f}, b).has_value());
+        }
+        SUBCASE("returned depth is never negative") {
+            const circle cs[] = {{{2.5f, 1.0f}, 1.0f}, {{1.5f, 1.0f}, 1.0f}, {{0.0f, 1.0f}, 1.0f},
+                                  {{-0.5f, 1.0f}, 1.0f}, {{1.0f, 1.0f}, 3.0f}};
+            for (const auto& cc : cs) {
+                if (auto p = overlap(cc, b)) {
+                    CHECK(p->depth >= 0.0f);
+                    CHECK(is_unit(p->normal));
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Shape-to-shape squared_distance (filled regions; 0 when overlapping)
+    // ------------------------------------------------------------------
+    TEST_CASE("squared_distance(aabb, aabb)") {
+        aabb a{{0.0f, 0.0f}, {2.0f, 2.0f}};
+        CHECK(squared_distance(a, aabb{{5.0f, 0.0f}, {7.0f, 2.0f}}) == doctest::Approx(9.0f));  // x-gap 3
+        CHECK(squared_distance(a, aabb{{5.0f, 5.0f}, {7.0f, 7.0f}}) == doctest::Approx(18.0f)); // diagonal
+        CHECK(squared_distance(a, aabb{{1.0f, 1.0f}, {3.0f, 3.0f}}) == doctest::Approx(0.0f));  // overlap
+        CHECK(squared_distance(a, aabb{{2.0f, 0.0f}, {4.0f, 2.0f}}) == doctest::Approx(0.0f));  // touch
+    }
+
+    TEST_CASE("squared_distance(circle, circle)") {
+        circle a{{0.0f, 0.0f}, 1.0f};
+        CHECK(squared_distance(a, circle{{5.0f, 0.0f}, 1.0f}) == doctest::Approx(9.0f)); // gap 5-1-1=3
+        CHECK(squared_distance(a, circle{{1.0f, 0.0f}, 1.0f}) == doctest::Approx(0.0f)); // overlap
+        CHECK(squared_distance(a, circle{{2.0f, 0.0f}, 1.0f}) == doctest::Approx(0.0f)); // touch
+    }
+
+    TEST_CASE("squared_distance(circle, aabb) and (circle, segment)") {
+        aabb b{{0.0f, 0.0f}, {2.0f, 2.0f}};
+        CHECK(squared_distance(circle{{5.0f, 1.0f}, 1.0f}, b) == doctest::Approx(4.0f)); // 3-1=2 -> 4
+        CHECK(squared_distance(b, circle{{5.0f, 1.0f}, 1.0f}) == doctest::Approx(4.0f)); // symmetric
+        CHECK(squared_distance(circle{{2.5f, 1.0f}, 1.0f}, b) == doctest::Approx(0.0f)); // overlap
+
+        segment s{{-5.0f, 0.0f}, {5.0f, 0.0f}};
+        CHECK(squared_distance(circle{{0.0f, 5.0f}, 1.0f}, s) == doctest::Approx(16.0f)); // 5-1=4 -> 16
+        CHECK(squared_distance(s, circle{{0.0f, 5.0f}, 1.0f}) == doctest::Approx(16.0f)); // symmetric
+        CHECK(squared_distance(circle{{0.0f, 0.5f}, 1.0f}, s) == doctest::Approx(0.0f));  // overlap
+    }
+
+    TEST_CASE("squared_distance(segment, segment)") {
+        CHECK(squared_distance(segment{{0.0f, 0.0f}, {2.0f, 2.0f}},
+                               segment{{0.0f, 2.0f}, {2.0f, 0.0f}}) == doctest::Approx(0.0f)); // cross
+        CHECK(squared_distance(segment{{0.0f, 0.0f}, {4.0f, 0.0f}},
+                               segment{{0.0f, 2.0f}, {4.0f, 2.0f}}) == doctest::Approx(4.0f)); // parallel gap 2
+        CHECK(squared_distance(segment{{0.0f, 0.0f}, {2.0f, 0.0f}},
+                               segment{{5.0f, 0.0f}, {7.0f, 0.0f}}) == doctest::Approx(9.0f)); // collinear gap 3
+    }
+
+    TEST_CASE("squared_distance(segment, aabb)") {
+        aabb b{{0.0f, 0.0f}, {2.0f, 2.0f}};
+        CHECK(squared_distance(segment{{5.0f, 0.0f}, {5.0f, 2.0f}}, b) == doctest::Approx(9.0f)); // right of box
+        CHECK(squared_distance(b, segment{{5.0f, 0.0f}, {5.0f, 2.0f}}) == doctest::Approx(9.0f)); // symmetric
+        CHECK(squared_distance(segment{{-1.0f, 1.0f}, {3.0f, 1.0f}}, b) == doctest::Approx(0.0f)); // crosses
+        // Witness is a box corner vs the segment interior (not a segment endpoint) -> needs the
+        // corner candidates, not just endpoint-vs-box.
+        CHECK(squared_distance(segment{{3.0f, -1.0f}, {3.0f, 5.0f}}, b) == doctest::Approx(1.0f));
     }
 
     // ------------------------------------------------------------------

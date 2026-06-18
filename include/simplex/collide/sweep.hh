@@ -396,6 +396,70 @@ namespace simplex::collide {
     }
 
     /**
+     * @brief Test if a finite segment overlaps an AABB.
+     *
+     * True when the segment crosses the box or lies (partly) inside it.
+     *
+     * @param s The line segment.
+     * @param b The axis-aligned bounding box.
+     * @return true if the finite segment intersects/overlaps the AABB.
+     */
+    [[nodiscard]] constexpr bool intersects(const segment& s, const aabb& b) noexcept {
+        const auto hit = intersect_param(b, s);
+        return hit && hit->segment_overlaps();
+    }
+
+    /// @brief Argument-order-independent overload of @ref intersects(const segment&, const aabb&).
+    [[nodiscard]] constexpr bool intersects(const aabb& b, const segment& s) noexcept {
+        return intersects(s, b);
+    }
+
+    /**
+     * @brief Squared distance between two finite segments (0 if they intersect).
+     *
+     * In 2D the closest pair of two non-intersecting segments always includes an
+     * endpoint, so the distance reduces to the minimum of the four endpoint/segment
+     * distances. (This is the planar simplification of the general clamped solve.)
+     */
+    [[nodiscard]] inline float squared_distance(const segment& a, const segment& b) noexcept {
+        if (intersects(a, b)) {
+            return 0.0f;
+        }
+        return std::min({
+            squared_distance(a.from, b),
+            squared_distance(a.to, b),
+            squared_distance(b.from, a),
+            squared_distance(b.to, a),
+        });
+    }
+
+    /**
+     * @brief Squared distance between a finite segment and an AABB (0 if they overlap).
+     *
+     * When disjoint, the closest pair includes either a segment endpoint or a box corner,
+     * so the distance is the minimum over the two endpoints (vs the box) and the four
+     * corners (vs the segment).
+     */
+    [[nodiscard]] constexpr float squared_distance(const segment& s, const aabb& b) noexcept {
+        if (intersects(s, b)) {
+            return 0.0f;
+        }
+        return std::min({
+            squared_distance(s.from, b),
+            squared_distance(s.to, b),
+            squared_distance(vec{b.min.x(), b.min.y()}, s),
+            squared_distance(vec{b.max.x(), b.min.y()}, s),
+            squared_distance(vec{b.min.x(), b.max.y()}, s),
+            squared_distance(vec{b.max.x(), b.max.y()}, s),
+        });
+    }
+
+    /// @brief Argument-order-independent overload of @ref squared_distance(const segment&, const aabb&).
+    [[nodiscard]] constexpr float squared_distance(const aabb& b, const segment& s) noexcept {
+        return squared_distance(s, b);
+    }
+
+    /**
      * @brief Continuous collision detection (CCD) query for two moving circles over a time interval.
      *
      * This function checks if two moving circles collide during a given time step. It uses

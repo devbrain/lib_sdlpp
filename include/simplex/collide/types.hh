@@ -141,4 +141,17 @@ namespace simplex::collide {
         vec entry_normal{}; ///< Unit normal pointing outwards at first contact, or {0,0} when undefined
         vec exit_normal{};  ///< Unit normal pointing outwards at separation, or {0,0} when undefined
     };
+
+    /**
+     * @brief Minimum translation needed to separate two overlapping static shapes (@ref overlap).
+     *
+     * `normal` is the unit separation axis and `depth` the overlap distance along it, so the
+     * minimum translation vector is `normal * depth`. By convention `normal` points the
+     * direction the *first* argument must move to be pushed out of the second:
+     *   a.center += overlap(a, b)->normal * overlap(a, b)->depth   // separates a from b
+     */
+    struct penetration {
+        vec normal{};   ///< Unit separation axis (direction to move the first shape out of the second)
+        float depth{};  ///< Overlap distance along `normal` (>= 0); MTV = normal * depth
+    };
 } // namespace simplex::collide

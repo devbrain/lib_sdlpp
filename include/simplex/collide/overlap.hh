@@ -6,6 +6,9 @@
 // parametric implementation.
 // =============================================================================
 
+#include <cmath>
+#include <optional>
+#include <euler/vector/vector_ops.hh>
 #include <simplex/collide/types.hh>
 #include <simplex/collide/distance.hh>
 
@@ -31,6 +34,16 @@ namespace simplex::collide {
         const float dx = p.x() - c.center.x();
         const float dy = p.y() - c.center.y();
         return dx * dx + dy * dy <= c.radius * c.radius;
+    }
+
+    /**
+     * @brief Test if a point lies on a (zero-width) segment, within POINT_EPS.
+     * @param s Line segment
+     * @param p Point vector to test
+     * @return true if the point is within constants::POINT_EPS of the segment
+     */
+    [[nodiscard]] constexpr bool contains(const segment& s, const vec& p) noexcept {
+        return squared_distance(p, s) <= constants::POINT_EPS * constants::POINT_EPS;
     }
 
     /**
@@ -75,5 +88,121 @@ namespace simplex::collide {
     /// @brief Argument-order-independent overload of @ref intersects(const circle&, const aabb&).
     [[nodiscard]] constexpr bool intersects(const aabb& a, const circle& b) noexcept {
         return intersects(b, a);
+    }
+
+    /**
+     * @brief Test if a finite segment and a circle overlap or touch.
+     *
+     * True when the shortest distance from the circle centre to the segment is within
+     * the circle radius.
+     */
+    [[nodiscard]] constexpr bool intersects(const segment& s, const circle& c) noexcept {
+        return squared_distance(c.center, s) <= c.radius * c.radius;
+    }
+
+    /// @brief Argument-order-independent overload of @ref intersects(const segment&, const circle&).
+    [[nodiscard]] constexpr bool intersects(const circle& c, const segment& s) noexcept {
+        return intersects(s, c);
+    }
+
+    // -------------------------------------------------------------------------
+    // Penetration / minimum translation vector (MTV) for overlapping shapes.
+    //
+    // overlap(a, b) returns the smallest translation that separates `a` from `b`
+    // (see @ref penetration), or std::nullopt when they do not strictly overlap.
+    // Defined for the area shapes (aabb, circle); segments are 1-D and have no
+    // well-defined static MTV (use the swept/parametric contact normal instead).
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief Minimum translation vector separating two overlapping AABBs (axis of least overlap).
+     * @return A @ref penetration (normal points the way to move `a` out of `b`), or
+     *         std::nullopt if the boxes do not strictly overlap (touching counts as no overlap).
+     */
+    [[nodiscard]] constexpr std::optional<penetration> overlap(const aabb& a, const aabb& b) noexcept {
+        const float pen_neg_x = a.max.x() - b.min.x(); // push a in -x to clear b
+        const float pen_pos_x = b.max.x() - a.min.x(); // push a in +x to clear b
+        if (pen_neg_x <= 0.0f || pen_pos_x <= 0.0f) {
+            return std::nullopt;
+        }
+        const float pen_neg_y = a.max.y() - b.min.y();
+        const float pen_pos_y = b.max.y() - a.min.y();
+        if (pen_neg_y <= 0.0f || pen_pos_y <= 0.0f) {
+            return std::nullopt;
+        }
+
+        const bool x_neg = pen_neg_x < pen_pos_x;
+        const float depth_x = x_neg ? pen_neg_x : pen_pos_x;
+        const bool y_neg = pen_neg_y < pen_pos_y;
+        const float depth_y = y_neg ? pen_neg_y : pen_pos_y;
+
+        if (depth_x <= depth_y) {
+            return penetration{vec{x_neg ? -1.0f : 1.0f, 0.0f}, depth_x};
+        }
+        return penetration{vec{0.0f, y_neg ? -1.0f : 1.0f}, depth_y};
+    }
+
+    /**
+     * @brief Minimum translation vector separating two overlapping circles.
+     * @return A @ref penetration (normal points from `b` toward `a`), or std::nullopt
+     *         if the circles do not strictly overlap. Concentric circles get an arbitrary axis.
+     */
+    [[nodiscard]] inline std::optional<penetration> overlap(const circle& a, const circle& b) noexcept {
+        const vec d = a.center - b.center; // from b toward a
+        const float dist_sq = euler::dot(d, d);
+        const float r = a.radius + b.radius;
+        if (dist_sq >= r * r) {
+            return std::nullopt;
+        }
+        const float dist = euler::length(d);
+        if (dist > constants::NORMALIZE_EPS) {
+            return penetration{d / dist, r - dist};
+        }
+        return penetration{vec{1.0f, 0.0f}, r}; // concentric: arbitrary axis
+    }
+
+    /**
+     * @brief Minimum translation vector separating an overlapping circle and AABB.
+     * @return A @ref penetration (normal points the way to move the circle `c` out of `b`),
+     *         or std::nullopt if they do not strictly overlap. When the centre is inside the
+     *         box the circle is pushed out through the nearest face.
+     */
+    [[nodiscard]] inline std::optional<penetration> overlap(const circle& c, const aabb& b) noexcept {
+        const vec q = closest_point(c.center, b); // closest point on/in the box
+        const vec d = c.center - q;
+        const float dist_sq = euler::dot(d, d);
+
+        // closest_point clamps componentwise, so q == c.center exactly iff the centre is
+        // inside/on the box; therefore dist_sq > 0 means the centre is strictly outside.
+        if (dist_sq > 0.0f) {
+            // Centre outside the box: overlap only when within the radius (touching/miss -> none).
+            if (dist_sq >= c.radius * c.radius) {
+                return std::nullopt;
+            }
+            const float dist = euler::length(d); // > 0, so the normalize is safe
+            return penetration{d / dist, c.radius - dist};
+        }
+
+        // Centre inside/on the box: exit through the nearest face.
+        float min_d = c.center.x() - b.min.x();
+        vec n{-1.0f, 0.0f};
+        if (const float dr = b.max.x() - c.center.x(); dr < min_d) { min_d = dr; n = vec{1.0f, 0.0f}; }
+        if (const float dy0 = c.center.y() - b.min.y(); dy0 < min_d) { min_d = dy0; n = vec{0.0f, -1.0f}; }
+        if (const float dy1 = b.max.y() - c.center.y(); dy1 < min_d) { min_d = dy1; n = vec{0.0f, 1.0f}; }
+        const float depth = c.radius + min_d;
+        if (depth <= 0.0f) {
+            return std::nullopt; // e.g. a zero-radius centre exactly on a face: no penetration
+        }
+        return penetration{n, depth};
+    }
+
+    /// @brief Argument-order-independent overload of @ref overlap(const circle&, const aabb&)
+    ///        (normal is negated to point the way to move the AABB out of the circle).
+    [[nodiscard]] inline std::optional<penetration> overlap(const aabb& b, const circle& c) noexcept {
+        auto p = overlap(c, b);
+        if (p) {
+            p->normal = -p->normal;
+        }
+        return p;
     }
 } // namespace simplex::collide
