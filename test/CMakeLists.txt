@@ -103,6 +103,9 @@ add_executable(sdlpp_unittest
     utility/test_geometry.cc
     utility/test_guid.cc
 
+    # Simplex tests
+    simplex/test_collide.cc
+
     # General/support tests
     test_type_safety.cc
 )

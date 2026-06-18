@@ -16,6 +16,7 @@ namespace collide = simplex::collide;
 class example : public simplex::application {
     private:
         static constexpr simplex::rect box{200_dp, 200_dp, 50_dp, 50_dp};
+        static constexpr simplex::circle static_circle{{450_dp, 225_dp}, 30_dp};
 
         simplex::view world_view{};
 
@@ -44,15 +45,15 @@ class example : public simplex::application {
             }
             clear();
 
-            draw_field(box);
+            draw_field();
         }
 
-        void draw_field(const simplex::rect& r) {
-            const auto x1 = r.position().x;
-            const auto x2 = x1 + r.w - 1_dp;
+        void draw_field() {
+            const auto x1 = box.position().x;
+            const auto x2 = x1 + box.w - 1_dp;
 
-            const auto y1 = r.position().y;
-            const auto y2 = y1 + r.h - 1_dp;
+            const auto y1 = box.position().y;
+            const auto y2 = y1 + box.h - 1_dp;
 
             constexpr auto gap = 5_dp;
             const auto w = get_width();
@@ -63,37 +64,51 @@ class example : public simplex::application {
             draw_line_dotted({0_dp, y1}, {w, y1}, gap, colors::yellow);
             draw_line_dotted({0_dp, y2}, {w, y2}, gap, colors::yellow);
 
-            draw_rect(r, colors::blue);
+            draw_rect(box, colors::blue);
+            draw_circle(static_circle, colors::blue);
 
             if (line_ends[0]) {
                 draw_cross(*line_ends[0], 8_dp, colors::aquamarine);
                 const auto end_point = !line_ends[1] ? get_mouse_pos() : *line_ends[1];
 
-                collide::segment seg  = simplex::to_world({*line_ends[0], end_point}, world_view);
-                collide::aabb    rect = simplex::to_world(box, world_view);
+                draw_line(*line_ends[0], end_point, colors::aquamarine);
 
-                auto ir = collide::intersect_times(rect, seg);
-                if (collide::segment_intersects(ir)) {
-                    auto p1 = simplex::to_design(seg.point_in_time(ir.entry), world_view);
-                    auto p2 = simplex::to_design(seg.point_in_time(ir.exit), world_view);
+                collide::segment seg = simplex::to_world({*line_ends[0], end_point}, world_view);
 
-                    draw_line(*line_ends[0], p1,  colors::aquamarine);
-                    draw_line_thick( p1, p2,  4, colors::yellow);
-                    draw_line( p2, end_point, colors::aquamarine);
+                constexpr float normal_len = 15.0f;
+                auto get_design_normal = [&](const collide::vec& n) {
+                    float scale_factor = normal_len / world_view.pixels_per_unit;
+                    return simplex::to_design_vector(n, world_view) * scale_factor;
+                };
 
-                    // Draw entry (red) and exit (green) normals
-                    constexpr float normal_len = 15.0f;
-                    auto get_design_normal = [&](const collide::vec& n) {
-                        float scale_factor = normal_len / world_view.pixels_per_unit;
-                        return simplex::to_design_vector(n, world_view) * scale_factor;
-                    };
+                // AABB Intersection
+                collide::aabb rect = simplex::to_world(box, world_view);
+                auto ir_box = collide::intersect_times(rect, seg);
+                if (collide::segment_intersects(ir_box)) {
+                    auto p1 = simplex::to_design(seg.point_in_time(ir_box.entry), world_view);
+                    auto p2 = simplex::to_design(seg.point_in_time(ir_box.exit), world_view);
+
+                    draw_line_thick(p1, p2, 4, colors::yellow);
+
                     set_line_style(line_style::dashed(4.0f, 2.0f));
-                    draw_arrow(p1, p1 + get_design_normal(ir.entry_normal), 6_dp, 30.0f, 2.0f, colors::red);
+                    draw_arrow(p1, p1 + get_design_normal(ir_box.entry_normal), 6_dp, 30.0f, 2.0f, colors::red);
                     set_line_style(line_style::solid());
-                    draw_arrow(p2, p2 + get_design_normal(ir.exit_normal), 6_dp, 30.0f, 2.0f, colors::green);
+                    draw_arrow(p2, p2 + get_design_normal(ir_box.exit_normal), 6_dp, 30.0f, 2.0f, colors::green);
+                }
 
-                } else {
-                    draw_line(*line_ends[0], end_point,  colors::aquamarine);
+                // Circle Intersection
+                collide::circle circ = simplex::to_world(static_circle, world_view);
+                auto ir_circ = collide::intersect_times(circ, seg);
+                if (ir_circ && collide::segment_intersects(*ir_circ)) {
+                    auto p1 = simplex::to_design(seg.point_in_time(ir_circ->entry), world_view);
+                    auto p2 = simplex::to_design(seg.point_in_time(ir_circ->exit), world_view);
+
+                    draw_line_thick(p1, p2, 4, colors::yellow);
+
+                    set_line_style(line_style::dashed(4.0f, 2.0f));
+                    draw_arrow(p1, p1 + get_design_normal(ir_circ->entry_normal), 6_dp, 30.0f, 2.0f, colors::red);
+                    set_line_style(line_style::solid());
+                    draw_arrow(p2, p2 + get_design_normal(ir_circ->exit_normal), 6_dp, 30.0f, 2.0f, colors::green);
                 }
 
                 draw_cross(end_point, 8_dp, colors::aquamarine);

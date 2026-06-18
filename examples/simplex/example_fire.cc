@@ -32,7 +32,7 @@ namespace simplex {
                 return;
             }
             m_fire_texture = std::move(*tex_res);
-            m_fire_texture->set_scale_mode(sdlpp::scale_mode::nearest); // Crisp pixelated scaling
+            m_fire_texture->set_scale_mode(sdlpp::scale_mode::linear); // Crisp pixelated scaling
 
             // 2. Initialize Fire Buffer to 0 (all black)
             m_fire_buffer.assign(FIRE_WIDTH * FIRE_HEIGHT, 0);
