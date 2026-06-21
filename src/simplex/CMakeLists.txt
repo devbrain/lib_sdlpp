@@ -36,6 +36,14 @@ target_sources(simplex PRIVATE
         ${PROJECT_ROOT}/include/simplex/effects.hh
         ${PROJECT_ROOT}/include/simplex/collide/shapes.hh
         ${PROJECT_ROOT}/include/simplex/collide/bridge.hh
+        ${PROJECT_ROOT}/include/simplex/collide/distance.hh
+        ${PROJECT_ROOT}/include/simplex/collide/overlap.hh
+        ${PROJECT_ROOT}/include/simplex/collide/sweep.hh
+        ${PROJECT_ROOT}/include/simplex/collide/types.hh
+        ${PROJECT_ROOT}/include/simplex/collide/dynamic/aabb_tree_node.hh
+        ${PROJECT_ROOT}/include/simplex/collide/dynamic/aabb_tree_storage.hh
+        ${PROJECT_ROOT}/include/simplex/collide/dynamic/dynamic_aabb_tree.hh
+        ${PROJECT_ROOT}/include/simplex/collide/dynamic/sorted_array.hh
 
         dp.cc
         simplex.cc

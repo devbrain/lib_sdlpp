@@ -67,7 +67,22 @@ namespace simplex::collide {
         [[nodiscard]] constexpr vec center() const noexcept {
             return vec{(min.x() + max.x()) * 0.5f, (min.y() + max.y()) * 0.5f};
         }
+
+        [[nodiscard]] constexpr float area() const noexcept {
+            return (max.x() - min.x()) * (max.y() - min.y());
+        }
+
+        [[nodiscard]] static constexpr aabb combine(const aabb& a, const aabb& b) {
+            return {
+                {std::min(a.min.x(), b.min.x()), std::min(a.min.y(), b.min.y())},
+                {std::max(a.max.x(), b.max.x()), std::max(a.max.y(), b.max.y())}
+            };
+        }
     };
+
+
+
+
 
     /**
      * @brief Circle shape defined by a center point and a radius.
@@ -97,8 +112,10 @@ namespace simplex::collide {
             // Component-wise (rather than `from + t * (to - from)`) so the result is a
             // constexpr scalar construction; euler's expression->vector conversion is not
             // constexpr. Numerically identical to the vector form.
-            return vec{from.x() + t * (to.x() - from.x()),
-                       from.y() + t * (to.y() - from.y())};
+            return vec{
+                from.x() + t * (to.x() - from.x()),
+                from.y() + t * (to.y() - from.y())
+            };
         }
     };
 
@@ -113,9 +130,9 @@ namespace simplex::collide {
      */
     struct line_hit {
         float entry_param{}; ///< Line parameter where the line enters the shape
-        float exit_param{};  ///< Line parameter where the line exits the shape
-        vec entry_normal{};  ///< Unit normal pointing outwards at the entry point, or {0,0} when undefined
-        vec exit_normal{};   ///< Unit normal pointing outwards at the exit point, or {0,0} when undefined
+        float exit_param{}; ///< Line parameter where the line exits the shape
+        vec entry_normal{}; ///< Unit normal pointing outwards at the entry point, or {0,0} when undefined
+        vec exit_normal{}; ///< Unit normal pointing outwards at the exit point, or {0,0} when undefined
 
         /// @return true if the infinite line containing the segment overlaps the shape.
         [[nodiscard]] constexpr bool line_overlaps() const noexcept {
@@ -137,9 +154,9 @@ namespace simplex::collide {
      */
     struct swept_hit {
         float entry_time{}; ///< Time of first contact (seconds), within [0, time]
-        float exit_time{};  ///< Time of separation (seconds), within [0, time]
+        float exit_time{}; ///< Time of separation (seconds), within [0, time]
         vec entry_normal{}; ///< Unit normal pointing outwards at first contact, or {0,0} when undefined
-        vec exit_normal{};  ///< Unit normal pointing outwards at separation, or {0,0} when undefined
+        vec exit_normal{}; ///< Unit normal pointing outwards at separation, or {0,0} when undefined
     };
 
     /**
@@ -151,7 +168,7 @@ namespace simplex::collide {
      *   a.center += overlap(a, b)->normal * overlap(a, b)->depth   // separates a from b
      */
     struct penetration {
-        vec normal{};   ///< Unit separation axis (direction to move the first shape out of the second)
-        float depth{};  ///< Overlap distance along `normal` (>= 0); MTV = normal * depth
+        vec normal{}; ///< Unit separation axis (direction to move the first shape out of the second)
+        float depth{}; ///< Overlap distance along `normal` (>= 0); MTV = normal * depth
     };
 } // namespace simplex::collide
