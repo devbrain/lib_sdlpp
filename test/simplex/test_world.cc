@@ -38,6 +38,13 @@ namespace {
         b.velocity = v;
         return b;
     }
+
+    bullet mk_bullet(const moving_shape_t& s, vec v) {
+        bullet b;
+        b.shape = s;
+        b.velocity = v;
+        return b;
+    }
 } // namespace
 
 TEST_SUITE("world: handle lifecycle") {
@@ -109,6 +116,60 @@ TEST_SUITE("world: handle lifecycle") {
         const collider_id a = w.add(1, mk_static(box_at(0, 0)));
         CHECK(a.valid());                          // a real handle is not null
         CHECK(w.is_valid(a));
+    }
+}
+
+TEST_SUITE("world: bullet pool lifecycle") {
+    TEST_CASE("add returns a BULLET-typed valid handle; remove invalidates") {
+        world w;
+        const collider_id b = w.add(7, mk_bullet(circle{{0, 0}, 0.5f}, vec{1, 0}));
+        CHECK(b.type_id == collider_id::BULLET);
+        CHECK(w.is_valid(b));
+        CHECK(w.get_eid(b) == 7u);
+        w.remove(b);
+        CHECK_FALSE(w.is_valid(b));
+        CHECK_NOTHROW(w.remove(b)); // idempotent on a stale handle
+    }
+
+    TEST_CASE("bullet slot recycles with a fresh generation; old handle goes stale") {
+        world w;
+        const collider_id a = w.add(1, mk_bullet(circle{{0, 0}, 0.5f}, vec{1, 0}));
+        w.remove(a);
+        const collider_id b = w.add(2, mk_bullet(circle{{9, 9}, 0.5f}, vec{0, 1}));
+        CHECK(b.value == a.value);              // same slot
+        CHECK(b.generation == a.generation + 1u);
+        CHECK(w.is_valid(b));
+        CHECK_FALSE(w.is_valid(a));             // stale handle to the recycled bullet slot
+    }
+
+    TEST_CASE("bullet and body pools are independent (same slot index, different type)") {
+        world w;
+        const collider_id body = w.add(1, mk_static(box_at(0, 0)));
+        const collider_id bul = w.add(2, mk_bullet(circle{{0, 0}, 0.5f}, vec{1, 0}));
+        CHECK(body.type_id == collider_id::BODY);
+        CHECK(bul.type_id == collider_id::BULLET);
+        // both are slot 0 of their own pool, but the type tag keeps them distinct + valid
+        CHECK(body.value == bul.value);
+        CHECK(w.is_valid(body));
+        CHECK(w.is_valid(bul));
+    }
+
+    TEST_CASE("set_velocity / set_shape on a live bullet; set_shape(segment) throws") {
+        world w;
+        const collider_id b = w.add(1, mk_bullet(circle{{0, 0}, 0.5f}, vec{1, 0}));
+        CHECK_NOTHROW(w.set_velocity(b, vec{5, -2}));     // bullets accept velocity (no kind guard)
+        CHECK(w.get_velocity(b).x() == doctest::Approx(5.0f));
+        CHECK_NOTHROW(w.set_shape(b, shape_t{circle{{1, 1}, 0.25f}}));
+        CHECK_NOTHROW(w.set_shape(b, shape_t{box_at(2, 2)}));
+        CHECK_THROWS(w.set_shape(b, shape_t{segment{{0, 0}, {1, 1}}})); // a bullet cannot be a segment
+    }
+
+    TEST_CASE("mutating a stale bullet handle throws") {
+        world w;
+        const collider_id b = w.add(1, mk_bullet(circle{{0, 0}, 0.5f}, vec{1, 0}));
+        w.remove(b);
+        CHECK_THROWS(w.set_velocity(b, vec{1, 1}));
+        CHECK_THROWS(w.set_shape(b, shape_t{circle{{0, 0}, 0.5f}}));
     }
 }
 

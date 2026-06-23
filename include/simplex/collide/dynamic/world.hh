@@ -15,6 +15,7 @@
 #include <optional>
 
 #include <simplex/collide/shapes.hh>
+#include <simplex/collide/units.hh>
 #include <simplex/collide/dynamic/dynamic_aabb_tree.hh>
 
 namespace simplex::collide {
@@ -282,10 +283,12 @@ namespace simplex::collide {
         // NB: the intermediates are `vec`, not `auto` -- euler is an expression-template library,
         // so `auto` would capture a lazy expression that can dangle past this scope.
         inline
-        vec eval_velocity_response(const vec& v, const vec& n, const material_props& material) {
+        units::velocity eval_velocity_response(units::velocity vel, const vec& n,
+                                               const material_props& material) {
+            const vec v = vel.value;
             const vec v_n = euler::dot(v, n) * n; // component along the contact normal
             const vec v_t = v - v_n; // component tangent to the surface
-            return (1.0f - material.friction) * v_t - material.restitution * v_n;
+            return units::velocity{(1.0f - material.friction) * v_t - material.restitution * v_n};
         }
     }
 
@@ -503,15 +506,15 @@ namespace simplex::collide {
                     if (it->kind != detail::body_kind::KINEMATIC) {
                         continue;
                     }
-                    const vec delta = it->velocity * dt;
-                    if (near_zero(delta)) {
+                    const units::displacement delta = units::velocity{it->velocity} * units::duration{dt};
+                    if (near_zero(delta.value)) {
                         continue; // not moving this frame
                     }
                     if (!intersects(swept_bound(detail::narrow(it->shape), delta), active_region)) {
                         continue; // off-region: dormant
                     }
                     const uint32_t mover_idx = it.index();
-                    const slide_result res = move_and_slide(mover_idx, dt, solid_acceptor());
+                    const slide_result res = move_and_slide(mover_idx, units::duration{dt}, solid_acceptor());
                     for (int i = 0; i < res.count; ++i) {
                         m_events.emplace_back(
                             event_kind::COLLISION,
@@ -527,7 +530,7 @@ namespace simplex::collide {
                 // can re-enter, they just skip the expensive tree query). The game despawns
                 // out-of-bounds bullets so they do not accumulate. toi is reported normalized.
                 for (auto bullet_itr = m_bullets_storage.begin(); bullet_itr != m_bullets_storage.end(); ++bullet_itr) {
-                    vec delta_s = bullet_itr->velocity * dt;
+                    units::displacement delta_s = units::velocity{bullet_itr->velocity} * units::duration{dt};
                     if (intersects(swept_bound(bullet_itr->shape, delta_s), active_region)) {
                         // Bullets hit only solids -- a sensor/ignored body must not stop them
                         // (sensors detect via the trigger pass; bullets are not in the tree anyway).
@@ -538,16 +541,16 @@ namespace simplex::collide {
                                 hit->who,
                                 hit->normal,
                                 hit->toi);
-                            delta_s = delta_s * hit->toi; // toi is the fraction ALONG delta_s (= v*dt)
+                            delta_s = delta_s * units::fraction{hit->toi}; // toi is the fraction ALONG delta_s
                         }
                     }
-                    translate(*bullet_itr, delta_s);
+                    translate(*bullet_itr, delta_s.value);
 
                     // Out-of-bounds: a bullet that no longer overlaps the world bounds has left
                     // the level -> report it (the game despawns in reaction; the handle is still
                     // live this frame). Only checked when bounds are configured.
                     if (m_cfg.bounds
-                        && !intersects(swept_bound(bullet_itr->shape, vec{0, 0}), *m_cfg.bounds)) {
+                        && !intersects(swept_bound(bullet_itr->shape, units::displacement{}), *m_cfg.bounds)) {
                         m_events.emplace_back(
                             event_kind::BULLET_EXPIRED,
                             collider_id{bullet_itr.index(), bullet_itr->generation, collider_id::BULLET},
@@ -652,29 +655,23 @@ namespace simplex::collide {
 
             // AABB enclosing a mover's shape over the whole sweep (start box ∪ end box). Used as
             // the broadphase envelope for cast() and as the active-region cull test.
-            static aabb swept_bound(const moving_shape_t& shape, const vec& delta) {
-                return std::visit([&delta](const auto& s) {
+            static aabb swept_bound(const moving_shape_t& shape, units::displacement delta) {
+                const vec d = delta.value;
+                return std::visit([&d](const auto& s) {
                     const auto start = enclose(s);
                     return aabb{
                         {
-                            std::min(start.min.x() + delta.x(), start.min.x()),
-                            std::min(start.min.y() + delta.y(), start.min.y())
+                            std::min(start.min.x() + d.x(), start.min.x()),
+                            std::min(start.min.y() + d.y(), start.min.y())
                         },
                         {
-                            std::max(start.max.x() + delta.x(), start.max.x()),
-                            std::max(start.max.y() + delta.y(), start.max.y())
+                            std::max(start.max.x() + d.x(), start.max.x()),
+                            std::max(start.max.y() + d.y(), start.max.y())
                         }
                     };
                 }, shape);
             }
 
-            // Builds the acceptor move_and_slide passes to cast: which surfaces are SOLID for a
-            // mover travelling with `mover_velocity`.
-            //   BLOCK   -> always solid.
-            //   ONE_WAY -> solid only when entering the blocked face, i.e. the velocity opposes
-            //              the surface's block_normal (dot < 0). A jump-through floor has
-            //              block_normal = up: falling (v.y<0) is blocked; rising passes through.
-            //   SENSOR / IGNORE -> never solid (reported by run()'s overlap/trigger passes).
             // Cast acceptors run per candidate AFTER its swept contact is computed and receive the
             // CONTACT NORMAL, so a direction-dependent rule (ONE_WAY) decides on the face actually
             // crossed -- not on velocity guessed before the geometry is known.
@@ -742,10 +739,12 @@ namespace simplex::collide {
             // post-filter could not recover a farther accepted target behind a rejected near one).
             // Residents are treated as stationary (per-mover CCD, §8c).
             template<class Accept>
-            [[nodiscard]] std::optional <contact> cast_core(const moving_shape_t& mover, vec delta,
+            [[nodiscard]] std::optional <contact> cast_core(const moving_shape_t& mover,
+                                                            units::displacement delta,
                                                             filter_props self_filter, Accept&& accept,
                                                             uint32_t exclude_idx) const {
                 const aabb envelope = swept_bound(mover, delta);
+                const vec dv = delta.value;
 
                 std::optional <contact> out;
                 query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
@@ -759,8 +758,9 @@ namespace simplex::collide {
                     std::visit([&](const auto& mv) {
                         std::visit([&](const auto& tgt) {
                             // unit-time normalization: entry_time is the [0,1] toi, and the
-                            // time=1 window is the anti-tunneling bound.
-                            const auto hit = swept_intersection(mv, delta, tgt, vec{0, 0}, 1.0f);
+                            // time=1 window is the anti-tunneling bound. (delta fed as the
+                            // mover's velocity over a unit window.)
+                            const auto hit = swept_intersection(mv, dv, tgt, vec{0, 0}, 1.0f);
                             if (!hit) {
                                 return;
                             }
@@ -782,8 +782,8 @@ namespace simplex::collide {
             // Internal: cast a *stored* mover (kinematic resident or bullet) by `delta`. A BODY
             // mover excludes itself; a BULLET is not in the tree, so nothing to exclude.
             template<class Accept>
-            [[nodiscard]] std::optional <contact> cast(uint32_t idx, collider_id::type type_id, vec delta,
-                                                       Accept&& accept) const {
+            [[nodiscard]] std::optional <contact> cast(uint32_t idx, collider_id::type type_id,
+                                                       units::displacement delta, Accept&& accept) const {
                 if (type_id == collider_id::BODY) {
                     const auto& self = m_bodies_storage[idx];
                     return cast_core(detail::narrow(self.shape), delta, self.filter,
@@ -795,7 +795,8 @@ namespace simplex::collide {
             }
 
             // Convenience: cast against every filtered candidate (no acceptor restriction).
-            [[nodiscard]] std::optional <contact> cast(uint32_t idx, collider_id::type type_id, vec delta) const {
+            [[nodiscard]] std::optional <contact> cast(uint32_t idx, collider_id::type type_id,
+                                                       units::displacement delta) const {
                 return cast(idx, type_id, delta, &world::accept_any);
             }
 
@@ -803,10 +804,12 @@ namespace simplex::collide {
             // Game-facing aiming cast: sweep an arbitrary `mover` shape by `delta` and return the
             // earliest resident hit passing `filter`, or nullopt. The shape is transient (not in
             // the world), so nothing is excluded. Use for aim previews, lobbed-shot prediction,
-            // "is this move clear" probes -- the swept counterpart to raycast.
+            // "is this move clear" probes -- the swept counterpart to raycast. (Public API takes a
+            // plain vec delta; it is wrapped as a displacement for the internal swept math.)
             [[nodiscard]] std::optional <contact> cast(const moving_shape_t& mover, vec delta,
                                                        filter_props filter = {}) const {
-                return cast_core(mover, delta, filter, &world::accept_any, collider_id::INVALID);
+                return cast_core(mover, units::displacement{delta}, filter, &world::accept_any,
+                                 collider_id::INVALID);
             }
             // First resident the finite segment `s` crosses (nearest along the ray), or nullopt.
             // Residents only (bullets are not in the tree). Targets may be any shape incl.
@@ -880,32 +883,33 @@ namespace simplex::collide {
             // proxy are updated in place; the returned slide_result carries the post-slide
             // velocity, grounded flag, and the contacts hit (for run() to emit as events).
             //
-            // `acceptor(const resident_body&) -> bool` selects solid surfaces. Sensors/ignored
-            // bodies return false here so they never block movement (run() reports them via its
-            // separate overlap/trigger passes).
+            // `acceptor(const resident_body&, const vec& hit_normal) -> bool` selects solid
+            // surfaces, given each candidate's actual contact normal (so ONE_WAY decides on the
+            // face crossed). Sensors/ignored bodies return false so they never block movement
+            // (run() reports them via its separate overlap/trigger passes).
             template<typename Fn>
-            slide_result move_and_slide(uint32_t idx, float dt, Fn&& acceptor) {
+            slide_result move_and_slide(uint32_t idx, units::duration dt, Fn&& acceptor) {
                 auto& self = m_bodies_storage[idx];
                 ENFORCE(self.kind == detail::body_kind::KINEMATIC);
 
                 slide_result res;
                 res.velocity = self.velocity;
-                vec remaining = self.velocity * dt;
+                units::displacement remaining = units::velocity{self.velocity} * dt; // v * dt
                 for (int iter = 0; iter < m_cfg.max_slide_iter; ++iter) {
-                    if (near_zero(remaining)) {
+                    if (near_zero(remaining.value)) {
                         break;
                     }
                     auto hit = cast(idx, collider_id::BODY, remaining, acceptor);
                     if (!hit) {
-                        translate(self, remaining); // clear path: take the whole step
+                        translate(self, remaining.value); // clear path: take the whole step
                         break;
                     }
                     // Advance to just short of the surface (the skin keeps a permanent gap so the
                     // next iteration's cast does not re-hit at toi 0).
-                    const float len = euler::length(remaining);
+                    const float len = euler::length(remaining.value);
                     const float skin_frac = (len > constants::POINT_EPS) ? (m_cfg.skin / len) : 0.0f;
                     const float advance = std::max(0.0f, hit->toi - skin_frac);
-                    translate(self, advance * remaining);
+                    translate(self, (remaining * units::fraction{advance}).value);
 
                     const vec n = hit->normal;
                     if (near_zero(n)) {
@@ -915,13 +919,14 @@ namespace simplex::collide {
                     // Slide: the leftover budget is (1 - toi) of the step (NOT 1 - advance --
                     // the skin is a physical cushion, not part of the motion budget); remove its
                     // into-surface component so the rest glides along the surface.
-                    const vec leftover = (1.0f - hit->toi) * remaining;
-                    remaining = leftover - euler::dot(leftover, n) * n;
+                    const units::displacement leftover = remaining * units::fraction{1.0f - hit->toi};
+                    remaining = units::displacement{leftover.value - euler::dot(leftover.value, n) * n};
 
                     // Velocity response -- material-driven (friction/restitution from the SURFACE),
                     // applied to velocity only; position sliding above is pure geometry.
                     const auto& target = m_bodies_storage[hit->who.value];
-                    res.velocity = detail::eval_velocity_response(res.velocity, n, target.material);
+                    res.velocity = detail::eval_velocity_response(units::velocity{res.velocity}, n,
+                                                                  target.material).value;
 
                     // Grounded if the contact faces up enough to stand on (~45 deg max slope).
                     if (euler::dot(n, m_cfg.up) > GROUND_THRESHOLD) {

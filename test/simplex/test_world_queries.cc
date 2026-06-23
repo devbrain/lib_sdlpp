@@ -15,6 +15,7 @@
 //
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <optional>
@@ -29,7 +30,7 @@ namespace simplex::collide {
     // exactly ONE test TU to avoid an ODR clash when the suites link together.
     struct world_test_access {
         static std::optional<contact> cast(const world& w, uint32_t idx, collider_id::type t, vec d) {
-            return w.cast(idx, t, d);
+            return w.cast(idx, t, units::displacement{d});
         }
         template <class Fn>
         static void overlap(const world& w, uint32_t idx, Fn&& fn) {
@@ -83,7 +84,7 @@ namespace {
     struct rec {
         shape_t      shape;
         filter_props filter;
-        uint32_t     idx; // collider_id.value as returned by world.add
+        collider_id  id; // the FULL handle returned by world.add (value + generation + type)
     };
 
     // ---- brute-force references (linear scans, mirroring the world's logic) -
@@ -138,6 +139,66 @@ namespace {
         b.filter = f;
         return b;
     }
+
+    const rec* find_rec(const std::vector<rec>& recs, uint32_t idx) {
+        const auto it = std::find_if(recs.begin(), recs.end(),
+                                     [idx](const rec& r) { return r.id.value == idx; });
+        return it == recs.end() ? nullptr : &*it;
+    }
+
+    bool approx(float a, float b) { return std::fabs(a - b) < 1e-3f; }
+
+    // Validate the FULL returned handle against the recorded one: a right-slot/wrong-generation
+    // (or wrong type) contact must NOT pass.
+    void check_handle(const collider_id& got, const rec& hit) {
+        CHECK(got.value == hit.id.value);
+        CHECK(got.generation == hit.id.generation);
+        CHECK(got.type_id == hit.id.type_id);
+    }
+
+    // Tie-safe validation of a cast contact: `who` must be a real candidate (full handle match)
+    // that passed the query filter, and whose OWN swept hit reproduces the reported toi AND
+    // normal. (Comparing who directly against brute force would be fragile on equal-toi ties,
+    // where tree order and scan order may pick different bodies.)
+    void check_cast_contact(const moving_shape_t& mover, vec delta, filter_props qfilter,
+                            const std::vector<rec>& recs, const contact& got) {
+        const rec* hit = find_rec(recs, got.who.value);
+        REQUIRE(hit != nullptr);
+        check_handle(got.who, *hit);
+        CHECK(t_should_collide(qfilter, hit->filter)); // the hit must have passed the filter
+        std::visit([&](const auto& mv) {
+            std::visit([&](const auto& tg) {
+                const auto h = swept_intersection(mv, delta, tg, vec{0, 0}, 1.0f);
+                REQUIRE(h.has_value());
+                CHECK(approx(h->entry_time, got.toi));
+                CHECK(approx(h->entry_normal.x(), got.normal.x()));
+                CHECK(approx(h->entry_normal.y(), got.normal.y()));
+            }, hit->shape);
+        }, mover);
+    }
+
+    void check_ray_contact(const segment& ray, filter_props qfilter,
+                           const std::vector<rec>& recs, const contact& got) {
+        const rec* hit = find_rec(recs, got.who.value);
+        REQUIRE(hit != nullptr);
+        check_handle(got.who, *hit);
+        CHECK(t_should_collide(qfilter, hit->filter));
+        std::visit([&]<typename T>(const T& shape) {
+            using S = std::decay_t<T>;
+            const std::optional<line_hit> h = [&] {
+                if constexpr (std::is_same_v<S, segment>) {
+                    return intersect_param(ray, shape);
+                } else {
+                    return intersect_param(shape, ray);
+                }
+            }();
+            REQUIRE(h.has_value());
+            REQUIRE(h->segment_overlaps());
+            CHECK(approx(std::max(0.0f, h->entry_param), got.toi));
+            CHECK(approx(h->entry_normal.x(), got.normal.x()));
+            CHECK(approx(h->entry_normal.y(), got.normal.y()));
+        }, hit->shape);
+    }
 } // namespace
 
 TEST_SUITE("world queries: cast vs brute force") {
@@ -152,7 +213,7 @@ TEST_SUITE("world queries: cast vs brute force") {
                 filter_props f;
                 f.category = static_cast<uint16_t>(1u << (r() % 4u));
                 const auto cid = w.add(static_cast<entity_id_t>(i), mk_static(s, f));
-                recs.push_back({s, f, cid.value});
+                recs.push_back({s, f, cid});
             }
 
             // a bullet mover (not in the tree, no self-exclusion) cast across the scene
@@ -167,7 +228,8 @@ TEST_SUITE("world queries: cast vs brute force") {
 
             CHECK(got.has_value() == exp.has_value());
             if (got && exp) {
-                CHECK(got->toi == doctest::Approx(*exp).epsilon(1e-4));
+                CHECK(got->toi == doctest::Approx(*exp).epsilon(1e-4)); // earliest toi correct
+                check_cast_contact(b.shape, delta, b.filter, recs, *got);          // who + normal consistent
             }
         }
     }
@@ -223,6 +285,46 @@ TEST_SUITE("world queries: cast vs brute force") {
         // Without self-exclusion this would hit itself at toi 0; correct result is nullopt.
         CHECK_FALSE(world_test_access::cast(w, kid.value, collider_id::BODY, vec{0.5f, 0.0f}).has_value());
     }
+
+    TEST_CASE("filter symmetry: the TARGET's mask can reject the mover") {
+        // mover mask allows the target, but the target's mask excludes the mover -> no hit.
+        // Guards the full (a.cat & b.mask) && (b.cat & a.mask) contract, not just one side.
+        world w;
+        filter_props wall_f;
+        wall_f.category = 0x0001;
+        wall_f.mask = 0x0002;             // wall only collides with category 0x0002 ...
+        w.add(1, mk_static(aabb{{5.0f, -5.0f}, {6.0f, 5.0f}}, wall_f));
+
+        bullet b;
+        b.shape = circle{{0.0f, 0.0f}, 0.2f};
+        b.filter.category = 0x0004;       // ... but the mover is 0x0004 (rejected by the wall)
+        b.filter.mask = 0xFFFF;           // mover would accept everything
+        const auto bid = w.add(2, b);
+        CHECK_FALSE(world_test_access::cast(w, bid.value, collider_id::BULLET, vec{20.0f, 0.0f}).has_value());
+
+        // make the mover's category match the wall's mask -> now both directions pass -> hit.
+        b.filter.category = 0x0002;
+        const auto bid2 = w.add(3, b);
+        CHECK(world_test_access::cast(w, bid2.value, collider_id::BULLET, vec{20.0f, 0.0f}).has_value());
+    }
+
+    TEST_CASE("public cast(moving_shape_t, delta, filter): aim an arbitrary shape") {
+        world w;
+        w.add(1, mk_static(aabb{{4.0f, -5.0f}, {5.0f, 5.0f}}));  // wall, left face x=4
+        w.add(2, mk_static(aabb{{8.0f, -1.0f}, {9.0f, 1.0f}}));
+
+        // box mover from origin to the right: nearest hit is the wall; box right edge x=1
+        // reaches x=4 after 3 of 20 -> toi == 3/20.
+        const auto hit = w.cast(moving_shape_t{aabb{{0.0f, 0.0f}, {1.0f, 1.0f}}}, vec{20.0f, 0.0f});
+        REQUIRE(hit.has_value());
+        CHECK(hit->toi == doctest::Approx(3.0f / 20.0f).epsilon(1e-4));
+        CHECK(hit->normal.x() == doctest::Approx(-1.0f)); // left face of the wall
+
+        CHECK_FALSE(w.cast(moving_shape_t{circle{{0.0f, 100.0f}, 0.5f}}, vec{0.0f, 5.0f}).has_value());
+
+        filter_props none; none.mask = 0x0000; // matches nothing
+        CHECK_FALSE(w.cast(moving_shape_t{aabb{{0.0f, 0.0f}, {1.0f, 1.0f}}}, vec{20.0f, 0.0f}, none).has_value());
+    }
 }
 
 TEST_SUITE("world queries: raycast vs brute force") {
@@ -237,7 +339,7 @@ TEST_SUITE("world queries: raycast vs brute force") {
                 filter_props f;
                 f.category = static_cast<uint16_t>(1u << (r() % 4u));
                 const auto cid = w.add(static_cast<entity_id_t>(i), mk_static(s, f));
-                recs.push_back({s, f, cid.value});
+                recs.push_back({s, f, cid});
             }
             const segment ray{{frand(r, -12, 12), frand(r, -12, 12)},
                               {frand(r, -12, 12), frand(r, -12, 12)}};
@@ -248,7 +350,8 @@ TEST_SUITE("world queries: raycast vs brute force") {
             const auto exp = brute_raycast(ray, recs, rf);
             CHECK(got.has_value() == exp.has_value());
             if (got && exp) {
-                CHECK(got->toi == doctest::Approx(*exp).epsilon(1e-4));
+                CHECK(got->toi == doctest::Approx(*exp).epsilon(1e-4)); // nearest toi correct
+                check_ray_contact(ray, rf, recs, *got);                     // who + normal consistent
             }
         }
     }
@@ -302,31 +405,35 @@ TEST_SUITE("world queries: overlap vs brute force") {
             std::vector<rec> recs;
             const int n = 4 + static_cast<int>(r() % 14u);
             for (int i = 0; i < n; ++i) {
-                // keep them clustered so overlaps actually happen
-                const shape_t s = (r() & 1u)
-                    ? shape_t{aabb{{frand(r, -3, 3), frand(r, -3, 3)},
-                                   {frand(r, -3, 3) + 2.0f, frand(r, -3, 3) + 2.0f}}}
-                    : shape_t{circle{{frand(r, -3, 3), frand(r, -3, 3)}, frand(r, 0.5f, 1.5f)}};
+                // keep them clustered so overlaps actually happen. Build aabbs from an origin +
+                // POSITIVE w/h so min <= max always holds (independent min/max could invert).
+                shape_t s;
+                if (r() & 1u) {
+                    const float x = frand(r, -3, 3), y = frand(r, -3, 3);
+                    s = aabb{{x, y}, {x + frand(r, 0.5f, 2.0f), y + frand(r, 0.5f, 2.0f)}};
+                } else {
+                    s = circle{{frand(r, -3, 3), frand(r, -3, 3)}, frand(r, 0.5f, 1.5f)};
+                }
                 filter_props f;
                 f.category = static_cast<uint16_t>(1u << (r() % 3u));
                 const auto cid = w.add(static_cast<entity_id_t>(i), mk_static(s, f));
-                recs.push_back({s, f, cid.value});
+                recs.push_back({s, f, cid});
             }
 
             for (const auto& self : recs) {
                 std::set<uint32_t> got;
-                world_test_access::overlap(w, self.idx, [&](collider_id c) { got.insert(c.value); });
+                world_test_access::overlap(w, self.id.value, [&](collider_id c) { got.insert(c.value); });
 
                 std::set<uint32_t> exp;
                 for (const auto& other : recs) {
-                    if (other.idx == self.idx || !t_should_collide(other.filter, self.filter)) {
+                    if (other.id.value == self.id.value || !t_should_collide(other.filter, self.filter)) {
                         continue;
                     }
                     const bool hit = std::visit([&](const auto& a) {
                         return std::visit([&](const auto& b) { return intersects(a, b); }, other.shape);
                     }, self.shape);
                     if (hit) {
-                        exp.insert(other.idx);
+                        exp.insert(other.id.value);
                     }
                 }
                 CHECK(got == exp);

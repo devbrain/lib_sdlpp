@@ -590,12 +590,14 @@ Decision pending (see §16):
 - **BVH residents** (simplest): insert all static colliders into the same tree once. Works
   immediately; no second structure.
 - **Uniform grid for tiles** (platformer optimization): a regular tilemap is better served
-  by a grid (O(1) cell lookup, trivial swept-DDA — see `docs/DDA_IMPLEMENTATION_PLAN.md`)
-  than a BVH. If levels are grid-aligned, support a grid as the *static* collider source and
-  keep the BVH for dynamics.
+  by a grid (O(1) cell lookup, ordered DDA ray traversal, implicit per-tile storage) than a
+  BVH. If levels are grid-aligned, support a grid as the *static* collider source and keep
+  the BVH for dynamics. **Full design & phased plan:
+  `docs/COLLISION_GRID_IMPLEMENTATION_PLAN.md`** (Phase 7).
 
 v1 ships with BVH-for-statics; add the grid behind the same query interface if profiling or
-tile counts justify it.
+tile counts justify it. The grid doc covers the cell→shape model (slopes as `segment`s),
+Amanatides–Woo DDA (and why plain Bresenham corner-tunnels), and the grid+BVH hybrid merge.
 
 ---
 

@@ -113,13 +113,18 @@ TEST_SUITE("world::run -- bullet pass") {
         }
         SUBCASE("hit") {
             world w;
-            w.add(1, mk_static(aabb{{4, -5}, {5, 5}}));
+            const collider_id wall = w.add(1, mk_static(aabb{{4, -5}, {5, 5}})); // left face x=4
             bullet bx; bx.shape = circle{{0, 0}, 0.25f}; bx.velocity = vec{20, 0};
             const collider_id b = w.add(2, bx);
-            const auto& ev = w.run(BIG_REGION, 0.5f);
+            const auto& ev = w.run(BIG_REGION, 0.5f); // delta = 10
             REQUIRE(count_kind(ev, event_kind::BULLET_HIT) == 1);
-            CHECK(find_kind(ev, event_kind::BULLET_HIT)->mover.value == b.value);
-            CHECK(std::get<circle>(w.get_shape(b)).center.x() < 4.0f);     // stopped at the wall
+            const world_event* e = find_kind(ev, event_kind::BULLET_HIT);
+            CHECK(e->mover.value == b.value);
+            CHECK(e->target.value == wall.value);
+            // circle r=0.25 reaches the wall's left face when center.x = 3.75 -> toi = 3.75/10.
+            CHECK(e->toi == doctest::Approx(0.375f).epsilon(1e-3));
+            CHECK(e->normal.x() == doctest::Approx(-1.0f));               // wall's left face
+            CHECK(std::get<circle>(w.get_shape(b)).center.x() == doctest::Approx(3.75f).epsilon(1e-3));
         }
     }
 
