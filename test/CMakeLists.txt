@@ -108,6 +108,11 @@ add_executable(sdlpp_unittest
         simplex/test_bridge.cc
         simplex/test_aabb_tree.cc
         simplex/test_sorted_array.cc
+        simplex/test_enclose.cc
+        simplex/test_world.cc
+        simplex/test_world_queries.cc
+        simplex/test_world_run.cc
+        simplex/test_world_slide.cc
 
 
         # General/support tests

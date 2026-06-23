@@ -1,0 +1,1010 @@
+//
+// Created by igor on 21/06/2026.
+//
+
+#pragma once
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <iterator>
+#include <type_traits>
+#include <variant>
+#include <vector>
+#include <optional>
+
+#include <simplex/collide/shapes.hh>
+#include <simplex/collide/dynamic/dynamic_aabb_tree.hh>
+
+namespace simplex::collide {
+    // Full shape set -- static bodies and broadphase targets may be any of these.
+    using shape_t = std::variant <segment, aabb, circle>;
+    // Movers only -- a kinematic body / bullet is swept each frame, and a segment cannot be a
+    // swept mover (that is raycast's job). Restricting the type makes an invalid mover
+    // unconstructable, and lets cast's swept dispatch cover every combination with no guard.
+    using moving_shape_t = std::variant <aabb, circle>;
+
+    enum class response_mode {
+        BLOCK,
+        ONE_WAY,
+        SENSOR,
+        IGNORE
+    };
+
+    // this governs response function
+    struct material_props {
+        // in [0, 1]. restitution > 1 injects energy
+        //     relative velocity of separation after collision
+        float restitution{0}; // e = --------------------------------------------------
+        //     relative velocity of approach before collision
+        //
+        float friction{0}; // in [0, 1], friction > 1 reverses the tangential motion
+
+        response_mode response{response_mode::BLOCK};
+        vec block_normal{0, 1}; // you can not fall through the floor
+    };
+
+    struct filter_props {
+        uint16_t category = 0xFFFF;
+        uint16_t mask = 0xFFFF;
+    };
+
+    // Client DTOs (transient input to world::add). No inheritance: a kinematic/bullet shape is
+    // a *narrower* type than a static one, so they are independent structs.
+    struct static_body {
+        shape_t shape;
+        material_props material;
+        filter_props filter;
+    };
+
+    struct kinematic_body {
+        moving_shape_t shape;
+        material_props material;
+        filter_props filter;
+        vec velocity;
+    };
+
+    struct bullet {
+        moving_shape_t shape;
+        material_props material;
+        filter_props filter;
+        vec velocity;
+    };
+
+    namespace detail {
+        enum class body_kind {
+            STATIC,
+            KINEMATIC
+        };
+
+        struct resident_body {
+            shape_t shape{aabb{}};
+            material_props material;
+            filter_props filter;
+            vec velocity{0, 0};
+            entity_id_t eid{};
+            body_kind kind{body_kind::STATIC};
+            node_ptr proxy{}; // broadphase handle
+            uint32_t generation{0};
+            bool alive{true};
+        };
+
+        struct nonresident_body {
+            moving_shape_t shape{aabb{}}; // bullets are always movers -> tight variant
+            material_props material;
+            filter_props filter;
+            vec velocity{0, 0};
+            entity_id_t eid{};
+            uint32_t generation{0};
+            bool alive{true};
+        };
+
+        template<typename T>
+        concept has_generation = requires(T obj)
+        {
+            obj.generation;
+        };
+
+        template<typename Body>
+        class internal_storage {
+            public:
+                internal_storage() = default;
+
+                uint32_t allocate() {
+                    if (!m_free.empty()) {
+                        auto idx = m_free.back();
+                        m_free.pop_back();
+                        ENFORCE(idx < m_pool.size());
+                        init(m_pool[idx]);
+                        return idx;
+                    }
+                    m_pool.emplace_back();
+                    init(m_pool.back());
+                    return static_cast <uint32_t>(m_pool.size() - 1);
+                }
+
+                void deallocate(uint32_t idx) {
+                    ENFORCE(idx < m_pool.size());
+                    ENFORCE(m_pool[idx].alive);
+                    m_pool[idx].alive = false;
+                    if constexpr (has_generation <Body>) {
+                        ++m_pool[idx].generation;
+                    }
+                    m_free.push_back(idx);
+                }
+
+                Body& operator[](uint32_t idx) {
+                    return m_pool[idx];
+                }
+
+                const Body& operator[](uint32_t idx) const {
+                    return m_pool[idx];
+                }
+
+                [[nodiscard]] bool is_alive(uint32_t idx) const { return idx < m_pool.size() && m_pool[idx].alive; }
+
+                // Generation of slot `idx`. For a Body without a generation field the
+                // concept is false and there is nothing to recycle-detect, so 0 is returned
+                // (validity then reduces to liveness). Keeps every .generation access guarded.
+                [[nodiscard]] uint32_t generation([[maybe_unused]] uint32_t idx) const {
+                    if constexpr (has_generation <Body>) {
+                        return m_pool[idx].generation;
+                    } else {
+                        return 0;
+                    }
+                }
+
+                // ---- live-only iteration ------------------------------------------------
+                // Forward iterator over the *live* slots (dead slots from deallocate() are
+                // skipped). Marking a slot dead via deallocate() does not move storage, so
+                // an in-flight iterator stays valid -- you can deallocate(it.index()) the
+                // current element mid-loop and continue. The iterator dereferences through
+                // the vector each step, so it also survives a reallocation from allocate().
+                template<bool Const>
+                class iterator_t {
+                    using pool_t = std::conditional_t <Const, const std::vector <Body>, std::vector <Body>>;
+                    pool_t* m_pool = nullptr;
+                    std::size_t m_idx = 0;
+
+                    void skip_dead() {
+                        while (m_idx < m_pool->size() && !(*m_pool)[m_idx].alive) {
+                            ++m_idx;
+                        }
+                    }
+
+                    public:
+                        using value_type = Body;
+                        using reference = std::conditional_t <Const, const Body&, Body&>;
+                        using pointer = std::conditional_t <Const, const Body*, Body*>;
+                        using difference_type = std::ptrdiff_t;
+                        using iterator_category = std::forward_iterator_tag;
+
+                        iterator_t() = default;
+
+                        iterator_t(pool_t* pool, std::size_t idx)
+                            : m_pool(pool), m_idx(idx) { skip_dead(); }
+
+                        [[nodiscard]] reference operator*() const { return (*m_pool)[m_idx]; }
+                        [[nodiscard]] pointer operator->() const { return &(*m_pool)[m_idx]; }
+
+                        // Slot index of the current element -- pass to deallocate() to kill it.
+                        [[nodiscard]] uint32_t index() const { return static_cast <uint32_t>(m_idx); }
+
+                        iterator_t& operator++() {
+                            ++m_idx;
+                            skip_dead();
+                            return *this;
+                        }
+
+                        iterator_t operator++(int) {
+                            auto tmp = *this;
+                            ++(*this);
+                            return tmp;
+                        }
+
+                        [[nodiscard]] bool operator==(const iterator_t& o) const { return m_idx == o.m_idx; }
+                        [[nodiscard]] bool operator!=(const iterator_t& o) const { return m_idx != o.m_idx; }
+                };
+
+                using iterator = iterator_t <false>;
+                using const_iterator = iterator_t <true>;
+
+                [[nodiscard]] iterator begin() { return iterator(&m_pool, 0); }
+                [[nodiscard]] iterator end() { return iterator(&m_pool, m_pool.size()); }
+                [[nodiscard]] const_iterator begin() const { return const_iterator(&m_pool, 0); }
+                [[nodiscard]] const_iterator end() const { return const_iterator(&m_pool, m_pool.size()); }
+                [[nodiscard]] const_iterator cbegin() const { return begin(); }
+                [[nodiscard]] const_iterator cend() const { return end(); }
+
+            private:
+                static void init(Body& b) {
+                    if constexpr (has_generation <Body>) {
+                        const uint32_t gen = b.generation; // the one thing that must survive
+                        b = Body{}; // clear shape/velocity/proxy/kind/...
+                        b.generation = gen;
+                        b.alive = true;
+                    } else {
+                        b = Body{}; // clear shape/velocity/proxy/kind/...
+                        b.alive = true;
+                    }
+                }
+
+            private:
+                std::vector <Body> m_pool;
+                std::vector <uint32_t> m_free;
+        };
+
+        using bodies_storage = internal_storage <resident_body>;
+        using bullets_storage = internal_storage <nonresident_body>;
+
+        // shape_t -> moving_shape_t. The segment case is unreachable for movers (the typed
+        // DTOs guarantee it at construction); ENFORCE is a never-fires safety net.
+        constexpr moving_shape_t narrow(const shape_t& s) {
+            return std::visit([]<typename T0>(const T0& shp) -> moving_shape_t {
+                using S = std::decay_t <T0>;
+                if constexpr (std::is_same_v <S, segment>) {
+                    ENFORCE(false)("a moving body/bullet cannot be a segment");
+                    return moving_shape_t{aabb{}}; // unreachable; satisfies the return type
+                } else {
+                    return moving_shape_t{shp};
+                }
+            }, s);
+        }
+
+        // moving_shape_t -> shape_t (widening; always valid).
+        constexpr shape_t widen(const moving_shape_t& s) {
+            return std::visit([](const auto& shp) -> shape_t { return shp; }, s);
+        }
+
+        // Geometric velocity response at a contact: the post-collision velocity after removing
+        // the blocked (into-surface) component and applying the surface material.
+        //
+        //   v_n = dot(v, n) * n        -- component of v along the contact normal
+        //   v_t = v - v_n              -- component tangent to the surface
+        //   v'  = (1 - friction) * v_t -- friction damps sliding (0 = frictionless "ice", 1 = no slide)
+        //       - restitution * v_n    -- restitution reflects the normal part (0 = absorb/slide, 1 = bounce)
+        //
+        // This is purely the BLOCK / bounce math. WHETHER a contact is resolved at all
+        // (BLOCK vs ONE_WAY vs SENSOR/IGNORE) is the caller's decision via material.response;
+        // and `material` must be the SURFACE's (the body hit), per the surface-owned response
+        // model. Position sliding is handled separately (move_and_slide projects the leftover
+        // displacement); this function affects velocity only.
+        //
+        // Preconditions / notes:
+        //   * `n` MUST be unit length -- swept_hit::entry_normal is. A non-unit `n` mis-scales
+        //     the projection (by |n|^2).
+        //   * `n == {0,0}` (swept_hit's "undefined normal") degrades to (1 - friction) * v: no
+        //     normal removal, no bounce. Callers should skip the response on a zero normal.
+        //   * `friction` and `restitution` are expected in [0, 1]. friction > 1 reverses the
+        //     tangential motion; restitution > 1 injects energy.
+        //
+        // NB: the intermediates are `vec`, not `auto` -- euler is an expression-template library,
+        // so `auto` would capture a lazy expression that can dangle past this scope.
+        inline
+        vec eval_velocity_response(const vec& v, const vec& n, const material_props& material) {
+            const vec v_n = euler::dot(v, n) * n; // component along the contact normal
+            const vec v_t = v - v_n; // component tangent to the surface
+            return (1.0f - material.friction) * v_t - material.restitution * v_n;
+        }
+    }
+
+    struct collider_id {
+        enum type {
+            BODY,
+            BULLET
+        };
+
+        static constexpr uint32_t INVALID = 0xFFFFFFFFu;
+
+        // Defaults make a value-initialised handle (collider_id{}) the null sentinel rather than
+        // aliasing slot 0 generation 0. world::is_valid() also rejects it (INVALID is out of
+        // range for any pool). Aggregate init collider_id{idx, gen, type} is unaffected.
+        uint32_t value = INVALID;
+        uint32_t generation = 0;
+        type type_id = BODY;
+
+        // True unless this is the null sentinel. (Distinct from world::is_valid, which also
+        // checks liveness + generation against the storage.)
+        [[nodiscard]] bool valid() const { return value != INVALID; }
+    };
+
+    struct contact {
+        collider_id who; // the resident hit
+        vec normal; // outward surface normal at impact (for slide / ricochet)
+        float toi; // time of impact, normalized [0,1] along delta
+    };
+
+    enum class event_kind {
+        COLLISION,
+        BULLET_HIT,
+        BULLET_EXPIRED, // a bullet left the world bounds; the game should despawn it
+        TRIGGER_BEGIN,
+        TRIGGER_END
+    };
+
+    struct world_event {
+        world_event(event_kind kind_, const collider_id& mover_, const collider_id& target_, const vec& normal_,
+                    float toi_)
+            : kind(kind_),
+              mover(mover_),
+              target(target_),
+              normal(normal_),
+              toi(toi_) {
+        }
+
+        event_kind kind{event_kind::COLLISION};
+        collider_id mover{};
+        collider_id target{};
+        vec normal{};
+        float toi{-1.0f}; // time to impact
+    };
+
+    struct world_config {
+        float fatten_margin = 0.1f;
+        float skin = 0.01f; // back-off so the mover never quite touches (anti-jitter)
+        int max_slide_iter = 4; // corner passes (floor+wall needs 2)
+        vec up = {0, 1}; // for grounded detection (matches block_normal default)
+        std::optional <aabb> bounds{}; // play-field extent; unset = unbounded. When set, a bullet
+        // that leaves it gets a BULLET_EXPIRED event (the game despawns it). Bullets only --
+        // kinematic bodies are never auto-expired. This is the LEVEL extent, NOT the camera
+        // (active_region): a bullet scrolling off-camera is culled, not expired.
+    };
+
+    // Test-only access to the world's internal (non-public) query helpers. Defined only in the
+    // test TU; lets the brute-force suite reach `cast`/`overlap` without widening the API.
+    struct world_test_access;
+
+    class world {
+        public:
+            world() = default;
+
+            explicit world(const world_config& cfg)
+                : m_cfg(cfg) {
+            }
+
+            friend struct world_test_access;
+
+            collider_id add(entity_id_t eid, const static_body& body) {
+                auto idx = m_bodies_storage.allocate();
+                auto& stored = m_bodies_storage[idx];
+
+                stored.shape = body.shape;
+                stored.kind = detail::body_kind::STATIC;
+                stored.filter = body.filter;
+                stored.material = body.material;
+                stored.eid = eid;
+
+                auto box = fatten(stored);
+                stored.proxy = insert_leaf(m_space_partition, idx, box);
+                return {idx, m_bodies_storage.generation(idx), collider_id::BODY};
+            }
+
+            collider_id add(entity_id_t eid, const kinematic_body& body) {
+                auto idx = m_bodies_storage.allocate();
+                auto& stored = m_bodies_storage[idx];
+
+                stored.shape = detail::widen(body.shape); // moving_shape_t -> shape_t (always valid)
+                stored.kind = detail::body_kind::KINEMATIC;
+                stored.filter = body.filter;
+                stored.material = body.material;
+                stored.velocity = body.velocity;
+                stored.eid = eid;
+
+                auto box = fatten(stored);
+                stored.proxy = insert_leaf(m_space_partition, idx, box);
+                return {idx, m_bodies_storage.generation(idx), collider_id::BODY};
+            }
+
+            collider_id add(entity_id_t eid, const bullet& body) {
+                auto idx = m_bullets_storage.allocate();
+                auto& stored = m_bullets_storage[idx];
+
+                stored.shape = body.shape;
+                stored.filter = body.filter;
+                stored.material = body.material;
+                stored.velocity = body.velocity;
+                stored.eid = eid;
+                return {idx, m_bullets_storage.generation(idx), collider_id::BULLET};
+            }
+
+            void remove(collider_id cid) {
+                if (!is_valid(cid)) {
+                    return;
+                }
+                if (cid.type_id == collider_id::BODY) {
+                    auto& stored = m_bodies_storage[cid.value];
+                    remove_leaf(m_space_partition, stored.proxy);
+                    m_bodies_storage.deallocate(cid.value);
+                } else {
+                    m_bullets_storage.deallocate(cid.value);
+                }
+            }
+
+            // resize/teleport. Takes the wide shape_t; a moving body cannot become a segment,
+            // which (unlike construction) can only be enforced at runtime here since `cid`'s
+            // kind is not known at compile time.
+            void set_shape(collider_id cid, const shape_t& shape) {
+                ENFORCE(is_valid(cid));
+                if (cid.type_id == collider_id::BODY) {
+                    auto& stored = m_bodies_storage[cid.value];
+                    if (stored.kind == detail::body_kind::KINEMATIC) {
+                        ENFORCE(!std::holds_alternative<segment>(shape));
+                    }
+                    stored.shape = shape;
+                    auto box = fatten(stored);
+                    update_leaf(m_space_partition, stored.proxy, box);
+                } else {
+                    auto& stored = m_bullets_storage[cid.value];
+                    stored.shape = detail::narrow(shape); // ENFORCE non-segment + shape_t -> moving_shape_t
+                }
+            }
+
+            // kinematic intent for next run()
+            void set_velocity(collider_id cid, const vec& v) {
+                ENFORCE(is_valid(cid));
+                if (cid.type_id == collider_id::BODY) {
+                    auto& stored = m_bodies_storage[cid.value];
+                    ENFORCE(stored.kind == detail::body_kind::KINEMATIC);
+                    stored.velocity = v;
+                } else {
+                    auto& stored = m_bullets_storage[cid.value];
+                    stored.velocity = v;
+                }
+            }
+
+            [[nodiscard]] bool is_valid(collider_id cid) const {
+                if (cid.type_id == collider_id::BODY) {
+                    return m_bodies_storage.is_alive(cid.value)
+                           && m_bodies_storage.generation(cid.value) == cid.generation;
+                }
+                return m_bullets_storage.is_alive(cid.value)
+                       && m_bullets_storage.generation(cid.value) == cid.generation;
+            }
+
+            // ---- read-back getters (state after run()/move) -------------------------
+            // A character controller reads these each frame: the resolved shape/position and the
+            // post-move velocity. All ENFORCE a live handle. Returned by value -- the underlying
+            // record may be recycled later. Shapes come back as the wide shape_t (a bullet's
+            // moving_shape_t is widened) so the caller has one type to visit.
+
+            [[nodiscard]] shape_t get_shape(collider_id cid) const {
+                ENFORCE(is_valid(cid));
+                if (cid.type_id == collider_id::BODY) {
+                    return m_bodies_storage[cid.value].shape;
+                }
+                return detail::widen(m_bullets_storage[cid.value].shape);
+            }
+
+            [[nodiscard]] vec get_velocity(collider_id cid) const {
+                ENFORCE(is_valid(cid));
+                return cid.type_id == collider_id::BODY
+                           ? m_bodies_storage[cid.value].velocity
+                           : m_bullets_storage[cid.value].velocity;
+            }
+
+            // The game's entity id carried as payload (the reverse of add()'s eid argument).
+            [[nodiscard]] entity_id_t get_eid(collider_id cid) const {
+                ENFORCE(is_valid(cid));
+                return cid.type_id == collider_id::BODY
+                           ? m_bodies_storage[cid.value].eid
+                           : m_bullets_storage[cid.value].eid;
+            }
+
+            [[nodiscard]] const std::vector <world_event>& run(const aabb& active_region, float dt) {
+                m_events.clear();
+
+                // Movement pass: resolve each kinematic mover via move-and-slide against the
+                // solid residents, in fixed slot order (deterministic). Off-region movers are
+                // culled (skipped, so they stay dormant off-screen); statics and zero-velocity
+                // bodies never move. Each recorded contact becomes a COLLISION event. Runs BEFORE
+                // the bullet pass so bullets sweep against movers at their resolved positions.
+                for (auto it = m_bodies_storage.begin(); it != m_bodies_storage.end(); ++it) {
+                    if (it->kind != detail::body_kind::KINEMATIC) {
+                        continue;
+                    }
+                    const vec delta = it->velocity * dt;
+                    if (near_zero(delta)) {
+                        continue; // not moving this frame
+                    }
+                    if (!intersects(swept_bound(detail::narrow(it->shape), delta), active_region)) {
+                        continue; // off-region: dormant
+                    }
+                    const uint32_t mover_idx = it.index();
+                    const slide_result res = move_and_slide(mover_idx, dt, solid_acceptor());
+                    for (int i = 0; i < res.count; ++i) {
+                        m_events.emplace_back(
+                            event_kind::COLLISION,
+                            collider_id{mover_idx, m_bodies_storage.generation(mover_idx), collider_id::BODY},
+                            res.contacts[i].who,
+                            res.contacts[i].normal,
+                            res.contacts[i].toi);
+                    }
+                }
+
+                // Bullet pass: integrate every live bullet, but only pay for the cast when its
+                // swept bound touches the active region (off-region bullets keep flying so they
+                // can re-enter, they just skip the expensive tree query). The game despawns
+                // out-of-bounds bullets so they do not accumulate. toi is reported normalized.
+                for (auto bullet_itr = m_bullets_storage.begin(); bullet_itr != m_bullets_storage.end(); ++bullet_itr) {
+                    vec delta_s = bullet_itr->velocity * dt;
+                    if (intersects(swept_bound(bullet_itr->shape, delta_s), active_region)) {
+                        // Bullets hit only solids -- a sensor/ignored body must not stop them
+                        // (sensors detect via the trigger pass; bullets are not in the tree anyway).
+                        if (auto hit = cast(bullet_itr.index(), collider_id::BULLET, delta_s, solid_acceptor())) {
+                            m_events.emplace_back(
+                                event_kind::BULLET_HIT,
+                                collider_id{bullet_itr.index(), bullet_itr->generation, collider_id::BULLET},
+                                hit->who,
+                                hit->normal,
+                                hit->toi);
+                            delta_s = delta_s * hit->toi; // toi is the fraction ALONG delta_s (= v*dt)
+                        }
+                    }
+                    translate(*bullet_itr, delta_s);
+
+                    // Out-of-bounds: a bullet that no longer overlaps the world bounds has left
+                    // the level -> report it (the game despawns in reaction; the handle is still
+                    // live this frame). Only checked when bounds are configured.
+                    if (m_cfg.bounds
+                        && !intersects(swept_bound(bullet_itr->shape, vec{0, 0}), *m_cfg.bounds)) {
+                        m_events.emplace_back(
+                            event_kind::BULLET_EXPIRED,
+                            collider_id{bullet_itr.index(), bullet_itr->generation, collider_id::BULLET},
+                            collider_id{}, vec{}, -1.0f);
+                    }
+                }
+
+                // Trigger pass: detect SENSOR overlaps and diff against last frame to emit only
+                // the begin/end EDGES. (response_mode is the classifier: solids were handled by
+                // the movement pass as COLLISION; sensors are reported here -- there is no generic
+                // per-frame "touch" event, continuous effects are the game's job between edges.)
+                // Sensors are NOT region-culled: culling would spuriously fire end/begin as zones
+                // scroll. The sensor's own filter decides what it senses.
+                m_triggers_curr.clear();
+                for (auto it = m_bodies_storage.begin(); it != m_bodies_storage.end(); ++it) {
+                    if (it->material.response != response_mode::SENSOR) {
+                        continue;
+                    }
+                    const uint32_t sidx = it.index();
+                    const collider_id sensor_id{sidx, m_bodies_storage.generation(sidx), collider_id::BODY};
+                    overlap(sidx, [&](collider_id other) {
+                        m_triggers_curr.push_back({pair_key(sensor_id, other), sensor_id, other});
+                    });
+                }
+                std::sort(m_triggers_curr.begin(), m_triggers_curr.end(),
+                          [](const sensor_pair& a, const sensor_pair& b) { return a.key < b.key; });
+                // Dedup: a sensor-vs-sensor overlap is produced once from each side (same key).
+                m_triggers_curr.erase(
+                    std::unique(m_triggers_curr.begin(), m_triggers_curr.end(),
+                                [](const sensor_pair& a, const sensor_pair& b) { return a.key == b.key; }),
+                    m_triggers_curr.end());
+
+                // Linear merge of the two key-sorted sets: curr-only -> BEGIN, prev-only -> END,
+                // in-both -> still inside (no event). END uses the PREVIOUS frame's stored ids, so
+                // a pair that vanished because a body was removed still reports a clean end.
+                std::size_t i = 0, j = 0;
+                while (i < m_triggers_curr.size() && j < m_triggers_prev.size()) {
+                    if (m_triggers_curr[i].key < m_triggers_prev[j].key) {
+                        emit_trigger(event_kind::TRIGGER_BEGIN, m_triggers_curr[i++]);
+                    } else if (m_triggers_prev[j].key < m_triggers_curr[i].key) {
+                        emit_trigger(event_kind::TRIGGER_END, m_triggers_prev[j++]);
+                    } else {
+                        ++i;
+                        ++j;
+                    }
+                }
+                for (; i < m_triggers_curr.size(); ++i) {
+                    emit_trigger(event_kind::TRIGGER_BEGIN, m_triggers_curr[i]);
+                }
+                for (; j < m_triggers_prev.size(); ++j) {
+                    emit_trigger(event_kind::TRIGGER_END, m_triggers_prev[j]);
+                }
+                std::swap(m_triggers_curr, m_triggers_prev); // this frame becomes "previous"
+
+                return m_events;
+            }
+
+        private:
+            [[nodiscard]] aabb fatten(const detail::resident_body& body) const {
+                auto box = std::visit([](const auto& shape) {
+                    return enclose(shape);
+                }, body.shape);
+
+                if (body.kind == detail::body_kind::STATIC) {
+                    return box;
+                }
+
+                const auto vx = body.velocity.x();
+                const auto vy = body.velocity.y();
+
+                auto min_x = box.min.x();
+                auto min_y = box.min.y();
+                auto max_x = box.max.x();
+                auto max_y = box.max.y();
+
+                if (vx < 0) {
+                    min_x -= m_cfg.fatten_margin;
+                } else if (vx > 0) {
+                    max_x += m_cfg.fatten_margin;
+                } else {
+                    const auto epsilon = m_cfg.fatten_margin / 2.0f;
+                    min_x -= epsilon;
+                    max_x += epsilon;
+                }
+
+                if (vy < 0) {
+                    min_y -= m_cfg.fatten_margin;
+                } else if (vy > 0) {
+                    max_y += m_cfg.fatten_margin;
+                } else {
+                    const auto epsilon = m_cfg.fatten_margin / 2.0f;
+                    min_y -= epsilon;
+                    max_y += epsilon;
+                }
+
+                return {{min_x, min_y}, {max_x, max_y}};
+            }
+
+            static bool should_collide(const filter_props& a, const filter_props& b) {
+                return ((a.category & b.mask) && (b.category & a.mask));
+            }
+
+            // AABB enclosing a mover's shape over the whole sweep (start box ∪ end box). Used as
+            // the broadphase envelope for cast() and as the active-region cull test.
+            static aabb swept_bound(const moving_shape_t& shape, const vec& delta) {
+                return std::visit([&delta](const auto& s) {
+                    const auto start = enclose(s);
+                    return aabb{
+                        {
+                            std::min(start.min.x() + delta.x(), start.min.x()),
+                            std::min(start.min.y() + delta.y(), start.min.y())
+                        },
+                        {
+                            std::max(start.max.x() + delta.x(), start.max.x()),
+                            std::max(start.max.y() + delta.y(), start.max.y())
+                        }
+                    };
+                }, shape);
+            }
+
+            // Builds the acceptor move_and_slide passes to cast: which surfaces are SOLID for a
+            // mover travelling with `mover_velocity`.
+            //   BLOCK   -> always solid.
+            //   ONE_WAY -> solid only when entering the blocked face, i.e. the velocity opposes
+            //              the surface's block_normal (dot < 0). A jump-through floor has
+            //              block_normal = up: falling (v.y<0) is blocked; rising passes through.
+            //   SENSOR / IGNORE -> never solid (reported by run()'s overlap/trigger passes).
+            // Cast acceptors run per candidate AFTER its swept contact is computed and receive the
+            // CONTACT NORMAL, so a direction-dependent rule (ONE_WAY) decides on the face actually
+            // crossed -- not on velocity guessed before the geometry is known.
+            //
+            // "Is this surface solid for the mover, given it was hit on `hit_normal`?"
+            //   BLOCK   -> always solid.
+            //   ONE_WAY -> solid only when the mover crossed the blocked face, i.e. the contact
+            //              normal aligns with the surface's block_normal (dot > threshold). A
+            //              jump-through floor (block_normal = up): landing on top -> normal up ->
+            //              blocked; entering from below or the side -> normal != up -> passes.
+            //   SENSOR / IGNORE -> never solid.
+            // Functor (concrete type, not a lambda) so it is usable in run() above its definition.
+            struct solid_pred {
+                bool operator()(const detail::resident_body& t, const vec& hit_normal) const {
+                    switch (t.material.response) {
+                        case response_mode::BLOCK:
+                            return true;
+                        case response_mode::ONE_WAY:
+                            return euler::dot(hit_normal, t.material.block_normal) > ONE_WAY_DOT;
+                        case response_mode::SENSOR:
+                        case response_mode::IGNORE:
+                        default:
+                            return false;
+                    }
+                }
+            };
+
+            static solid_pred solid_acceptor() { return solid_pred{}; }
+
+            // Accept-all (used by unrestricted casts). Two-arg to match the post-hit acceptor shape.
+            static bool accept_any(const detail::resident_body&, const vec&) { return true; }
+
+            template<class Fn>
+            void overlap(uint32_t idx, Fn&& on_hit) const {
+                const auto& self = m_bodies_storage[idx];
+
+                auto envelope = std::visit([](const auto& s) {
+                    return enclose(s);
+                }, self.shape);
+
+                query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
+                    if (other_idx != idx) {
+                        if (const auto& other = m_bodies_storage[other_idx];
+                            should_collide(other.filter, self.filter)) {
+                            auto rc = std::visit([&](const auto& my_shape) {
+                                return std::visit([&](const auto& other_shape) {
+                                    return collide::intersects(my_shape, other_shape);
+                                }, other.shape);
+                            }, self.shape);
+                            if (rc) {
+                                on_hit(collider_id{other_idx, other.generation, collider_id::BODY});
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Swept-query core: sweep `mover` by `delta` and return the earliest accepted resident
+            // hit (normalized toi in [0,1]), or nullopt. `mover` is a moving_shape_t (aabb|circle)
+            // so the swept dispatch covers every target with no guard. `exclude_idx` skips one
+            // body slot (the mover itself, when it lives in the tree; collider_id::INVALID = none).
+            // `accept(const resident_body&, const vec& hit_normal)` runs INSIDE the candidate loop,
+            // AFTER the swept contact is computed, so a direction rule (ONE_WAY) sees the real
+            // contact normal; it must be per-candidate (cast keeps only the earliest hit, so a
+            // post-filter could not recover a farther accepted target behind a rejected near one).
+            // Residents are treated as stationary (per-mover CCD, §8c).
+            template<class Accept>
+            [[nodiscard]] std::optional <contact> cast_core(const moving_shape_t& mover, vec delta,
+                                                            filter_props self_filter, Accept&& accept,
+                                                            uint32_t exclude_idx) const {
+                const aabb envelope = swept_bound(mover, delta);
+
+                std::optional <contact> out;
+                query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
+                    if (other_idx == exclude_idx) {
+                        return; // self (or nothing, when exclude_idx == INVALID)
+                    }
+                    const auto& other = m_bodies_storage[other_idx];
+                    if (!should_collide(self_filter, other.filter)) {
+                        return;
+                    }
+                    std::visit([&](const auto& mv) {
+                        std::visit([&](const auto& tgt) {
+                            // unit-time normalization: entry_time is the [0,1] toi, and the
+                            // time=1 window is the anti-tunneling bound.
+                            const auto hit = swept_intersection(mv, delta, tgt, vec{0, 0}, 1.0f);
+                            if (!hit) {
+                                return;
+                            }
+                            if (!accept(other, hit->entry_normal)) {
+                                return; // caller-rejected on the actual contact (e.g. one-way side)
+                            }
+                            if (!out || hit->entry_time < out->toi) {
+                                out = contact{
+                                    collider_id{other_idx, other.generation, collider_id::BODY},
+                                    hit->entry_normal, hit->entry_time
+                                };
+                            }
+                        }, other.shape);
+                    }, mover);
+                });
+                return out;
+            }
+
+            // Internal: cast a *stored* mover (kinematic resident or bullet) by `delta`. A BODY
+            // mover excludes itself; a BULLET is not in the tree, so nothing to exclude.
+            template<class Accept>
+            [[nodiscard]] std::optional <contact> cast(uint32_t idx, collider_id::type type_id, vec delta,
+                                                       Accept&& accept) const {
+                if (type_id == collider_id::BODY) {
+                    const auto& self = m_bodies_storage[idx];
+                    return cast_core(detail::narrow(self.shape), delta, self.filter,
+                                     std::forward<Accept>(accept), idx);
+                }
+                const auto& self = m_bullets_storage[idx];
+                return cast_core(self.shape, delta, self.filter,
+                                 std::forward<Accept>(accept), collider_id::INVALID);
+            }
+
+            // Convenience: cast against every filtered candidate (no acceptor restriction).
+            [[nodiscard]] std::optional <contact> cast(uint32_t idx, collider_id::type type_id, vec delta) const {
+                return cast(idx, type_id, delta, &world::accept_any);
+            }
+
+        public:
+            // Game-facing aiming cast: sweep an arbitrary `mover` shape by `delta` and return the
+            // earliest resident hit passing `filter`, or nullopt. The shape is transient (not in
+            // the world), so nothing is excluded. Use for aim previews, lobbed-shot prediction,
+            // "is this move clear" probes -- the swept counterpart to raycast.
+            [[nodiscard]] std::optional <contact> cast(const moving_shape_t& mover, vec delta,
+                                                       filter_props filter = {}) const {
+                return cast_core(mover, delta, filter, &world::accept_any, collider_id::INVALID);
+            }
+            // First resident the finite segment `s` crosses (nearest along the ray), or nullopt.
+            // Residents only (bullets are not in the tree). Targets may be any shape incl.
+            // segments (walls/slopes), so the target is visited as the full shape_t -- never
+            // narrowed. toi is clamped to >= 0 (an origin already inside a shape reads as 0).
+            [[nodiscard]] std::optional <contact> raycast(const segment& s, filter_props filter = {}) const {
+                std::optional <contact> out;
+                // Tree raycast: visits only the boxes the ray crosses and clips farther boxes to
+                // the nearest confirmed hit. The float-returning callback feeds back the best toi
+                // so far as the new ray-clip fraction (the tree does t_max = min(t_max, ret)).
+                collide::raycast(m_space_partition, s, // qualified: the member `raycast` would otherwise hide it
+                                 [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box,
+                                     [[maybe_unused]] const line_hit& box_hit) -> float {
+                                     const auto& other = m_bodies_storage[other_idx];
+                                     if (should_collide(filter, other.filter)) {
+                                         std::visit([&]<typename T1>(const T1& shape) {
+                                             using S = std::decay_t <T1>;
+                                             // intersect_param reports the parameter along its SEGMENT
+                                             // argument: ray is the 2nd arg for aabb/circle targets, but the
+                                             // 1st arg for a segment target (params are along `a`). Put the
+                                             // ray where the parameter lands so toi is "fraction along ray".
+                                             const std::optional <line_hit> hit = [&] {
+                                                 if constexpr (std::is_same_v <S, segment>) {
+                                                     return intersect_param(s, shape); // ray first
+                                                 } else {
+                                                     return intersect_param(shape, s); // aabb/circle first
+                                                 }
+                                             }();
+                                             // segment_overlaps() restricts the infinite-line crossing to
+                                             // the finite ray; entry_param is otherwise unclamped.
+                                             if (hit && hit->segment_overlaps()) {
+                                                 const float toi = std::max(0.0f, hit->entry_param);
+                                                 // origin-inside -> 0
+                                                 if (!out || toi < out->toi) {
+                                                     out = contact{
+                                                         collider_id{other_idx, other.generation, collider_id::BODY},
+                                                         hit->entry_normal, toi
+                                                     };
+                                                 }
+                                             }
+                                         }, other.shape);
+                                     }
+                                     // Clip the ray to the nearest confirmed hit so farther boxes prune;
+                                     // 1.0 (no clip) until we have one.
+                                     return out ? out->toi : 1.0f;
+                                 });
+                return out;
+            }
+
+            // Is `to` visible from `from` -- i.e. nothing in `blockers` lies strictly between?
+            // A convenience over raycast: clear when there is no hit, or the first blocker is at
+            // or beyond the target endpoint.
+            [[nodiscard]] bool line_of_sight(vec from, vec to, filter_props blockers = {}) const {
+                const auto hit = raycast(segment{from, to}, blockers);
+                return !hit || hit->toi >= 1.0f;
+            }
+
+        private:
+            struct slide_result {
+                vec velocity; // post-slide velocity (also written back to the body)
+                bool grounded = false;
+                std::array <contact, 4> contacts{}; // surfaces hit this move (for run() -> events)
+                int count = 0;
+            };
+
+            // Move kinematic body `idx` by velocity*dt this frame, resolving against the residents
+            // the `acceptor` deems solid (BLOCK, or ONE_WAY from the blocked side). It sweeps,
+            // stops a `skin` short of each contact, slides the leftover along the surface, and
+            // damps the velocity via the surface material -- up to `max_slide_iter` passes (a
+            // floor+wall corner needs 2). The body's stored shape/velocity and its broadphase
+            // proxy are updated in place; the returned slide_result carries the post-slide
+            // velocity, grounded flag, and the contacts hit (for run() to emit as events).
+            //
+            // `acceptor(const resident_body&) -> bool` selects solid surfaces. Sensors/ignored
+            // bodies return false here so they never block movement (run() reports them via its
+            // separate overlap/trigger passes).
+            template<typename Fn>
+            slide_result move_and_slide(uint32_t idx, float dt, Fn&& acceptor) {
+                auto& self = m_bodies_storage[idx];
+                ENFORCE(self.kind == detail::body_kind::KINEMATIC);
+
+                slide_result res;
+                res.velocity = self.velocity;
+                vec remaining = self.velocity * dt;
+                for (int iter = 0; iter < m_cfg.max_slide_iter; ++iter) {
+                    if (near_zero(remaining)) {
+                        break;
+                    }
+                    auto hit = cast(idx, collider_id::BODY, remaining, acceptor);
+                    if (!hit) {
+                        translate(self, remaining); // clear path: take the whole step
+                        break;
+                    }
+                    // Advance to just short of the surface (the skin keeps a permanent gap so the
+                    // next iteration's cast does not re-hit at toi 0).
+                    const float len = euler::length(remaining);
+                    const float skin_frac = (len > constants::POINT_EPS) ? (m_cfg.skin / len) : 0.0f;
+                    const float advance = std::max(0.0f, hit->toi - skin_frac);
+                    translate(self, advance * remaining);
+
+                    const vec n = hit->normal;
+                    if (near_zero(n)) {
+                        break; // undefined normal -> can't slide; bail
+                    }
+
+                    // Slide: the leftover budget is (1 - toi) of the step (NOT 1 - advance --
+                    // the skin is a physical cushion, not part of the motion budget); remove its
+                    // into-surface component so the rest glides along the surface.
+                    const vec leftover = (1.0f - hit->toi) * remaining;
+                    remaining = leftover - euler::dot(leftover, n) * n;
+
+                    // Velocity response -- material-driven (friction/restitution from the SURFACE),
+                    // applied to velocity only; position sliding above is pure geometry.
+                    const auto& target = m_bodies_storage[hit->who.value];
+                    res.velocity = detail::eval_velocity_response(res.velocity, n, target.material);
+
+                    // Grounded if the contact faces up enough to stand on (~45 deg max slope).
+                    if (euler::dot(n, m_cfg.up) > GROUND_THRESHOLD) {
+                        res.grounded = true;
+                    }
+                    if (res.count < static_cast <int>(res.contacts.size())) {
+                        res.contacts[res.count++] = *hit;
+                    }
+                }
+
+                // Persist: write back the projected velocity, and re-fit the proxy ONLY when the
+                // moved tight box has escaped the stored fat box. Passing a freshly fattened box
+                // every frame would defeat update_leaf's containment short-circuit (the margin
+                // shifts with the body, so it never stays contained) and re-graft every frame.
+                self.velocity = res.velocity;
+                const aabb tight = std::visit([](const auto& s) { return enclose(s); }, self.shape);
+                if (!detail::contains(m_space_partition[self.proxy].box, tight)) {
+                    update_leaf(m_space_partition, self.proxy, fatten(self)); // escaped -> fresh fat box
+                }
+                return res;
+            }
+
+            // A persistent sensor-overlap pair. `key` is the diff identity: the two handles in a
+            // canonical order, INCLUDING generation -- so a slot reused by a different body (new
+            // generation) is a distinct pair and the old end / new begin both fire correctly,
+            // rather than the diff silently treating them as "still overlapping". The collider_ids
+            // are kept so an END can name the pair even after a body is removed.
+            struct sensor_pair {
+                std::array<uint32_t, 4> key{}; // {lo.value, lo.gen, hi.value, hi.gen}; std::array < is lexicographic
+                collider_id sensor{};
+                collider_id other{};
+            };
+
+            // Canonical, generation-aware pair key (order the two handles by value then gen).
+            static std::array<uint32_t, 4> pair_key(const collider_id& a, const collider_id& b) {
+                const bool a_lo = (a.value != b.value) ? (a.value < b.value) : (a.generation < b.generation);
+                const collider_id& lo = a_lo ? a : b;
+                const collider_id& hi = a_lo ? b : a;
+                return {lo.value, lo.generation, hi.value, hi.generation};
+            }
+
+            void emit_trigger(event_kind kind, const sensor_pair& p) {
+                m_events.emplace_back(kind, p.sensor, p.other, vec{}, -1.0f);
+            }
+
+            // A contact counts as "ground" when its normal points up enough to stand on:
+            // dot(n, up) > cos(45 deg) ~ 0.707 (max walkable slope ~45 degrees).
+            static constexpr float GROUND_THRESHOLD = 0.707f;
+
+            // A ONE_WAY surface blocks only when the contact normal aligns with its block_normal
+            // (dot above this). 0.5 (~cos 60 deg) blocks a head-on crossing of the blocked face
+            // while letting side/grazing contacts pass.
+            static constexpr float ONE_WAY_DOT = 0.5f;
+
+            static constexpr bool near_zero(const vec& v) {
+                return euler::length_squared(v) < constants::POINT_EPS * constants::POINT_EPS;
+            }
+
+            static void translate(detail::resident_body& body, const vec& v) {
+                shape_t new_shape{aabb{}};
+                std::visit([&v, &new_shape](const auto& s) {
+                    new_shape = collide::translate(s, v);
+                }, body.shape);
+                body.shape = new_shape;
+            }
+
+            static void translate(detail::nonresident_body& body, const vec& v) {
+                moving_shape_t new_shape{aabb{}};
+                std::visit([&v, &new_shape](const auto& s) {
+                    new_shape = collide::translate(s, v);
+                }, body.shape);
+                body.shape = new_shape;
+            }
+
+        private:
+            world_config m_cfg;
+            detail::bodies_storage m_bodies_storage;
+            detail::bullets_storage m_bullets_storage;
+
+            tree m_space_partition;
+
+            std::vector <world_event> m_events;          // reused per-frame event buffer
+            std::vector <sensor_pair> m_triggers_curr;   // this frame's sensor overlaps
+            std::vector <sensor_pair> m_triggers_prev;   // last frame's (for the begin/end diff)
+    };
+}

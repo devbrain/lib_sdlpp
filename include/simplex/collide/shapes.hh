@@ -49,6 +49,8 @@
 // =============================================================================
 
 #include <simplex/collide/types.hh>
+#include <simplex/collide/enclose.hh>
+#include <simplex/collide/translate.hh>
 #include <simplex/collide/distance.hh>
 #include <simplex/collide/overlap.hh>
 #include <simplex/collide/sweep.hh>

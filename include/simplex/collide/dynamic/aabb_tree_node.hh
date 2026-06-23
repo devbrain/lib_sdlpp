@@ -8,7 +8,7 @@
 #include <simplex/collide/types.hh>
 
 namespace simplex::collide {
-    using entity_id_t = int32_t;
+    using entity_id_t = uint32_t;
 
     // Height sentinel stamped on a slot while it sits on the storage free list.
     // A live leaf is height 0 and a live internal node is >= 1, so -1 is unambiguous.
@@ -52,7 +52,7 @@ namespace simplex::collide {
         node_ptr parent;
         node_ptr left, right; // child indices; -1 for leaves
         union {
-            int32_t  entity_id; // when a leaf
+            entity_id_t  entity_id; // when a leaf
             node_ptr next; // when free: free-list link
         };
         int16_t height;
