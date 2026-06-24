@@ -11,6 +11,9 @@
 //
 #include <doctest/doctest.h>
 
+#include <algorithm>
+#include <vector>
+
 #include <simplex/collide/dynamic/grid.hh>
 
 namespace simplex::collide {
@@ -57,27 +60,71 @@ TEST_SUITE("grid: grid_storage") {
         CHECK(s.get_height() == 5u);
     }
 
-    TEST_CASE("write then read round-trips per cell") {
+    TEST_CASE("a cell is empty until set; get returns nullptr") {
         detail::grid_storage<int> s(4, 3);
-        s[detail::grid_coord{0, 0}] = 11;
-        s[detail::grid_coord{3, 2}] = 99;   // opposite corner
-        s[detail::grid_coord{1, 2}] = 42;
-        CHECK(s[detail::grid_coord{0, 0}] == 11);
-        CHECK(s[detail::grid_coord{3, 2}] == 99);
-        CHECK(s[detail::grid_coord{1, 2}] == 42);
+        CHECK(s.get(detail::grid_coord{0, 0}) == nullptr);   // nothing set yet
+        s.set(detail::grid_coord{0, 0}, 11);
+        const int* p = s.get(detail::grid_coord{0, 0});
+        REQUIRE(p != nullptr);
+        CHECK(*p == 11);
+        CHECK(s.get(detail::grid_coord{1, 0}) == nullptr);   // a neighbour stays empty
+    }
+
+    TEST_CASE("set then get round-trips per cell; overwrite updates in place") {
+        detail::grid_storage<int> s(4, 3);
+        s.set(detail::grid_coord{0, 0}, 11);
+        s.set(detail::grid_coord{3, 2}, 99);   // opposite corner
+        s.set(detail::grid_coord{1, 2}, 42);
+        CHECK(*s.get(detail::grid_coord{0, 0}) == 11);
+        CHECK(*s.get(detail::grid_coord{3, 2}) == 99);
+        CHECK(*s.get(detail::grid_coord{1, 2}) == 42);
+
+        s.set(detail::grid_coord{0, 0}, 7);    // overwrite an occupied cell
+        CHECK(*s.get(detail::grid_coord{0, 0}) == 7);
     }
 
     TEST_CASE("cells are independent; (x,y) and (y,x) are distinct cells (row-major)") {
         detail::grid_storage<int> s(3, 3);
         for (uint32_t y = 0; y < 3; ++y) {
             for (uint32_t x = 0; x < 3; ++x) {
-                s[detail::grid_coord{x, y}] = static_cast<int>(y * 3 + x); // = the flat index
+                s.set(detail::grid_coord{x, y}, static_cast<int>(y * 3 + x)); // = the flat index
             }
         }
         // (1,0) and (0,1) must be different cells -> different stored values.
-        CHECK(s[detail::grid_coord{1, 0}] == 1);
-        CHECK(s[detail::grid_coord{0, 1}] == 3);
-        CHECK(s[detail::grid_coord{2, 2}] == 8);
+        CHECK(*s.get(detail::grid_coord{1, 0}) == 1);
+        CHECK(*s.get(detail::grid_coord{0, 1}) == 3);
+        CHECK(*s.get(detail::grid_coord{2, 2}) == 8);
+    }
+
+    TEST_CASE("clear empties a cell; double-clear and clear-empty are safe no-ops") {
+        detail::grid_storage<int> s(4, 3);
+        s.set(detail::grid_coord{2, 1}, 55);
+        REQUIRE(s.get(detail::grid_coord{2, 1}) != nullptr);
+        s.clear(detail::grid_coord{2, 1});
+        CHECK(s.get(detail::grid_coord{2, 1}) == nullptr);   // now empty
+        // these must not corrupt the free list (the clear-empty / double-clear guard)
+        CHECK_NOTHROW(s.clear(detail::grid_coord{2, 1}));    // already empty
+        CHECK_NOTHROW(s.clear(detail::grid_coord{0, 0}));    // never set
+    }
+
+    TEST_CASE("a cleared slot is reused by a later set, with the new value") {
+        detail::grid_storage<int> s(4, 3);
+        s.set(detail::grid_coord{0, 0}, 1);
+        s.set(detail::grid_coord{1, 0}, 2);
+        s.clear(detail::grid_coord{0, 0});                   // frees a slot
+        s.set(detail::grid_coord{2, 0}, 3);                  // should reuse the freed slot
+        // all live cells read back correctly (no aliasing from slot reuse)
+        CHECK(s.get(detail::grid_coord{0, 0}) == nullptr);
+        CHECK(*s.get(detail::grid_coord{1, 0}) == 2);
+        CHECK(*s.get(detail::grid_coord{2, 0}) == 3);
+    }
+
+    TEST_CASE("get out of range returns nullptr (no OOB)") {
+        const detail::grid_storage<int> s(4, 3);
+        CHECK(s.get(detail::grid_coord{4, 0}) == nullptr);   // x == width
+        CHECK(s.get(detail::grid_coord{0, 3}) == nullptr);   // y == height
+        CHECK(s.get(detail::grid_coord{999, 999}) == nullptr);
+        CHECK(s.get(detail::grid_coord{}) == nullptr);       // invalid sentinel
     }
 }
 
@@ -176,5 +223,96 @@ TEST_SUITE("grid: cell_box") {
                 CHECK(from_center.y == y);
             }
         }
+    }
+}
+
+TEST_SUITE("grid: physical API (set/get/clear/reset)") {
+    TEST_CASE("set then get by world position; empty / out-of-bounds read as nullptr") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8}); // cell 2x2
+        g.set(vec{1, 1}, 11);                     // cell (0,0)
+        g.set(vec{5, 3}, 42);                     // cell (2,1)
+        REQUIRE(g.get(vec{1, 1}) != nullptr);
+        CHECK(*g.get(vec{1, 1}) == 11);
+        CHECK(*g.get(vec{5, 3}) == 42);
+        CHECK(*g.get(vec{0.5f, 0.5f}) == 11);    // same cell (0,0) -> same value
+        CHECK(g.get(vec{7, 7}) == nullptr);      // empty cell
+        CHECK(g.get(vec{-1, 0}) == nullptr);     // out of bounds -> tolerant nullptr
+        CHECK(g.get(vec{100, 100}) == nullptr);
+    }
+
+    TEST_CASE("set overwrites the cell that contains the position") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        g.set(vec{1, 1}, 1);
+        g.set(vec{1.5f, 0.5f}, 9); // same cell (0,0)
+        CHECK(*g.get(vec{0, 0}) == 9);
+    }
+
+    TEST_CASE("clear by position empties the cell; reset empties everything") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        g.set(vec{1, 1}, 1);
+        g.set(vec{5, 5}, 2);
+        g.clear(vec{1, 1});
+        CHECK(g.get(vec{1, 1}) == nullptr);
+        CHECK(*g.get(vec{5, 5}) == 2);           // unaffected
+        CHECK_NOTHROW(g.clear(vec{1, 1}));       // clear-empty no-op
+        CHECK_NOTHROW(g.clear(vec{200, 0}));     // clear out-of-bounds no-op
+        g.reset();
+        CHECK(g.get(vec{5, 5}) == nullptr);      // all gone
+    }
+
+    TEST_CASE("works with a non-default-constructible payload") {
+        struct body { int v; explicit body(int x) : v(x) {} };
+        grid<body> g(2, 2, vec{0, 0}, vec{4, 4});
+        g.set(vec{1, 1}, 7);                      // emplace body(7)
+        REQUIRE(g.get(vec{1, 1}) != nullptr);
+        CHECK(g.get(vec{1, 1})->v == 7);
+    }
+}
+
+TEST_SUITE("grid: query (region enumeration)") {
+    // helper: collect (value, cell_box) pairs a query yields
+    struct hit { int v; aabb box; };
+
+    TEST_CASE("enumerates occupied cells overlapping the region, with their cell_box") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8}); // cell 2x2
+        g.set(vec{1, 1}, 1);   // cell (0,0) box [0,0]..[2,2]
+        g.set(vec{3, 1}, 2);   // cell (1,0) box [2,0]..[4,2]
+        g.set(vec{5, 5}, 3);   // cell (2,2) box [4,4]..[6,6]  (outside the query box below)
+
+        std::vector<hit> hits;
+        g.query(aabb{{0, 0}, {3, 3}}, [&](const int& v, const aabb& b) { hits.push_back({v, b}); });
+
+        // the region [0,3]^2 covers cells (0,0) and (1,0) (and (0,1)/(1,1) which are empty)
+        REQUIRE(hits.size() == 2);
+        std::sort(hits.begin(), hits.end(), [](const hit& a, const hit& b) { return a.v < b.v; });
+        CHECK(hits[0].v == 1);
+        CHECK(hits[0].box.min.x() == 0.0f); CHECK(hits[0].box.max.x() == 2.0f); // cell (0,0) box
+        CHECK(hits[1].v == 2);
+        CHECK(hits[1].box.min.x() == 2.0f); CHECK(hits[1].box.max.x() == 4.0f); // cell (1,0) box
+    }
+
+    TEST_CASE("skips empty cells") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        g.set(vec{1, 1}, 5); // only one occupied cell
+        int count = 0;
+        g.query(aabb{{0, 0}, {8, 8}}, [&](const int&, const aabb&) { ++count; });
+        CHECK(count == 1); // whole grid queried, but only the one occupied cell reported
+    }
+
+    TEST_CASE("a region overlapping the grid edge is clipped (no OOB, no throw)") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        g.set(vec{7, 7}, 9);                      // last cell (3,3)
+        int count = 0;
+        // region pokes past the max corner -> clipped to the grid
+        CHECK_NOTHROW(g.query(aabb{{6, 6}, {100, 100}}, [&](const int&, const aabb&) { ++count; }));
+        CHECK(count == 1);
+    }
+
+    TEST_CASE("a region entirely outside the grid is a tolerant no-op") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        g.set(vec{1, 1}, 1);
+        int count = 0;
+        CHECK_NOTHROW(g.query(aabb{{100, 100}, {110, 110}}, [&](const int&, const aabb&) { ++count; }));
+        CHECK(count == 0);
     }
 }
