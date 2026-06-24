@@ -75,16 +75,14 @@ namespace simplex::collide {
             grid(uint32_t w, uint32_t h, const vec& grid_min, const vec& grid_max)
                 : m_grid(w, h),
                   m_physical_bounds(grid_min, grid_max),
-                  m_dx(grid_max.x() - grid_min.x()),
-                  m_dy(grid_max.y() - grid_min.y()),
                   m_cell_dim{
-                      m_dx / static_cast <float>(w),
-                      m_dy / static_cast <float>(h)
+                      (grid_max.x() - grid_min.x()) / static_cast <float>(w),
+                      (grid_max.y() - grid_min.y()) / static_cast <float>(h)
                   } {
             }
 
         private:
-            detail::grid_coord physical_to_grid(const vec& v) {
+            [[nodiscard]] detail::grid_coord physical_to_grid(const vec& v) const {
                 if (!contains(m_physical_bounds, v)) {
                     return {};
                 }
@@ -94,11 +92,19 @@ namespace simplex::collide {
                 return {cx, cy};
             }
 
+            [[nodiscard]] aabb cell_box(const detail::grid_coord& c) const {
+                ENFORCE(c);
+                const vec p{
+                    static_cast <float>(c.x) * m_cell_dim.x(),
+                    static_cast <float>(c.y) * m_cell_dim.y()
+                };
+                const vec corner = p + m_physical_bounds.min;
+                return {corner, corner + m_cell_dim};
+            }
+
         private:
             detail::grid_storage <T> m_grid;
             aabb m_physical_bounds;
-            const float m_dx;
-            const float m_dy;
             const vec m_cell_dim;
     };
 };

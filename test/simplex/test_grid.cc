@@ -2,24 +2,27 @@
 // Created by igor on 24/06/2026.
 //
 // Tests for the static collision grid scaffolding in <simplex/collide/dynamic/grid.hh>
-// (Phase G0): the grid_coord sentinel/validity, the row-major grid_storage<T>, and the
-// physical->grid cell mapping (resolution w*h over a physical extent [min,max], so the
-// cell size is derived). The mapping is private, so it is reached through the
-// grid_test_access friend tap -- the same pattern as the world tests.
+// (Phase G0): the grid_coord sentinel/validity, the row-major grid_storage<T>, the
+// physical->grid cell mapping and its inverse cell_box (resolution w*h over a physical
+// extent [min,max], so the cell size is derived). The mappings are private, so they are
+// reached through the grid_test_access friend tap -- the same pattern as the world tests.
 //
-// Query/shape APIs (cell_box, region/raycast/cast) don't exist yet; this covers only the
-// coordinate substrate that does.
+// Not yet built: the cell->shape materialization and the region/raycast/cast queries.
 //
 #include <doctest/doctest.h>
 
 #include <simplex/collide/dynamic/grid.hh>
 
 namespace simplex::collide {
-    // Friend tap (declared in grid.hh): reach the private mapping.
+    // Friend tap (declared in grid.hh): reach the private mappings.
     struct grid_test_access {
         template <class T>
-        static detail::grid_coord physical_to_grid(grid<T>& g, const vec& v) {
+        static detail::grid_coord physical_to_grid(const grid<T>& g, const vec& v) {
             return g.physical_to_grid(v);
+        }
+        template <class T>
+        static aabb cell_box(const grid<T>& g, const detail::grid_coord& c) {
+            return g.cell_box(c);
         }
     };
 }
@@ -120,5 +123,58 @@ TEST_SUITE("grid: physical_to_grid mapping") {
         CHECK(cell(1.0f, 1.0f).x == 0u);   CHECK(cell(1.0f, 1.0f).y == 0u);
         CHECK(cell(5.0f, 3.0f).x == 1u);   CHECK(cell(5.0f, 3.0f).y == 1u);   // x: 5/4=1, y: 3/2=1
         CHECK(cell(7.0f, 7.0f).x == 1u);   CHECK(cell(7.0f, 7.0f).y == 3u);   // x: 7/4=1, y: 7/2=3
+    }
+}
+
+TEST_SUITE("grid: cell_box") {
+    // exact-corner box equality (cell_box only adds/multiplies exact cell dims, so bit-exact
+    // for representable inputs).
+    auto box_eq = [](const aabb& b, float minx, float miny, float maxx, float maxy) {
+        return b.min.x() == minx && b.min.y() == miny && b.max.x() == maxx && b.max.y() == maxy;
+    };
+
+    TEST_CASE("square cells: world AABB of a cell (4x4 over [0,8]^2 -> 2x2 cells)") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        CHECK(box_eq(grid_test_access::cell_box(g, {0, 0}), 0.0f, 0.0f, 2.0f, 2.0f)); // min corner cell
+        CHECK(box_eq(grid_test_access::cell_box(g, {2, 1}), 4.0f, 2.0f, 6.0f, 4.0f));
+        CHECK(box_eq(grid_test_access::cell_box(g, {3, 3}), 6.0f, 6.0f, 8.0f, 8.0f)); // last cell hits max
+    }
+
+    TEST_CASE("non-origin bounds: boxes are offset from grid_min") {
+        grid<int> g(2, 2, vec{-10, -10}, vec{-6, -6}); // cell 2x2
+        CHECK(box_eq(grid_test_access::cell_box(g, {0, 0}), -10.0f, -10.0f, -8.0f, -8.0f));
+        CHECK(box_eq(grid_test_access::cell_box(g, {1, 1}), -8.0f, -8.0f, -6.0f, -6.0f));
+    }
+
+    TEST_CASE("rectangular cells: 2x4 over [0,8]^2 -> cells 4 wide, 2 tall") {
+        grid<int> g(2, 4, vec{0, 0}, vec{8, 8}); // cell_dim = (4, 2)
+        CHECK(box_eq(grid_test_access::cell_box(g, {0, 0}), 0.0f, 0.0f, 4.0f, 2.0f));
+        CHECK(box_eq(grid_test_access::cell_box(g, {1, 3}), 4.0f, 6.0f, 8.0f, 8.0f)); // far cell hits max
+    }
+
+    TEST_CASE("adjacent cells tile contiguously (shared edge, no gap/overlap)") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        const aabb a = grid_test_access::cell_box(g, {0, 0});
+        const aabb right = grid_test_access::cell_box(g, {1, 0});
+        const aabb below = grid_test_access::cell_box(g, {0, 1});
+        CHECK(a.max.x() == right.min.x()); // x-adjacent cells share the vertical edge
+        CHECK(a.max.y() == below.min.y()); // y-adjacent cells share the horizontal edge
+    }
+
+    TEST_CASE("round-trip: a cell's corner (and center) map back to that cell") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        for (uint32_t y = 0; y < 4; ++y) {
+            for (uint32_t x = 0; x < 4; ++x) {
+                const detail::grid_coord c{x, y};
+                const aabb b = grid_test_access::cell_box(g, c);
+                const auto from_min = grid_test_access::physical_to_grid(g, b.min);
+                CHECK(from_min.x == x);
+                CHECK(from_min.y == y);
+                const vec center{(b.min.x() + b.max.x()) * 0.5f, (b.min.y() + b.max.y()) * 0.5f};
+                const auto from_center = grid_test_access::physical_to_grid(g, center);
+                CHECK(from_center.x == x);
+                CHECK(from_center.y == y);
+            }
+        }
     }
 }

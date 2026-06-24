@@ -135,9 +135,11 @@ template <class T> class grid {
   **clamped** so the inclusive max edge lands in the last cell (not `w`/`h`), and returns the
   **invalid sentinel** for points outside the bounds (out-of-range → "no cell", never throws) —
   the tolerant behavior the queries need.
+- **`cell_box(coord) -> aabb`** is the inverse: the cell's world AABB,
+  `[min + coord·cell_dim, + cell_dim]`. Adjacent cells tile contiguously (shared edges), and
+  `physical_to_grid(cell_box(c).min) == c` round-trips.
 
-*Remaining for G0:* the inverse `cell_box(coord) -> aabb` and the `cell -> shape_t`
-materialization (the tile-id → shape table of §4).
+*Remaining for G0:* the `cell -> shape_t` materialization (the tile-id → shape table of §4).
 
 ---
 
@@ -303,11 +305,13 @@ Follow the established pattern (doctest, ASan/UBSan, brute-force cross-checks):
 ## 13. Implementation plan (phased; each phase independently testable)
 
 - **Phase G0 — Grid types & mapping. [PARTIAL]** *Done:* `grid_coord` (invalid sentinel),
-  row-major `grid_storage<T>`, `grid<T>` + `physical_to_grid` (clamped, out-of-range → invalid),
-  parameterized by resolution + extent (cell size derived; rectangular cells supported). *Tests*
-  (`test_grid.cc`): coord validity, storage indexing/layout, mapping incl. boundary rounding,
-  max-edge clamp, out-of-bounds → invalid, non-origin and rectangular cells. *Remaining:*
-  `cell_box(coord) -> aabb` and the `cell -> shape_t` materialization (tile-id → shape table).
+  row-major `grid_storage<T>`, `grid<T>` + `physical_to_grid` (clamped, out-of-range → invalid)
+  and the inverse `cell_box(coord) -> aabb`, parameterized by resolution + extent (cell size
+  derived; rectangular cells supported). *Tests* (`test_grid.cc`): coord validity, storage
+  indexing/layout, mapping incl. boundary rounding, max-edge clamp, out-of-bounds → invalid,
+  non-origin and rectangular cells; cell_box AABBs, contiguous tiling, and the
+  physical_to_grid∘cell_box round-trip. *Remaining:* the `cell -> shape_t` materialization
+  (tile-id → shape table).
 
 - **Phase G1 — Region / overlap query.** Cell-range scan + per-cell narrow-phase. *Tests:*
   brute-force cross-check vs naive cell scan on random tilemaps; filter behavior.
