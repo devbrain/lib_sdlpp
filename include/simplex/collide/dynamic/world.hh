@@ -16,6 +16,7 @@
 
 #include <simplex/collide/shapes.hh>
 #include <simplex/collide/units.hh>
+#include <simplex/collide/dynamic/grid.hh>
 #include <simplex/collide/dynamic/dynamic_aabb_tree.hh>
 
 namespace simplex::collide {

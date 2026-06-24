@@ -1,8 +1,13 @@
 # Static Collision Grid — Design & Implementation Plan
 
-Status: **Draft / proposed.** This is Phase 7 of the collision world
-(`docs/COLLISION_WORLD_IMPLEMENTATION_PLAN.md` §12, §17). Target genres: **2D
-platformers and shoot-'em-ups (shmups)**, where levels are large and tile-aligned.
+Status: **In progress (G0 scaffolding).** This is Phase 7 of the collision world
+(`docs/COLLISION_WORLD_IMPLEMENTATION_PLAN.md` §12, §17). The coordinate substrate is
+implemented in `include/simplex/collide/dynamic/grid.hh` (tested in
+`test/simplex/test_grid.cc`): `grid_coord` (with an invalid sentinel), the row-major
+`grid_storage<T>`, and `grid<T>` with the physical→cell mapping. The cell→shape
+materialization and the queries (region / DDA raycast / swept) are not built yet.
+Target genres: **2D platformers and shoot-'em-ups (shmups)**, where levels are large and
+tile-aligned.
 
 The grid is a **uniform spatial index for static geometry** that sits behind the same
 query interface as the dynamic AABB tree, so `cast` / `raycast` / `overlap` transparently
@@ -91,24 +96,48 @@ existing narrow-phase against it. No storage of shapes; no new shape types.
 
 ---
 
-## 5. Storage (v1: implicit, bounded)
+## 5. Storage (as built, G0)
 
-```
-struct grid {
-    float       cell_size;       // = tile_size
-    vec         origin;          // world position of cell (0,0)'s min corner
-    int         w, h;            // grid extent in cells
-    std::vector<tile_id> cells;  // w*h, row-major: cells[cy*w + cx]
-    // tile_id -> shape table (solid / slope_* / empty / ...), shared/level-owned
+The cell payload is generic (`grid<T>`); the tile-id-vs-shape decision (§4, §12) is deferred.
+The grid is parameterized by **resolution + physical extent**, so the cell size is *derived*
+(the texture/heightmap mapping): you say how many cells and what region they cover.
+
+```cpp
+namespace detail {
+    struct grid_coord {                 // a cell index; INVALID on both axes = "no cell"
+        static constexpr uint32_t INVALID = ~0u;
+        uint32_t x, y;
+        explicit operator bool() const; // valid iff neither axis is INVALID
+    };
+
+    template <class T> class grid_storage {     // row-major flat cells, cells[y*w + x]
+        grid_storage(uint32_t w, uint32_t h);
+        T& operator[](grid_coord);  const T& operator[](grid_coord) const;
+        uint32_t get_width() const;  uint32_t get_height() const;
+    };
+}
+
+template <class T> class grid {
+    grid(uint32_t w, uint32_t h, const vec& grid_min, const vec& grid_max);
+    // derived: m_cell_dim = (grid_max - grid_min) / (w, h)   -- per-axis, so cells may be
+    //          rectangular (square is just the dx/w == dy/h case).
+  private:
+    detail::grid_coord physical_to_grid(const vec&) const; // floor((p-min)/cell_dim), clamped
 };
 ```
 
-- **Row-major flat array**, `cells[cy*w + cx]` — cache-friendly (a row is contiguous), and
-  the only memory beyond the tilemap is the tilemap itself.
-- `origin` + `cell_size` place the grid in world space; `world_to_cell` / `cell_to_box` are
-  the two conversions everything builds on.
-- Out-of-range cells read as `empty` (the level boundary is the caller's concern, or a wall
-  ring of solid tiles).
+- **Resolution + extent, cell size derived.** Inputs are the cell counts `(w, h)` and the
+  world rectangle `[grid_min, grid_max]`; `cell_dim = (grid_max - grid_min) / (w, h)`. There is
+  no `cell_size` input. Cells may be **rectangular** (per-axis `cell_dim`); square is the
+  `dx/w == dy/h` case. For a tilemap, pass `grid_max = grid_min + (w, h)·tile_size`.
+- **Row-major flat array** (`grid_storage<T>`), `cells[y*w + x]` — cache-friendly.
+- **`physical_to_grid`** maps a world point to a cell via `floor((p - grid_min) / cell_dim)`,
+  **clamped** so the inclusive max edge lands in the last cell (not `w`/`h`), and returns the
+  **invalid sentinel** for points outside the bounds (out-of-range → "no cell", never throws) —
+  the tolerant behavior the queries need.
+
+*Remaining for G0:* the inverse `cell_box(coord) -> aabb` and the `cell -> shape_t`
+materialization (the tile-id → shape table of §4).
 
 ---
 
@@ -273,9 +302,12 @@ Follow the established pattern (doctest, ASan/UBSan, brute-force cross-checks):
 
 ## 13. Implementation plan (phased; each phase independently testable)
 
-- **Phase G0 — Grid types & mapping.** `grid` (cell_size, origin, w, h, cells), tile →
-  shape table, `world_to_cell` / `cell_to_box` / `cell_shape`. *Tests:* mapping round-trips,
-  out-of-range → empty, shape materialization for solid/slope tiles.
+- **Phase G0 — Grid types & mapping. [PARTIAL]** *Done:* `grid_coord` (invalid sentinel),
+  row-major `grid_storage<T>`, `grid<T>` + `physical_to_grid` (clamped, out-of-range → invalid),
+  parameterized by resolution + extent (cell size derived; rectangular cells supported). *Tests*
+  (`test_grid.cc`): coord validity, storage indexing/layout, mapping incl. boundary rounding,
+  max-edge clamp, out-of-bounds → invalid, non-origin and rectangular cells. *Remaining:*
+  `cell_box(coord) -> aabb` and the `cell -> shape_t` materialization (tile-id → shape table).
 
 - **Phase G1 — Region / overlap query.** Cell-range scan + per-cell narrow-phase. *Tests:*
   brute-force cross-check vs naive cell scan on random tilemaps; filter behavior.

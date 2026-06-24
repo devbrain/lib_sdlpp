@@ -48,6 +48,7 @@ target_sources(simplex PRIVATE
         ${PROJECT_ROOT}/include/simplex/collide/dynamic/dynamic_aabb_tree.hh
         ${PROJECT_ROOT}/include/simplex/collide/dynamic/sorted_array.hh
         ${PROJECT_ROOT}/include/simplex/collide/dynamic/world.hh
+        ${PROJECT_ROOT}/include/simplex/collide/dynamic/grid.hh
 
         dp.cc
         simplex.cc

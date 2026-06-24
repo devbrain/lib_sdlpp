@@ -111,6 +111,7 @@ add_executable(sdlpp_unittest
         simplex/test_enclose.cc
         simplex/test_units.cc
         simplex/test_world.cc
+        simplex/test_grid.cc
         simplex/test_world_queries.cc
         simplex/test_world_run.cc
         simplex/test_world_slide.cc
