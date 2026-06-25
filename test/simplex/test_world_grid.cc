@@ -118,6 +118,74 @@ TEST_SUITE("world+grid: triggers") {
     }
 }
 
+TEST_SUITE("world+grid: sensor tiles") {
+    static int count_kind(const std::vector<world_event>& evs, event_kind k) {
+        int n = 0;
+        for (const auto& e : evs) if (e.kind == k) ++n;
+        return n;
+    }
+
+    TEST_CASE("a SENSOR tile senses a plain body over it (BEGIN, then END on exit)") {
+        world w = grid_world();
+        material_props sens; sens.response = response_mode::SENSOR;
+        w.add(1, tile_body{aabb{vec{4, 4}, vec{6, 6}}, sens, {}}); // sensor tile, cell (2,2)
+        const collider_id b = w.add(2, kinematic_body{
+                                       moving_shape_t{aabb{vec{4.5f, 4.5f}, vec{5.5f, 5.5f}}}, {}, {}, vec{0, 0}});
+
+        const auto& f1 = w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f);
+        CHECK(count_kind(f1, event_kind::TRIGGER_BEGIN) == 1);
+        bool named = false;
+        for (const auto& e : f1)
+            if (e.kind == event_kind::TRIGGER_BEGIN)
+                named = e.mover.type_id == collider_id::TILE && w.get_eid(e.mover) == 1u
+                        && w.get_eid(e.target) == 2u;
+        CHECK(named); // the sensor side is the tile, the other side is the body
+
+        const auto& f2 = w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f);
+        CHECK(count_kind(f2, event_kind::TRIGGER_BEGIN) == 0); // still inside -> no repeat
+
+        w.set_shape(b, shape_t{aabb{vec{0.1f, 0.1f}, vec{1.0f, 1.0f}}}); // body leaves the tile
+        const auto& f3 = w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f);
+        CHECK(count_kind(f3, event_kind::TRIGGER_END) == 1);
+    }
+
+    TEST_CASE("a sensor body and a sensor tile overlapping fire ONE deduped trigger") {
+        world w = grid_world();
+        material_props sens; sens.response = response_mode::SENSOR;
+        w.add(1, tile_body{aabb{vec{4, 4}, vec{6, 6}}, sens, {}});
+        w.add(2, kinematic_body{moving_shape_t{aabb{vec{4.5f, 4.5f}, vec{5.5f, 5.5f}}}, sens, {}, vec{0, 0}});
+        const auto& f = w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f);
+        CHECK(count_kind(f, event_kind::TRIGGER_BEGIN) == 1); // produced from both sides -> deduped
+    }
+
+    TEST_CASE("overwriting a sensor tile with a plain tile stops it triggering (stale entry pruned)") {
+        world w = grid_world();
+        material_props sens; sens.response = response_mode::SENSOR;
+        w.add(1, tile_body{aabb{vec{4, 4}, vec{6, 6}}, sens, {}});
+        w.add(2, kinematic_body{moving_shape_t{aabb{vec{4.5f, 4.5f}, vec{5.5f, 5.5f}}}, {}, {}, vec{0, 0}});
+        CHECK(count_kind(w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f), event_kind::TRIGGER_BEGIN) == 1);
+
+        w.add(3, tile_body{aabb{vec{4, 4}, vec{6, 6}}, {}, {}}); // overwrite same cell, non-sensor
+        CHECK(count_kind(w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f), event_kind::TRIGGER_END) == 1);
+        CHECK(count_kind(w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f), event_kind::TRIGGER_BEGIN) == 0);
+    }
+
+    TEST_CASE("a sensor tile is passable: a mover falls through it, doesn't land") {
+        // SENSOR floor (does not block) vs the same as a BLOCK floor (does), same drop.
+        auto drop_onto = [](response_mode resp) {
+            world w = grid_world();
+            material_props m; m.response = resp; m.block_normal = vec{0, 1};
+            w.add(1, tile_body{aabb{vec{2, 0}, vec{4, 2}}, m, {}}); // floor tile, cell (1,0)
+            const collider_id b = w.add(2, kinematic_body{
+                                           moving_shape_t{aabb{vec{2.5f, 3.0f}, vec{3.5f, 4.0f}}}, {}, {}, vec{0, -120}});
+            (void)w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f); // dy = -2
+            return std::visit([](const auto& s) { return enclose(s); }, w.get_shape(b)).min.y();
+        };
+        CHECK(drop_onto(response_mode::BLOCK) >= 2.0f - 0.05f); // BLOCK floor stops it at the top
+        CHECK(drop_onto(response_mode::SENSOR) < 2.0f);         // SENSOR floor: it falls through
+    }
+}
+
 TEST_SUITE("world+grid: move_and_slide") {
     TEST_CASE("a falling body lands on a tile floor (does not tunnel through)") {
         world w = grid_world();

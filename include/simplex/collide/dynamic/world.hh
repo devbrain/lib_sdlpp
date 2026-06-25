@@ -500,7 +500,13 @@ namespace simplex::collide {
                 m_static_grid->set(centre, detail::tile{body.shape, body.material, body.filter, eid});
                 // Stamp the post-set generation: a later overwrite/clear of this cell bumps it,
                 // so this handle then reads as invalid instead of silently aliasing the new tile.
-                return {cell, m_static_grid->cell_generation(cell), collider_id::TILE};
+                const collider_id id{cell, m_static_grid->cell_generation(cell), collider_id::TILE};
+                // Track sensor tiles so the trigger pass can scan them (bodies-only loop can't).
+                // Stale entries (cell overwritten/cleared) are pruned lazily in the trigger pass.
+                if (body.material.response == response_mode::SENSOR) {
+                    m_sensor_tiles.push_back(id);
+                }
+                return id;
             }
 
             void remove(collider_id cid) {
@@ -533,6 +539,7 @@ namespace simplex::collide {
                 m_events.clear();
                 m_triggers_curr.clear();
                 m_triggers_prev.clear();
+                m_sensor_tiles.clear();
             }
 
             // resize/teleport. Takes the wide shape_t; a moving body cannot become a segment,
@@ -712,6 +719,24 @@ namespace simplex::collide {
                         m_triggers_curr.push_back({pair_key(sensor_id, other), sensor_id, other});
                     });
                 }
+                // Sensor TILES: the bodies loop above can't see them. Scan the side-list, pruning
+                // stale entries (cell overwritten/cleared since -> generation mismatch) by swap-pop.
+                // A sensor tile senses bodies only (query_tiles=false): tiles are static, so
+                // tile-vs-tile overlaps never change frame to frame and carry no trigger meaning.
+                for (std::size_t i = 0; i < m_sensor_tiles.size();) {
+                    const collider_id st = m_sensor_tiles[i];
+                    if (!is_valid(st)) {
+                        m_sensor_tiles[i] = m_sensor_tiles.back();
+                        m_sensor_tiles.pop_back();
+                        continue;
+                    }
+                    const detail::tile& t = *m_static_grid->at(st.value);
+                    overlap_core(t.shape, t.filter, collider_id::INVALID, /*query_tiles=*/false,
+                                 [&](collider_id other) {
+                                     m_triggers_curr.push_back({pair_key(st, other), st, other});
+                                 });
+                    ++i;
+                }
                 std::sort(m_triggers_curr.begin(), m_triggers_curr.end(),
                           [](const sensor_pair& a, const sensor_pair& b) { return a.key < b.key; });
                 // Dedup: a sensor-vs-sensor overlap is produced once from each side (same key).
@@ -864,33 +889,33 @@ namespace simplex::collide {
                 return {cell, m_static_grid->cell_generation(cell), collider_id::TILE};
             }
 
+            // Report every collider whose shape overlaps `self_shape` (passing `self_filter`),
+            // across the BVH residents and -- when `query_tiles` -- the static grid. `exclude_body`
+            // skips one body slot (the querying body itself; INVALID = none). Source-agnostic so it
+            // serves both a body sensor (query_tiles = true, exclude self) and a tile sensor
+            // (query_tiles = false -- tiles do not sense other tiles, and there is no body self).
             template<class Fn>
-            void overlap(uint32_t idx, Fn&& on_hit) const {
-                const auto& self = m_bodies_storage[idx];
+            void overlap_core(const shape_t& self_shape, const filter_props& self_filter,
+                              uint32_t exclude_body, bool query_tiles, Fn&& on_hit) const {
+                const aabb envelope = std::visit([](const auto& s) { return enclose(s); }, self_shape);
 
-                auto envelope = std::visit([](const auto& s) {
-                    return enclose(s);
-                }, self.shape);
-
-                // Source-agnostic per-candidate test: filter, then narrow-phase the self shape vs
-                // the target shape; report the handle on overlap. Reused by the grid fan-out.
                 auto consider = [&](const shape_t& target_shape, const filter_props& target_filter,
                                     const collider_id& id) {
-                    if (!should_collide(self.filter, target_filter)) {
+                    if (!should_collide(self_filter, target_filter)) {
                         return;
                     }
                     const bool rc = std::visit([&](const auto& my_shape) {
                         return std::visit([&](const auto& other_shape) {
                             return collide::intersects(my_shape, other_shape);
                         }, target_shape);
-                    }, self.shape);
+                    }, self_shape);
                     if (rc) {
                         on_hit(id);
                     }
                 };
 
                 query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
-                    if (other_idx == idx) {
+                    if (other_idx == exclude_body) {
                         return;
                     }
                     const auto& other = m_bodies_storage[other_idx];
@@ -898,13 +923,18 @@ namespace simplex::collide {
                              collider_id{other_idx, other.generation, collider_id::BODY});
                 });
 
-                // Static tiles in the same region. (A body-sensor can sense tiles; sensor TILES are
-                // not scanned as sensors -- the trigger pass iterates body sensors only. v1 limit.)
-                if (m_static_grid) {
+                if (query_tiles && m_static_grid) {
                     m_static_grid->query(envelope, [&](const detail::tile& t, const aabb& cb) {
                         consider(t.shape, t.filter, tile_handle(cb));
                     });
                 }
+            }
+
+            // A body's overlaps (the body senses bodies AND tiles).
+            template<class Fn>
+            void overlap(uint32_t idx, Fn&& on_hit) const {
+                const auto& self = m_bodies_storage[idx];
+                overlap_core(self.shape, self.filter, idx, /*query_tiles=*/true, std::forward<Fn>(on_hit));
             }
 
             // Swept-query core: sweep `mover` by `delta` and return the earliest accepted resident
@@ -1232,6 +1262,7 @@ namespace simplex::collide {
             std::vector <world_event> m_events;          // reused per-frame event buffer
             std::vector <sensor_pair> m_triggers_curr;   // this frame's sensor overlaps
             std::vector <sensor_pair> m_triggers_prev;   // last frame's (for the begin/end diff)
+            std::vector <collider_id> m_sensor_tiles;    // SENSOR tile handles (lazily pruned)
     };
 }
 

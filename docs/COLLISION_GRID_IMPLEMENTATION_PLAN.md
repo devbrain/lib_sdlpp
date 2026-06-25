@@ -463,11 +463,12 @@ notes the impact, the workaround, and how it would be lifted. Both correctness t
 
 ### Feature gaps
 
-3. **Sensor TILES are not scanned as sensors.** The trigger pass iterates bodies only, so a
-   `tile_body` with `response == SENSOR` never initiates a trigger; and since `solid_pred` treats
-   `SENSOR` as non-solid, such a tile is inert (neither blocks nor triggers). A body-sensor *can*
-   sense a tile (the tile is the "other" side). *Workaround:* model trigger zones as sensor
-   bodies. *Lift:* a second trigger-pass loop scanning the grid for `SENSOR` tiles.
+3. **Sensor TILES — NOW SUPPORTED.** The world keeps a side-list of `SENSOR` tile handles
+   (pushed by `add`, lazily pruned by the trigger pass when a cell is overwritten/cleared
+   -> generation mismatch). The trigger pass scans it after the body-sensor loop, overlapping each
+   sensor tile against the bodies (tiles don't sense other tiles -- static, no edge meaning) and
+   feeding the same begin/end diff. A sensor tile that also overlaps a sensor body dedups to one
+   pair via the canonical key. (A sensor tile is still non-solid, so it does not block movement.)
 
 4. **A lone slope tile leaks from its open faces.** A slope is a single `segment` (one face); §7
    assumes the other two faces border full-block neighbour tiles. An isolated slope (no solid
