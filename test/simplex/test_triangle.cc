@@ -157,6 +157,15 @@ TEST_SUITE("triangle: swept_intersection (no leak from any side)") {
         CHECK(h->exit_time == doctest::Approx(1.0f));
     }
 
+    TEST_CASE("a mover that enters and ENDS inside exits at time, not the entry edge's exit") {
+        // box left of T moving right, ending inside: enters the left leg ~0.53, stays inside at t=1.
+        const auto h = swept_intersection(aabb{vec{-2.0f, 1.0f}, vec{-1.6f, 1.4f}}, vec{3, 0}, T, vec{0, 0}, 1.0f);
+        REQUIRE(h.has_value());
+        CHECK(h->entry_time > 0.0f);
+        CHECK(h->entry_time < 1.0f);
+        CHECK(h->exit_time == doctest::Approx(1.0f)); // ends inside -> no separation in the window
+    }
+
     TEST_CASE("a pass-through mover's exit is the far boundary, not the entry edge's exit") {
         // box left of T moving right all the way across: enters the left leg, exits the hypotenuse.
         const auto h = swept_intersection(aabb{vec{-2.0f, 0.4f}, vec{-1.6f, 0.8f}}, vec{12, 0}, T, vec{0, 0}, 1.0f);

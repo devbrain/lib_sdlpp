@@ -48,6 +48,19 @@ namespace simplex::collide {
         }
     }
 
+    // ---- enclose / translate (defined early: swept_tri uses translate for its end-overlap test) --
+
+    [[nodiscard]] inline aabb enclose(const triangle& t) noexcept {
+        return aabb{
+            vec{std::min({t.a.x(), t.b.x(), t.c.x()}), std::min({t.a.y(), t.b.y(), t.c.y()})},
+            vec{std::max({t.a.x(), t.b.x(), t.c.x()}), std::max({t.a.y(), t.b.y(), t.c.y()})}
+        };
+    }
+
+    [[nodiscard]] constexpr triangle translate(const triangle& t, const vec& v) {
+        return {translate(t.a, v), translate(t.b, v), translate(t.c, v)};
+    }
+
     /// @brief Test if a (solid) triangle contains a point (inclusive of the boundary).
     ///
     /// The bounding-box guard also gives a DEGENERATE (collinear) triangle the documented
@@ -179,10 +192,8 @@ namespace simplex::collide {
         [[nodiscard]] std::optional<swept_hit> swept_tri(const Mover& m, const vec& mv,
                                                          const triangle& t, const vec& tv, float time,
                                                          const vec& mover_centre) {
-            // The triangle's overlap interval is the union of the per-edge swept intervals: the
-            // mover first touches the solid at the EARLIEST edge entry and last touches it at the
-            // LATEST edge exit (a convex mover vs a convex triangle overlaps over one interval, with
-            // the interior filling between the boundary touches).
+            // Boundary-touch interval from the per-edge sweeps: a convex mover vs a convex triangle
+            // overlaps over ONE contiguous interval, so the first/last boundary touches bound it.
             float entry = constants::INF, exit = constants::NEG_INF;
             vec entry_n{}, exit_n{};
             bool any = false;
@@ -194,28 +205,50 @@ namespace simplex::collide {
                 }
             }
 
-            if (intersects(t, m)) {
-                // Overlapping at t=0: the contact is the penetration it STARTS in -> entry_time 0,
-                // REGARDLESS of velocity (checked independently of the edge sweep). The entry normal
-                // is the nearest edge's outward normal (the push-out direction). The exit is the last
-                // boundary touch, or the whole window when the mover never reaches an edge.
+            // Outward normal of the edge nearest to `p` (the push-out direction at a penetration).
+            const auto nearest_outward = [&](const vec& p) {
                 const vec ctr = tri_centroid(t);
                 float best_d = constants::INF;
-                vec push{};
+                vec n{};
                 for (const auto& e : tri_edges(t)) {
-                    const float d = squared_distance(mover_centre, e);
+                    const float d = squared_distance(p, e);
                     if (d < best_d) {
                         best_d = d;
-                        push = edge_outward_normal(e.from, e.to, ctr);
+                        n = edge_outward_normal(e.from, e.to, ctr);
                     }
                 }
-                return swept_hit{0.0f, any ? exit : time, push, any ? exit_n : push};
+                return n;
+            };
+
+            // Anchor the interval ends against the actual solid overlap at t=0 and t=time -- the
+            // edge sweeps only see boundary CROSSINGS, so a mover that starts (or ends) deep inside
+            // the solid would otherwise mis-report that end of the interval. (tv ~ {0,0} for static
+            // tiles, so the end normal uses the original triangle.)
+            const vec mdisp{mv.x() * time, mv.y() * time};
+            const vec tdisp{tv.x() * time, tv.y() * time};
+            const bool start_overlap = intersects(t, m);
+            const bool end_overlap = intersects(translate(t, tdisp), translate(m, mdisp));
+
+            if (!start_overlap && !end_overlap && !any) {
+                return std::nullopt; // never meets the triangle
             }
 
-            if (!any) {
-                return std::nullopt;
+            swept_hit out;
+            if (start_overlap) { // already penetrating at t=0 -> entry 0, push-out normal
+                out.entry_time = 0.0f;
+                out.entry_normal = nearest_outward(mover_centre);
+            } else {
+                out.entry_time = entry;
+                out.entry_normal = entry_n;
             }
-            return swept_hit{entry, exit, entry_n, exit_n};
+            if (end_overlap) { // still penetrating at t=time -> no separation within the window
+                out.exit_time = time;
+                out.exit_normal = nearest_outward(mover_centre + mdisp);
+            } else {
+                out.exit_time = exit;
+                out.exit_normal = exit_n;
+            }
+            return out;
         }
     }
 
@@ -229,18 +262,5 @@ namespace simplex::collide {
                                                                      const triangle& t, const vec& tv,
                                                                      float time) {
         return detail::swept_tri(m, mv, t, tv, time, m.center);
-    }
-
-    // ---- enclose / translate -----------------------------------------------------------------
-
-    [[nodiscard]] inline aabb enclose(const triangle& t) noexcept {
-        return aabb{
-            vec{std::min({t.a.x(), t.b.x(), t.c.x()}), std::min({t.a.y(), t.b.y(), t.c.y()})},
-            vec{std::max({t.a.x(), t.b.x(), t.c.x()}), std::max({t.a.y(), t.b.y(), t.c.y()})}
-        };
-    }
-
-    [[nodiscard]] constexpr triangle translate(const triangle& t, const vec& v) {
-        return {translate(t.a, v), translate(t.b, v), translate(t.c, v)};
     }
 } // namespace simplex::collide
