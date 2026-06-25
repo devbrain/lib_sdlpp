@@ -779,13 +779,15 @@ namespace simplex::collide {
             //              blocked; entering from below or the side -> normal != up -> passes.
             //   SENSOR / IGNORE -> never solid.
             // Functor (concrete type, not a lambda) so it is usable in run() above its definition.
+            // Acceptors take the target's MATERIAL (not the whole resident_body) so they apply
+            // uniformly to a resident or a grid tile -- both carry material_props.
             struct solid_pred {
-                bool operator()(const detail::resident_body& t, const vec& hit_normal) const {
-                    switch (t.material.response) {
+                bool operator()(const material_props& m, const vec& hit_normal) const {
+                    switch (m.response) {
                         case response_mode::BLOCK:
                             return true;
                         case response_mode::ONE_WAY:
-                            return euler::dot(hit_normal, t.material.block_normal) > ONE_WAY_DOT;
+                            return euler::dot(hit_normal, m.block_normal) > ONE_WAY_DOT;
                         case response_mode::SENSOR:
                         case response_mode::IGNORE:
                         default:
@@ -797,7 +799,19 @@ namespace simplex::collide {
             static solid_pred solid_acceptor() { return solid_pred{}; }
 
             // Accept-all (used by unrestricted casts). Two-arg to match the post-hit acceptor shape.
-            static bool accept_any(const detail::resident_body&, const vec&) { return true; }
+            static bool accept_any(const material_props&, const vec&) { return true; }
+
+            // Target material by handle -- dispatches BODY / BULLET / TILE. Lets move_and_slide's
+            // velocity response read the surface material uniformly, tile or resident.
+            [[nodiscard]] const material_props& material_of(const collider_id& id) const {
+                if (id.type_id == collider_id::BODY) {
+                    return m_bodies_storage[id.value].material;
+                }
+                if (id.type_id == collider_id::BULLET) {
+                    return m_bullets_storage[id.value].material;
+                }
+                return m_static_grid->at(id.value)->material; // TILE
+            }
 
             template<class Fn>
             void overlap(uint32_t idx, Fn&& on_hit) const {
@@ -807,20 +821,30 @@ namespace simplex::collide {
                     return enclose(s);
                 }, self.shape);
 
-                query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
-                    if (other_idx != idx) {
-                        if (const auto& other = m_bodies_storage[other_idx];
-                            should_collide(other.filter, self.filter)) {
-                            auto rc = std::visit([&](const auto& my_shape) {
-                                return std::visit([&](const auto& other_shape) {
-                                    return collide::intersects(my_shape, other_shape);
-                                }, other.shape);
-                            }, self.shape);
-                            if (rc) {
-                                on_hit(collider_id{other_idx, other.generation, collider_id::BODY});
-                            }
-                        }
+                // Source-agnostic per-candidate test: filter, then narrow-phase the self shape vs
+                // the target shape; report the handle on overlap. Reused by the grid fan-out.
+                auto consider = [&](const shape_t& target_shape, const filter_props& target_filter,
+                                    const collider_id& id) {
+                    if (!should_collide(self.filter, target_filter)) {
+                        return;
                     }
+                    const bool rc = std::visit([&](const auto& my_shape) {
+                        return std::visit([&](const auto& other_shape) {
+                            return collide::intersects(my_shape, other_shape);
+                        }, target_shape);
+                    }, self.shape);
+                    if (rc) {
+                        on_hit(id);
+                    }
+                };
+
+                query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
+                    if (other_idx == idx) {
+                        return;
+                    }
+                    const auto& other = m_bodies_storage[other_idx];
+                    consider(other.shape, other.filter,
+                             collider_id{other_idx, other.generation, collider_id::BODY});
                 });
             }
 
@@ -842,12 +866,13 @@ namespace simplex::collide {
                 const vec dv = delta.value;
 
                 std::optional <contact> out;
-                query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
-                    if (other_idx == exclude_idx) {
-                        return; // self (or nothing, when exclude_idx == INVALID)
-                    }
-                    const auto& other = m_bodies_storage[other_idx];
-                    if (!should_collide(self_filter, other.filter)) {
+
+                // Source-agnostic per-candidate sweep: filter, swept narrow-phase, post-hit accept,
+                // keep the earliest. Identical for residents and grid tiles -- only the candidate's
+                // (shape, filter, material, identity) differ. Reused by the grid fan-out.
+                auto consider = [&](const shape_t& target_shape, const filter_props& target_filter,
+                                    const material_props& target_material, const collider_id& id) {
+                    if (!should_collide(self_filter, target_filter)) {
                         return;
                     }
                     std::visit([&](const auto& mv) {
@@ -859,17 +884,23 @@ namespace simplex::collide {
                             if (!hit) {
                                 return;
                             }
-                            if (!accept(other, hit->entry_normal)) {
+                            if (!accept(target_material, hit->entry_normal)) {
                                 return; // caller-rejected on the actual contact (e.g. one-way side)
                             }
                             if (!out || hit->entry_time < out->toi) {
-                                out = contact{
-                                    collider_id{other_idx, other.generation, collider_id::BODY},
-                                    hit->entry_normal, hit->entry_time
-                                };
+                                out = contact{id, hit->entry_normal, hit->entry_time};
                             }
-                        }, other.shape);
+                        }, target_shape);
                     }, mover);
+                };
+
+                query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
+                    if (other_idx == exclude_idx) {
+                        return; // self (or nothing, when exclude_idx == INVALID)
+                    }
+                    const auto& other = m_bodies_storage[other_idx];
+                    consider(other.shape, other.filter, other.material,
+                             collider_id{other_idx, other.generation, collider_id::BODY});
                 });
                 return out;
             }
@@ -912,6 +943,38 @@ namespace simplex::collide {
             // narrowed. toi is clamped to >= 0 (an origin already inside a shape reads as 0).
             [[nodiscard]] std::optional <contact> raycast(const segment& s, filter_props filter = {}) const {
                 std::optional <contact> out;
+
+                // Source-agnostic per-candidate ray test: filter, intersect the ray with the target
+                // shape, keep the nearest. Reused by the grid fan-out.
+                auto consider = [&](const shape_t& target_shape, const filter_props& target_filter,
+                                    const collider_id& id) {
+                    if (!should_collide(filter, target_filter)) {
+                        return;
+                    }
+                    std::visit([&]<typename T1>(const T1& shape) {
+                        using S = std::decay_t <T1>;
+                        // intersect_param reports the parameter along its SEGMENT argument: ray is the
+                        // 2nd arg for aabb/circle targets, but the 1st arg for a segment target (params
+                        // are along `a`). Put the ray where the parameter lands so toi is "fraction
+                        // along ray".
+                        const std::optional <line_hit> hit = [&] {
+                            if constexpr (std::is_same_v <S, segment>) {
+                                return intersect_param(s, shape); // ray first
+                            } else {
+                                return intersect_param(shape, s); // aabb/circle first
+                            }
+                        }();
+                        // segment_overlaps() restricts the infinite-line crossing to the finite ray;
+                        // entry_param is otherwise unclamped.
+                        if (hit && hit->segment_overlaps()) {
+                            const float toi = std::max(0.0f, hit->entry_param); // origin-inside -> 0
+                            if (!out || toi < out->toi) {
+                                out = contact{id, hit->entry_normal, toi};
+                            }
+                        }
+                    }, target_shape);
+                };
+
                 // Tree raycast: visits only the boxes the ray crosses and clips farther boxes to
                 // the nearest confirmed hit. The float-returning callback feeds back the best toi
                 // so far as the new ray-clip fraction (the tree does t_max = min(t_max, ret)).
@@ -919,34 +982,8 @@ namespace simplex::collide {
                                  [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box,
                                      [[maybe_unused]] const line_hit& box_hit) -> float {
                                      const auto& other = m_bodies_storage[other_idx];
-                                     if (should_collide(filter, other.filter)) {
-                                         std::visit([&]<typename T1>(const T1& shape) {
-                                             using S = std::decay_t <T1>;
-                                             // intersect_param reports the parameter along its SEGMENT
-                                             // argument: ray is the 2nd arg for aabb/circle targets, but the
-                                             // 1st arg for a segment target (params are along `a`). Put the
-                                             // ray where the parameter lands so toi is "fraction along ray".
-                                             const std::optional <line_hit> hit = [&] {
-                                                 if constexpr (std::is_same_v <S, segment>) {
-                                                     return intersect_param(s, shape); // ray first
-                                                 } else {
-                                                     return intersect_param(shape, s); // aabb/circle first
-                                                 }
-                                             }();
-                                             // segment_overlaps() restricts the infinite-line crossing to
-                                             // the finite ray; entry_param is otherwise unclamped.
-                                             if (hit && hit->segment_overlaps()) {
-                                                 const float toi = std::max(0.0f, hit->entry_param);
-                                                 // origin-inside -> 0
-                                                 if (!out || toi < out->toi) {
-                                                     out = contact{
-                                                         collider_id{other_idx, other.generation, collider_id::BODY},
-                                                         hit->entry_normal, toi
-                                                     };
-                                                 }
-                                             }
-                                         }, other.shape);
-                                     }
+                                     consider(other.shape, other.filter,
+                                              collider_id{other_idx, other.generation, collider_id::BODY});
                                      // Clip the ray to the nearest confirmed hit so farther boxes prune;
                                      // 1.0 (no clip) until we have one.
                                      return out ? out->toi : 1.0f;
@@ -1018,10 +1055,10 @@ namespace simplex::collide {
                     remaining = units::displacement{leftover.value - euler::dot(leftover.value, n) * n};
 
                     // Velocity response -- material-driven (friction/restitution from the SURFACE),
-                    // applied to velocity only; position sliding above is pure geometry.
-                    const auto& target = m_bodies_storage[hit->who.value];
+                    // applied to velocity only; position sliding above is pure geometry. material_of
+                    // dispatches on the contact's handle, so a tile surface works like a resident.
                     res.velocity = detail::eval_velocity_response(units::velocity{res.velocity}, n,
-                                                                  target.material).value;
+                                                                  material_of(hit->who)).value;
 
                     // Grounded if the contact faces up enough to stand on (~45 deg max slope).
                     if (euler::dot(n, m_cfg.up) > GROUND_THRESHOLD) {
