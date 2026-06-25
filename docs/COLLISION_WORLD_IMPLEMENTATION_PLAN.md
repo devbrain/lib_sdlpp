@@ -728,3 +728,59 @@ ASan/UBSan clean before the next begins.
 - Polygon/OBB shapes (rotation).
 - Multithreaded broadphase; Morton/cache-aware tree layout (see prior discussion).
 - Serialization/replay/determinism hardening beyond fixed iteration order.
+
+---
+
+## 19. Genre fit & gameplay-collision roadmap
+
+A sanity check of the library against the genres it targets — classic platformers
+(Super Mario, Sonic) and shmups (Slordax, Stargunner). The scoping is deliberately a
+**kinematic, velocity-driven, swept-CCD arcade layer**, NOT a rigid-body dynamics solver;
+that matches all of these genres. So the gaps below are gameplay-collision *idioms*, not
+missing dynamics.
+
+### Shmups (Slordax / Stargunner) — covered
+Fast bullets vs ships (swept probes, anti-tunnelling), many entities (BVH), off-screen
+cull + despawn (`active_region` + `BULLET_EXPIRED`), hit/hurt boxes (`filter` + circle/aabb),
+graze (a larger sensor circle on the player). Two thin spots, both already expressible from
+primitives, worth only a convenience wrapper:
+- **Piercing bullets / lasers** — the bullet pass stops at the first solid; a beam that hits
+  everything along its path is a `raycast` with the void (visit-all) callback.
+- **Continuous laser beam** — a `raycast` or a thin sensor `aabb`.
+
+### Platformers (Mario / Sonic) — gaps, in priority order
+1. **Moving platforms — carrying / pushing / crushing (kinematic-vs-kinematic).** [highest value]
+   `move_and_slide` treats residents as STATIONARY during a mover's CCD (§8c), so movers do
+   not transfer motion to each other. Today a horizontal lift slides out from under the
+   player (no "ride"), and a platform rising into the player is *blocked by* the player
+   rather than carrying/crushing it. Elevators, conveyor rides, crushers, and pushable
+   blocks all need this. *Design notes:* resolution order (move carriers before riders),
+   a rider inherits the carrier's per-frame delta (detect "grounded on carrier" via the
+   COLLISION event's target), and a crush rule when a rider is pinned between two movers.
+2. **Ground snapping ("stick to the floor" on slopes/stairs).** Walking down a slope/stairs
+   should not go airborne each step (and Sonic must hug the ground at speed). Composable
+   today (probe down with `raycast`, re-snap after the move using the contact normal +
+   `grounded`), but there is no built-in `snap_to_ground` helper — every slope game will
+   re-write it.
+3. **Tile-seam snagging (internal-edge / "ghost vertex").** A flat floor is a row of
+   per-cell aabb tiles; a fast horizontal mover can catch on the shared vertical edges
+   between adjacent solid tiles. Swept + skin mitigates it, but it is a known quality bug at
+   high speed. Usual fixes (edge/chain shapes, or merging collinear tile faces) are absent.
+4. **Depenetration pass.** No "resolve an existing overlap" step — the world is swept-only.
+   The `penetration`/MTV math exists in `collide` (overlap.hh) but is not used by the world,
+   so a body shoved into geometry (spawned overlapping, squeezed by a crusher) has no
+   relaxation.
+5. **Sonic is a sensor-based controller** (floor/wall/ceiling ray sensors + ground angle for
+   loops/walls), not an AABB-slide model. The `raycast` primitives can build it, but
+   `move_and_slide` is the Mario/Celeste style and will not, by itself, produce loops.
+   Treat it as "the primitives are there; the Sonic controller is game-level."
+
+### Genre-specific niceties (optional)
+- **Conveyor / surface velocity** — a tile/material that imparts a tangential velocity to
+  bodies resting on it (a `material` extension).
+- **Drop-through one-way platforms** — pressing down to fall through a `ONE_WAY` platform;
+  mostly game-level (temporarily filter out that platform for that body).
+
+### Correctly NOT needed for these genres
+Rigid-body dynamics, stacking/joints, mass/torque, rotation/OBB — sprites rotate visually
+while hitboxes stay aabb/circle. Their absence (§18) is deliberate, not a gap.
