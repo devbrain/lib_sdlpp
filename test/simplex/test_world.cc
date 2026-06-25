@@ -325,3 +325,29 @@ TEST_SUITE("world: collider_id comparison & hashing") {
         CHECK(m.at(collider_id{1, 1, collider_id::BODY}) == 9);
     }
 }
+
+TEST_SUITE("world: static grid configuration") {
+    TEST_CASE("a grid config with matching bounds constructs cleanly") {
+        world_config cfg;
+        cfg.bounds = aabb{vec{0, 0}, vec{64, 48}};
+        cfg.grid = world_config::grid_config{vec{16, 16}}; // 4x3 cells, exact tiling
+        CHECK_NOTHROW(world{cfg});
+    }
+
+    TEST_CASE("no grid config -> pure-dynamic world is fine") {
+        CHECK_NOTHROW(world{world_config{}});
+    }
+
+    TEST_CASE("a grid config without bounds is rejected") {
+        world_config cfg;
+        cfg.grid = world_config::grid_config{vec{16, 16}};
+        CHECK_THROWS(world{cfg});
+    }
+
+    TEST_CASE("bounds that do not tile evenly into tile_size are rejected") {
+        world_config cfg;
+        cfg.bounds = aabb{vec{0, 0}, vec{50, 48}}; // 50 / 16 is not integral
+        cfg.grid = world_config::grid_config{vec{16, 16}};
+        CHECK_THROWS(world{cfg});
+    }
+}

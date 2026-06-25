@@ -604,3 +604,25 @@ TEST_SUITE("grid: swept (moving-shape band)") {
         CHECK(calls == 0);
     }
 }
+
+TEST_SUITE("grid: from_tile_size factory") {
+    TEST_CASE("derives the extent from origin + tile_size * count; cell size == tile_size") {
+        auto g = grid<int>::from_tile_size(vec{0, 0}, vec{2, 2}, 4, 3); // -> [0,8] x [0,6]
+        // cell size is exactly tile_size, so physical_to_grid agrees with a 4x3 over [0,8]x[0,6]
+        CHECK(grid_test_access::physical_to_grid(g, vec{0, 0}).x == 0u);
+        CHECK(grid_test_access::physical_to_grid(g, vec{2, 2}).x == 1u);   // on a tile boundary
+        CHECK(grid_test_access::physical_to_grid(g, vec{2, 2}).y == 1u);
+        CHECK(grid_test_access::physical_to_grid(g, vec{7.9f, 5.9f}).x == 3u); // last column
+        CHECK(grid_test_access::physical_to_grid(g, vec{7.9f, 5.9f}).y == 2u); // last row
+        CHECK_FALSE(static_cast<bool>(grid_test_access::physical_to_grid(g, vec{8.1f, 0}))); // outside derived extent
+    }
+
+    TEST_CASE("non-origin tile grid") {
+        auto g = grid<int>::from_tile_size(vec{-10, -10}, vec{5, 5}, 2, 2); // -> [-10,0] x [-10,0]
+        g.set(vec{-9, -9}, 1);  // cell (0,0)
+        g.set(vec{-1, -1}, 2);  // cell (1,1)
+        CHECK(*g.get(vec{-9, -9}) == 1);
+        CHECK(*g.get(vec{-1, -1}) == 2);
+        CHECK(g.get(vec{1, 1}) == nullptr); // outside
+    }
+}

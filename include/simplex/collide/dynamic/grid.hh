@@ -149,6 +149,18 @@ namespace simplex::collide {
                   } {
             }
 
+            // Tilemap-friendly construction: an origin, a cell size, and a cell count. The physical
+            // extent is DERIVED (max = origin + count * tile_size), so the cell size is exactly
+            // tile_size -- there is no separate, possibly-mismatched physical box to specify.
+            [[nodiscard]] static grid from_tile_size(const vec& origin, const vec& tile_size,
+                                                     uint32_t cols, uint32_t rows) {
+                const vec grid_max{
+                    origin.x() + static_cast <float>(cols) * tile_size.x(),
+                    origin.y() + static_cast <float>(rows) * tile_size.y()
+                };
+                return grid(cols, rows, origin, grid_max);
+            }
+
             template<typename... Args>
             void set(const vec& v, Args&&... args) {
                 m_grid.set(physical_to_grid(v), std::forward <Args>(args)...);

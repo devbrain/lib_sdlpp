@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -75,6 +76,27 @@ namespace simplex::collide {
         filter_props filter;
         vec velocity;
     };
+
+    // A static tile: identical fields to static_body, distinct type purely so world::add routes
+    // it into the internal static grid instead of the BVH. The shape is bucketed into the single
+    // grid cell containing its centre, so a tile must fit within one cell -- larger or free-form
+    // statics belong in static_body (BVH). Slopes are just `segment` tiles, like resident walls.
+    struct tile_body {
+        shape_t shape;
+        material_props material;
+        filter_props filter;
+    };
+
+    namespace detail {
+        // The static grid's cell payload: the tile's geometry stored verbatim (so get_shape is a
+        // straight read), plus its material/filter and identity eid (for events, like residents).
+        struct tile {
+            shape_t shape{aabb{}};
+            material_props material;
+            filter_props filter;
+            entity_id_t eid{};
+        };
+    }
 
     namespace detail {
         enum class body_kind {
@@ -361,6 +383,15 @@ namespace simplex::collide {
         // that leaves it gets a BULLET_EXPIRED event (the game despawns it). Bullets only --
         // kinematic bodies are never auto-expired. This is the LEVEL extent, NOT the camera
         // (active_region): a bullet scrolling off-camera is culled, not expired.
+
+        // Static tile grid. Unset = pure-dynamic world (no grid; add(tile_body) is rejected). When
+        // set, the grid's extent IS `bounds` (one shared world box -- no separate, mismatched grid
+        // box), divided into cells of `tile_size`. `bounds` must therefore be present and an integer
+        // multiple of `tile_size` (enforced at construction).
+        struct grid_config {
+            vec tile_size{1, 1};
+        };
+        std::optional <grid_config> grid{};
     };
 
     // Test-only access to the world's internal (non-public) query helpers. Defined only in the
@@ -373,6 +404,24 @@ namespace simplex::collide {
 
             explicit world(const world_config& cfg)
                 : m_cfg(cfg) {
+                if (m_cfg.grid) {
+                    // The grid shares the world's extent (one coordinate frame). Require bounds and
+                    // an exact tiling -- a non-dividing extent is a config error, caught here loudly
+                    // rather than silently clamping tiles to a mismatched box.
+                    ENFORCE(m_cfg.bounds)("world_config.grid requires world_config.bounds (the shared extent)");
+                    const aabb& b = *m_cfg.bounds;
+                    const vec ts = m_cfg.grid->tile_size;
+                    ENFORCE(ts.x() > 0.0f && ts.y() > 0.0f)("grid tile_size must be positive");
+                    const float fcols = (b.max.x() - b.min.x()) / ts.x();
+                    const float frows = (b.max.y() - b.min.y()) / ts.y();
+                    const auto cols = static_cast <uint32_t>(std::lround(fcols));
+                    const auto rows = static_cast <uint32_t>(std::lround(frows));
+                    ENFORCE(cols > 0 && rows > 0)("grid extent (bounds / tile_size) must be at least one cell");
+                    ENFORCE(std::abs(fcols - static_cast <float>(cols)) < 1e-3f
+                            && std::abs(frows - static_cast <float>(rows)) < 1e-3f)
+                            ("world_config.bounds must be an integer multiple of grid tile_size");
+                    m_static_grid.emplace(grid <detail::tile>::from_tile_size(b.min, ts, cols, rows));
+                }
             }
 
             friend struct world_test_access;
@@ -1016,6 +1065,7 @@ namespace simplex::collide {
             detail::bullets_storage m_bullets_storage;
 
             tree m_space_partition;
+            std::optional <grid <detail::tile>> m_static_grid; // statics (tiles); unset = none
 
             std::vector <world_event> m_events;          // reused per-frame event buffer
             std::vector <sensor_pair> m_triggers_curr;   // this frame's sensor overlaps
