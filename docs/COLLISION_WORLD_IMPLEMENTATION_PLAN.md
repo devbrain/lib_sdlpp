@@ -765,17 +765,27 @@ and `cast` return only the NEAREST hit; see "Cross-cutting" below.
    when a small upward probe clears. Built from a short up-probe + re-cast, but not provided;
    without it characters catch on tiny tile lips. (Distinct from the tile-seam item below —
    this is intended geometry, not a seam artifact.)
-4. **Tile-seam snagging → compile the tilemap into a boundary collider.** A flat floor is a
+4. **Footing / edge sensors — `ground_support(footprint, max_drop)`.** Detecting that a body
+   stands at a ledge (most of its footprint off the edge) drives the **balance/teeter** animation
+   (Jazz Jackrabbit, Sonic), **edge-stop** ("don't auto-walk off"), **coyote-time**, and
+   **ledge-grab**. This is a STATE the game detects and animates, not a solver behaviour — the
+   library's job is the query, not the response (Jazz teeters but does not fall; a true
+   tip-over-on-center-of-mass would be dynamics, out of scope). Doable today with a few short
+   downward `raycast` probes at footprint offsets (left foot / centre / right foot): supported on
+   one side only ⇒ at a ledge. The roadmap helper reports which side(s) are supported and where
+   the ledge falls — which is also exactly **Sonic's twin floor sensors (A/B)**. Same small
+   raycast-helper family as #2 (ground-snap) and #3 (step-up); no new physics primitive.
+5. **Tile-seam snagging → compile the tilemap into a boundary collider.** A flat floor is a
    row of per-cell aabb tiles, so a fast horizontal mover can catch on the shared INTERNAL
    vertical edges between adjacent solids. The fix is not per-tile tuning but a build step:
    compile the solid-tile mask into its BOUNDARY only — merged collinear runs / edge chains /
    boundary faces — so internal edges are never query candidates at all. (Swept + skin only
    masks the symptom.)
-5. **Depenetration pass.** No "resolve an existing overlap" step — the world is swept-only.
+6. **Depenetration pass.** No "resolve an existing overlap" step — the world is swept-only.
    The `penetration`/MTV math exists in `collide` (overlap.hh) but is not used by the world,
    so a body shoved into geometry (spawned overlapping, squeezed by a crusher) has no
    relaxation.
-6. **Sonic is a sensor-based controller** (floor/wall/ceiling ray sensors + ground angle for
+7. **Sonic is a sensor-based controller** (floor/wall/ceiling ray sensors + ground angle for
    loops/walls), not an AABB-slide model. The `raycast` primitives can build it, but
    `move_and_slide` is the Mario/Celeste style and will not, by itself, produce loops —
    the Sonic controller is game-level. (Mario-style SOLID ramps, by contrast, are now well
