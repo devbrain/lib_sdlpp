@@ -109,6 +109,35 @@ namespace simplex::collide {
                     return (p.x < m_grid_with) && (p.y < m_grid_height);
                 }
 
+                // Linear (flat) cell addressing -- a stable handle into the dense m_coords array
+                // (idx = y * width + x). Used by the grid owner to hold a cell by index without
+                // round-tripping through physical coords. Tolerant: out-of-range / empty -> nullptr.
+                [[nodiscard]] uint32_t cell_count() const noexcept {
+                    return m_grid_with * m_grid_height;
+                }
+
+                [[nodiscard]] const T* get_linear(uint32_t idx) const noexcept {
+                    if (idx >= m_coords.size() || m_coords[idx] == grid_coord::INVALID) {
+                        return nullptr;
+                    }
+                    return &m_grid[m_coords[idx]];
+                }
+
+                [[nodiscard]] T* get_linear(uint32_t idx) noexcept {
+                    if (idx >= m_coords.size() || m_coords[idx] == grid_coord::INVALID) {
+                        return nullptr;
+                    }
+                    return &m_grid[m_coords[idx]];
+                }
+
+                void clear_linear(uint32_t idx) {
+                    if (idx >= m_coords.size() || m_coords[idx] == grid_coord::INVALID) {
+                        return;
+                    }
+                    m_free_list.push_back(m_coords[idx]);
+                    m_coords[idx] = grid_coord::INVALID;
+                }
+
                 [[nodiscard]] uint32_t get_width() const noexcept {
                     return m_grid_with;
                 }
@@ -181,6 +210,25 @@ namespace simplex::collide {
             void reset() {
                 m_grid.reset();
             }
+
+            // ---- owner-facing stable cell handle -----------------------------------------
+            // The grid hides cell coords from queries, but its OWNER (the world) needs a stable
+            // handle to a cell -- like a pool slot index for a body. to_cell(v) gives the linear
+            // index of the cell containing v (INVALID_CELL if v is outside); at()/clear_at()
+            // address a cell by that handle. Stable: the index is positional and never moves.
+            static constexpr uint32_t INVALID_CELL = std::numeric_limits <uint32_t>::max();
+
+            [[nodiscard]] uint32_t to_cell(const vec& v) const {
+                const auto c = physical_to_grid(v);
+                if (!c) {
+                    return INVALID_CELL;
+                }
+                return c.y * m_grid.get_width() + c.x;
+            }
+
+            [[nodiscard]] const T* at(uint32_t cell) const { return m_grid.get_linear(cell); }
+            [[nodiscard]] T* at(uint32_t cell) { return m_grid.get_linear(cell); }
+            void clear_at(uint32_t cell) { m_grid.clear_linear(cell); }
 
             template<typename Fn>
             void query(const aabb& region, Fn&& callback) const {

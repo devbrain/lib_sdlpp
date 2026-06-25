@@ -320,7 +320,8 @@ namespace simplex::collide {
     struct collider_id {
         enum type {
             BODY,
-            BULLET
+            BULLET,
+            TILE // a static grid cell; `value` is the linear cell handle (eid lives in the payload)
         };
 
         static constexpr uint32_t INVALID = 0xFFFFFFFFu;
@@ -469,6 +470,20 @@ namespace simplex::collide {
                 return {idx, m_bullets_storage.generation(idx), collider_id::BULLET};
             }
 
+            // Add a static tile into the grid. The tile is bucketed into the single cell containing
+            // its shape's centre (so the shape must fit within one cell). Overwrites any tile already
+            // in that cell (loader-friendly; the overwritten tile's handle goes stale). The returned
+            // handle's `value` is the linear cell index; `eid` is recovered from the payload.
+            collider_id add(entity_id_t eid, const tile_body& body) {
+                ENFORCE(m_static_grid)("add(tile_body) requires a grid (world_config.grid)");
+                const aabb bound = std::visit([](const auto& s) { return enclose(s); }, body.shape);
+                const vec centre = bound.center();
+                const uint32_t cell = m_static_grid->to_cell(centre);
+                ENFORCE(cell != grid<detail::tile>::INVALID_CELL)("tile centre is outside the grid bounds");
+                m_static_grid->set(centre, detail::tile{body.shape, body.material, body.filter, eid});
+                return {cell, 0, collider_id::TILE};
+            }
+
             void remove(collider_id cid) {
                 if (!is_valid(cid)) {
                     return;
@@ -477,8 +492,10 @@ namespace simplex::collide {
                     auto& stored = m_bodies_storage[cid.value];
                     remove_leaf(m_space_partition, stored.proxy);
                     m_bodies_storage.deallocate(cid.value);
-                } else {
+                } else if (cid.type_id == collider_id::BULLET) {
                     m_bullets_storage.deallocate(cid.value);
+                } else { // TILE
+                    m_static_grid->clear_at(cid.value);
                 }
             }
 
@@ -495,15 +512,19 @@ namespace simplex::collide {
                     stored.shape = shape;
                     auto box = fatten(stored);
                     update_leaf(m_space_partition, stored.proxy, box);
-                } else {
+                } else if (cid.type_id == collider_id::BULLET) {
                     auto& stored = m_bullets_storage[cid.value];
                     stored.shape = detail::narrow(shape); // ENFORCE non-segment + shape_t -> moving_shape_t
+                } else { // TILE: reshape in place. Must still fit the same cell (no re-bucketing).
+                    m_static_grid->at(cid.value)->shape = shape;
                 }
             }
 
             // kinematic intent for next run()
             void set_velocity(collider_id cid, const vec& v) {
                 ENFORCE(is_valid(cid));
+                // Tiles are static -- no velocity. (A moving tile is a kinematic body, not a tile.)
+                ENFORCE(cid.type_id != collider_id::TILE)("a tile has no velocity");
                 if (cid.type_id == collider_id::BODY) {
                     auto& stored = m_bodies_storage[cid.value];
                     ENFORCE(stored.kind == detail::body_kind::KINEMATIC);
@@ -519,8 +540,13 @@ namespace simplex::collide {
                     return m_bodies_storage.is_alive(cid.value)
                            && m_bodies_storage.generation(cid.value) == cid.generation;
                 }
-                return m_bullets_storage.is_alive(cid.value)
-                       && m_bullets_storage.generation(cid.value) == cid.generation;
+                if (cid.type_id == collider_id::BULLET) {
+                    return m_bullets_storage.is_alive(cid.value)
+                           && m_bullets_storage.generation(cid.value) == cid.generation;
+                }
+                // TILE: live iff the grid exists and the cell is occupied. (No generation: a
+                // removed-then-refilled cell aliases the new tile -- accepted for v1.)
+                return m_static_grid && m_static_grid->at(cid.value) != nullptr;
             }
 
             // ---- read-back getters (state after run()/move) -------------------------
@@ -534,22 +560,33 @@ namespace simplex::collide {
                 if (cid.type_id == collider_id::BODY) {
                     return m_bodies_storage[cid.value].shape;
                 }
-                return detail::widen(m_bullets_storage[cid.value].shape);
+                if (cid.type_id == collider_id::BULLET) {
+                    return detail::widen(m_bullets_storage[cid.value].shape);
+                }
+                return m_static_grid->at(cid.value)->shape; // TILE: stored verbatim
             }
 
             [[nodiscard]] vec get_velocity(collider_id cid) const {
                 ENFORCE(is_valid(cid));
-                return cid.type_id == collider_id::BODY
-                           ? m_bodies_storage[cid.value].velocity
-                           : m_bullets_storage[cid.value].velocity;
+                if (cid.type_id == collider_id::BODY) {
+                    return m_bodies_storage[cid.value].velocity;
+                }
+                if (cid.type_id == collider_id::BULLET) {
+                    return m_bullets_storage[cid.value].velocity;
+                }
+                return vec{0, 0}; // TILE: static
             }
 
             // The game's entity id carried as payload (the reverse of add()'s eid argument).
             [[nodiscard]] entity_id_t get_eid(collider_id cid) const {
                 ENFORCE(is_valid(cid));
-                return cid.type_id == collider_id::BODY
-                           ? m_bodies_storage[cid.value].eid
-                           : m_bullets_storage[cid.value].eid;
+                if (cid.type_id == collider_id::BODY) {
+                    return m_bodies_storage[cid.value].eid;
+                }
+                if (cid.type_id == collider_id::BULLET) {
+                    return m_bullets_storage[cid.value].eid;
+                }
+                return m_static_grid->at(cid.value)->eid; // TILE: from the cell payload
             }
 
             [[nodiscard]] const std::vector <world_event>& run(const aabb& active_region, float dt) {

@@ -351,3 +351,64 @@ TEST_SUITE("world: static grid configuration") {
         CHECK_THROWS(world{cfg});
     }
 }
+
+TEST_SUITE("world: tile_body lifecycle (unified add/remove/getters)") {
+    static world grid_world() {
+        world_config cfg;
+        cfg.bounds = aabb{vec{0, 0}, vec{8, 8}};
+        cfg.grid = world_config::grid_config{vec{2, 2}}; // 4x4 cells
+        return world(cfg);
+    }
+
+    TEST_CASE("add(tile_body) returns a TILE handle; getters read it back") {
+        world w = grid_world();
+        const collider_id t = w.add(101, tile_body{aabb{vec{0, 0}, vec{2, 2}}, {}, {}});
+        CHECK(t.type_id == collider_id::TILE);
+        CHECK(w.is_valid(t));
+        CHECK(w.get_eid(t) == 101u);
+        CHECK(std::holds_alternative<aabb>(w.get_shape(t)));
+        const bool zero_vel = (w.get_velocity(t) == vec{0, 0});
+        CHECK(zero_vel); // tiles are static
+    }
+
+    TEST_CASE("a slope tile is just a segment, stored verbatim") {
+        world w = grid_world();
+        const collider_id t = w.add(7, tile_body{segment{vec{4, 4}, vec{6, 6}}, {}, {}});
+        CHECK(std::holds_alternative<segment>(w.get_shape(t)));
+    }
+
+    TEST_CASE("distinct cells get distinct handles; remove is idempotent") {
+        world w = grid_world();
+        const collider_id a = w.add(1, tile_body{aabb{vec{0, 0}, vec{2, 2}}, {}, {}}); // cell (0,0)
+        const collider_id b = w.add(2, tile_body{aabb{vec{4, 4}, vec{6, 6}}, {}, {}}); // cell (2,2)
+        CHECK(a.value != b.value);
+        w.remove(a);
+        CHECK_FALSE(w.is_valid(a));
+        CHECK_NOTHROW(w.remove(a)); // idempotent
+        CHECK(w.is_valid(b));
+    }
+
+    TEST_CASE("adding into an occupied cell overwrites (same handle, new payload)") {
+        world w = grid_world();
+        const collider_id a = w.add(1, tile_body{aabb{vec{0, 0}, vec{2, 2}}, {}, {}});
+        const collider_id b = w.add(2, tile_body{circle{vec{1, 1}, 0.5f}, {}, {}}); // same cell (0,0)
+        CHECK(a.value == b.value);     // same cell handle
+        CHECK(w.get_eid(b) == 2u);     // new payload won
+        CHECK(std::holds_alternative<circle>(w.get_shape(b)));
+    }
+
+    TEST_CASE("set_shape reshapes a tile in place; set_velocity is rejected") {
+        world w = grid_world();
+        const collider_id t = w.add(1, tile_body{aabb{vec{0, 0}, vec{2, 2}}, {}, {}});
+        w.set_shape(t, shape_t{circle{vec{1, 1}, 0.4f}});
+        CHECK(std::holds_alternative<circle>(w.get_shape(t)));
+        CHECK_THROWS(w.set_velocity(t, vec{1, 0}));
+    }
+
+    TEST_CASE("add(tile_body) without a grid, or out of bounds, is rejected") {
+        world none(world_config{});
+        CHECK_THROWS(none.add(1, tile_body{aabb{vec{0, 0}, vec{2, 2}}, {}, {}}));
+        world w = grid_world();
+        CHECK_THROWS(w.add(1, tile_body{aabb{vec{100, 100}, vec{102, 102}}, {}, {}}));
+    }
+}
