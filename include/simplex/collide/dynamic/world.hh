@@ -1345,22 +1345,38 @@ namespace simplex::collide {
             [[nodiscard]] bool is_riding(uint32_t actor_idx, uint32_t carrier_idx) const {
                 const auto& a = m_bodies_storage[actor_idx];
                 const auto& c = m_bodies_storage[carrier_idx];
-                // A rider rests in the skin gap ABOVE the carrier, so it must NOT already overlap it.
-                // An overlapping body is wedged against a side / embedded (not riding) -- and skipping
-                // it also avoids a degenerate toi-0 down-cast whose contact normal is unreliable.
-                const bool overlapping = std::visit([&](const auto& as) {
-                    return std::visit([&](const auto& cs) { return collide::intersects(as, cs); }, c.shape);
-                }, a.shape);
-                if (overlapping) {
-                    return false;
+                if (!should_collide(a.filter, c.filter)) {
+                    return false; // layers don't interact -> not carried
                 }
-                const float probe = m_cfg.skin * 2.0f + constants::POINT_EPS;
-                const vec down{-m_cfg.up.x() * probe, -m_cfg.up.y() * probe};
-                const auto hit = cast_core(detail::narrow(a.shape), units::displacement{down}, a.filter,
-                                           solid_acceptor(), actor_idx);
-                return hit
-                       && hit->who.type_id == collider_id::BODY && hit->who.value == carrier_idx
-                       && euler::dot(hit->normal, m_cfg.up) > GROUND_THRESHOLD;
+                if (!solid_pred{}(c.material, m_cfg.up)) {
+                    return false; // carrier isn't solid from above (SENSOR/IGNORE, or one-way wrong side)
+                }
+
+                // Geometric "on top" over the enclosing boxes, general over `up`: project both boxes
+                // onto the up axis and its perpendicular. The actor rides iff its UNDERSIDE (lowest
+                // along up) rests at/just above the carrier's TOP (within the skin gap) AND they
+                // STRICTLY overlap perpendicular (genuinely over the top -- not edge-touching a side).
+                // Uses boxes (not a swept cast) so an exact top-contact (gap 0) rides cleanly and a
+                // boundary touch never produces a degenerate contact normal.
+                struct span { float lo, hi; };
+                const auto proj = [](const aabb& b, const vec& ax) -> span {
+                    const float c0 = b.min.x() * ax.x() + b.min.y() * ax.y();
+                    const float c1 = b.max.x() * ax.x() + b.min.y() * ax.y();
+                    const float c2 = b.min.x() * ax.x() + b.max.y() * ax.y();
+                    const float c3 = b.max.x() * ax.x() + b.max.y() * ax.y();
+                    return span{std::min({c0, c1, c2, c3}), std::max({c0, c1, c2, c3})};
+                };
+                const aabb ra = std::visit([](const auto& s) { return enclose(s); }, a.shape);
+                const aabb rc = std::visit([](const auto& s) { return enclose(s); }, c.shape);
+                const vec u = m_cfg.up;
+                const vec perp{u.y(), -u.x()};
+                const span au = proj(ra, u), cu = proj(rc, u);
+                const span ap = proj(ra, perp), cp = proj(rc, perp);
+                const float eps = constants::POINT_EPS;
+                const float gap = m_cfg.skin * 2.0f + eps; // touching .. within the move_and_slide skin gap
+                const bool on_top = (au.lo >= cu.hi - eps) && (au.lo <= cu.hi + gap);
+                const bool perp_overlap = (ap.hi > cp.lo + eps) && (ap.lo < cp.hi - eps);
+                return on_top && perp_overlap;
             }
 
             // Re-fit a resident's broadphase proxy after it moved, only when its tight box escaped the

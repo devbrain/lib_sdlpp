@@ -51,6 +51,17 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         CHECK(box_of(w, plat).min.x() == doctest::Approx(11.0f).epsilon(0.05)); // platform moved too
     }
 
+    TEST_CASE("a rider in EXACT top contact (zero gap) is still carried") {
+        world w = carrier_world();
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{60, 0}, vec{0, 0}});
+        // bottom == carrier top (y=10), no skin gap -- a spawn/teleport placed flush on top
+        const collider_id rider = w.add(2, kinematic_body{
+                                            moving_shape_t{aabb{vec{12, 10.0f}, vec{13, 11.0f}}}, {}, {}, vec{0, 0}});
+        const float rx0 = box_of(w, rider).min.x();
+        (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+        CHECK(box_of(w, rider).min.x() == doctest::Approx(rx0 + 1.0f).epsilon(0.05));
+    }
+
     TEST_CASE("a vertical elevator carries its rider up") {
         world w = carrier_world();
         w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{0, 60}, vec{0, 0}});
