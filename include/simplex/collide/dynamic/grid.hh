@@ -202,6 +202,20 @@ namespace simplex::collide {
                 }
             }
 
+            // Swept broadphase for a MOVING shape: enumerate the occupied cells the shape can
+            // overlap as its bound travels `start_bound` -> `start_bound + delta` over a frame.
+            // The swept band is the cell rectangle of the union of the bound at both ends, which
+            // covers the whole path (anti-tunnelling at the cell level for per-frame moves). Pure
+            // broadphase -- the world narrow-phases (swept) each cell and keeps the earliest TOI.
+            // Same callback contract as query: (const T&, cell_box), void-or-bool early-out.
+            // `start_bound` is the shape's enclosing aabb at the start (enclose(shape)); a circle
+            // sweeps the same way via its bounding box.
+            template<typename Fn>
+            void swept(const aabb& start_bound, const vec& delta, Fn&& callback) const {
+                const aabb band = aabb::combine(start_bound, translate(start_bound, delta));
+                query(band, std::forward<Fn>(callback));
+            }
+
             // Amanatides-Woo DDA: visit the cells the segment from->to crosses, in near-to-far
             // order, calling callback(const T&, cell_box, t) for each OCCUPIED cell. `t` is the
             // entry parameter along the ORIGINAL from->to ray (in [0,1]), so it is comparable with

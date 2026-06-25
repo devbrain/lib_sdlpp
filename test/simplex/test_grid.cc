@@ -531,3 +531,76 @@ TEST_SUITE("grid: raycast origin on a boundary (directional start)") {
         CHECK(h[0] == 500);
     }
 }
+
+TEST_SUITE("grid: swept (moving-shape band)") {
+    static std::set<std::pair<uint32_t, uint32_t>>
+    band(grid<int>& g, const aabb& start_bound, vec delta) {
+        std::set<std::pair<uint32_t, uint32_t>> s;
+        g.swept(start_bound, delta, [&](const int& v, const aabb&) {
+            s.insert({static_cast<uint32_t>(v % 4), static_cast<uint32_t>(v / 4)});
+        });
+        return s;
+    }
+
+    // 4x4 grid over [0,8]^2 -> 2x2 cells. Fill every cell so swept reports each visited cell.
+    static grid<int> filled() {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        for (uint32_t y = 0; y < 4; ++y)
+            for (uint32_t x = 0; x < 4; ++x)
+                g.set(vec{x * 2.0f + 1.0f, y * 2.0f + 1.0f}, static_cast<int>(y * 4 + x));
+        return g;
+    }
+
+    TEST_CASE("the band covers the union of the bound at both ends (anti-tunnelling)") {
+        auto g = filled();
+        // a 1x1 box starting in cell (0,0), moving right by 5 -> ends spanning into cell (3,0).
+        const aabb start{vec{0.5f, 0.5f}, vec{1.5f, 1.5f}};
+        const auto cells = band(g, start, vec{5, 0});
+        // start box touches cells x∈{0}, end box (x 5.5..6.5) touches x∈{2,3}; union spans the
+        // whole swept rect rows y∈{0}, x∈{0,1,2,3} -- nothing in the path is skipped.
+        for (uint32_t x = 0; x <= 3; ++x) {
+            CHECK(cells.count({x, 0u}) == 1);
+        }
+    }
+
+    TEST_CASE("negative delta sweeps the same band (union is direction-agnostic)") {
+        auto g = filled();
+        const aabb a{vec{5.5f, 0.5f}, vec{6.5f, 1.5f}}; // starts in cell (3,0)/(2,0)
+        const auto fwd = band(g, a, vec{-5, 0});         // move left by 5
+        const aabb b{vec{0.5f, 0.5f}, vec{1.5f, 1.5f}};
+        const auto rev = band(g, b, vec{5, 0});          // move right by 5 from the other end
+        CHECK(fwd == rev);                               // same swept rectangle of cells
+    }
+
+    TEST_CASE("a diagonal sweep covers the rectangle, not just a thin line") {
+        auto g = filled();
+        const aabb start{vec{0.5f, 0.5f}, vec{1.5f, 1.5f}};
+        const auto cells = band(g, start, vec{5, 5}); // down-right diagonal move
+        // the union rect spans x∈{0..3}, y∈{0..3}; a thin ray would miss the off-diagonal cells
+        CHECK(cells.count({0u, 3u}) == 1);
+        CHECK(cells.count({3u, 0u}) == 1);
+    }
+
+    TEST_CASE("skips empty cells and supports bool early-out") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        g.set(vec{1, 1}, 1);
+        g.set(vec{3, 1}, 2);
+        int seen = 0;
+        g.swept(aabb{vec{0.5f, 0.5f}, vec{1.5f, 1.5f}}, vec{4, 0},
+                [&](const int&, const aabb&) { ++seen; }); // void: visits both occupied
+        CHECK(seen == 2);
+
+        int calls = 0;
+        g.swept(aabb{vec{0.5f, 0.5f}, vec{1.5f, 1.5f}}, vec{4, 0},
+                [&](const int&, const aabb&) { ++calls; return false; }); // stop after first
+        CHECK(calls == 1);
+    }
+
+    TEST_CASE("a sweep entirely outside the grid is a tolerant no-op") {
+        auto g = filled();
+        int calls = 0;
+        CHECK_NOTHROW(g.swept(aabb{vec{100, 100}, vec{101, 101}}, vec{5, 5},
+                              [&](const int&, const aabb&) { ++calls; }));
+        CHECK(calls == 0);
+    }
+}

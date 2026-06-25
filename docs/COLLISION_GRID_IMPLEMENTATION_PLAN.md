@@ -1,6 +1,6 @@
 # Static Collision Grid — Design & Implementation Plan
 
-Status: **In progress (G0–G2 done: storage, mappings, region query, DDA raycast).** This is Phase 7 of the collision world
+Status: **In progress (G0–G3 done: storage, mappings, region / raycast / swept enumeration; next: G4 world integration).** This is Phase 7 of the collision world
 (`docs/COLLISION_WORLD_IMPLEMENTATION_PLAN.md` §12, §17). The coordinate substrate is
 implemented in `include/simplex/collide/dynamic/grid.hh` (tested in
 `test/simplex/test_grid.cc`): `grid_coord` (with an invalid sentinel), the row-major
@@ -394,9 +394,13 @@ Follow the established pattern (doctest, ASan/UBSan, brute-force cross-checks):
   axis-parallel; early-out; out-of-grid no-op; direct corner & on-gridline cases; long-ray
   false-corner regression; origin-on-boundary both directions.
 
-- **Phase G3 — Swept cell enumeration.** `swept(start, delta, on_cell)` — cell-rect of the
-  swept bound (small moves). *Tests:* the band covers the whole sweep (anti-tunneling at the
-  cell level).
+- **Phase G3 — Swept cell enumeration. [DONE]** `swept(start_bound, delta, on_cell)` — the
+  cell rectangle of the union of the bound at both ends (`aabb::combine(b, translate(b, delta))`),
+  delegating to `query`; same `(T, cell_box)` void-or-bool contract. A thin wrapper, but it
+  names the moving-shape band intent and keeps the grid's surface mirroring the world's three
+  query forms. *Tested:* the band covers the whole sweep (anti-tunneling), direction-agnostic
+  union, diagonal sweep covers the rectangle (not a thin line), skip-empty + early-out,
+  out-of-grid no-op.
 
 - **Phase G4 — World integration (the semantic layer).** The world holds the grid as a
   private member, defines the cell payload `T` and the cell→shape/material/filter projection
