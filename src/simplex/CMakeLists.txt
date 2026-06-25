@@ -39,6 +39,7 @@ target_sources(simplex PRIVATE
         ${PROJECT_ROOT}/include/simplex/collide/distance.hh
         ${PROJECT_ROOT}/include/simplex/collide/overlap.hh
         ${PROJECT_ROOT}/include/simplex/collide/sweep.hh
+        ${PROJECT_ROOT}/include/simplex/collide/triangle.hh
         ${PROJECT_ROOT}/include/simplex/collide/enclose.hh
         ${PROJECT_ROOT}/include/simplex/collide/translate.hh
         ${PROJECT_ROOT}/include/simplex/collide/units.hh

@@ -120,6 +120,21 @@ namespace simplex::collide {
     };
 
     /**
+     * @brief A solid (filled) triangle, defined by three vertices in any winding.
+     *
+     * Unlike @ref segment (a 1-D line), a triangle is a 2-D region: its interior counts as
+     * solid for overlap/sweep queries. Used for free-standing solid slopes/ramps that must
+     * block from every side (a single diagonal `segment` only blocks crossing the diagonal).
+     * Assumed non-degenerate (the three vertices are not collinear); a degenerate triangle
+     * behaves like its longest edge.
+     */
+    struct triangle {
+        vec a{}; ///< First vertex
+        vec b{}; ///< Second vertex
+        vec c{}; ///< Third vertex
+    };
+
+    /**
      * @brief Result of a raw line/segment-vs-shape query (@ref intersect_param).
      *
      * `entry_param` / `exit_param` are parameters along the query segment's infinite

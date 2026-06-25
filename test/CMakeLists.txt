@@ -105,6 +105,7 @@ add_executable(sdlpp_unittest
 
         # Simplex tests
         simplex/test_collide.cc
+        simplex/test_triangle.cc
         simplex/test_bridge.cc
         simplex/test_aabb_tree.cc
         simplex/test_sorted_array.cc
