@@ -35,8 +35,9 @@ records the **as-built** form and notes what is still a stub.
 ### Non-goals
 - **No rigid-body dynamics / constraint solver.** No mass, forces, joints, restitution
   solving, contact islands, or stacking. The only motion model is **kinematic**.
-- **No rotated/polygon shapes.** Shapes are `aabb`, `circle`, `segment` (no OBB/polygon);
-  these genres don't need rotation, and the existing narrow-phase matrix is built for them.
+- **No rotated shapes / general polygons.** Shapes are `aabb`, `circle`, `segment`, and a
+  solid `triangle` (for slopes/ramps) — no OBB/rotation and no arbitrary N-gon. These genres
+  don't need rotation, and the narrow-phase matrix is built for these four.
 - No multithreading in v1. No persistence/serialization in v1.
 
 ---
@@ -817,3 +818,107 @@ and `cast` return only the NEAREST hit; see "Cross-cutting" below.
 ### Correctly NOT needed for these genres
 Rigid-body dynamics, stacking/joints, mass/torque, rotation/OBB — sprites rotate visually
 while hitboxes stay aabb/circle. Their absence (§18) is deliberate, not a gap.
+
+---
+
+## 20. Game loop / integration
+
+§7 describes the `run` loop abstractly; this is the concrete integration. The rhythm is
+**set intent → `run()` → react → read back**: the game owns *control* (gravity, input, AI),
+the world owns *collision resolution*. The world is **velocity-in** — it applies no gravity
+or input; you hand it a velocity and it resolves where that motion actually lands.
+
+### Fixed timestep
+Drive `run()` on a fixed `dt` accumulator and interpolate when rendering. A stable step keeps
+the swept CCD and the deterministic slot-order iteration honest (same inputs + same `dt` →
+same result).
+
+```cpp
+// ---- setup (once) ----
+world_config cfg;
+cfg.bounds = aabb{{0,0}, {level_w, level_h}};        // also the grid extent
+cfg.grid   = world_config::grid_config{ {16,16} };   // tile size
+cfg.up     = {0,1};
+world w(cfg);
+
+for (auto& t : level.tiles) w.add(t.eid, tile_body{t.shape, t.material, t.filter});
+auto player = w.add(P, kinematic_body{ aabb{...}, player_mat, player_filter, {0,0} });
+// ... enemies, moving platforms (also kinematic_body) ...
+
+// ---- main loop ----
+constexpr float DT = 1.0f/60.0f;
+float acc = 0;
+while (running) {
+    poll_input();
+    acc += real_delta_seconds();
+    while (acc >= DT) { step(w, DT); acc -= DT; }
+    render(w, /*interp=*/ acc / DT);
+}
+```
+
+### One fixed step
+```cpp
+void step(world& w, float dt) {
+    // 1. INTENT -- the game computes each mover's velocity for this frame (gravity + input/AI).
+    for (auto& e : movers) {
+        vec v = w.get_velocity(e.handle);
+        v += GRAVITY * dt;                  // gravity  (game-level)
+        v  = apply_input_and_ai(e, v, dt);  // accel, jump impulse, steering
+        w.set_velocity(e.handle, v);
+    }
+    for (auto& p : platforms) w.set_velocity(p.handle, p.scripted_velocity());
+
+    // 2. RESOLVE -- one detect-then-react pass (move_and_slide per kinematic, sweep bullets,
+    //    diff triggers). Returns the REUSED event buffer; copy what you keep, don't hold it.
+    const auto& events = w.run(camera_region(), dt);
+
+    // 3. REACT
+    for (const auto& ev : events) switch (ev.kind) {
+        case event_kind::COLLISION:                 // ev.mover hit ev.target, ev.normal, ev.toi
+            if (euler::dot(ev.normal, cfg.up) > 0.7f) ground(ev.mover);
+            if (is_hazard(ev.target)) hurt(ev.mover);
+            break;
+        case event_kind::BULLET_HIT:
+            damage(w.get_eid(ev.target));
+            if (ev.target.type_id == collider_id::TILE) w.remove(ev.target); // breakable brick
+            despawn(ev.mover);
+            break;
+        case event_kind::BULLET_EXPIRED: despawn(ev.mover); break;
+        case event_kind::TRIGGER_BEGIN:  on_enter(ev.mover, ev.target); break;
+        case event_kind::TRIGGER_END:    on_exit (ev.mover, ev.target); break;
+    }
+
+    // 4. READ BACK -- resolved shape + POST-slide velocity (friction/restitution applied, the
+    //    floor has zeroed your fall). Drives animation and is the base for next frame's intent.
+    for (auto& e : entities) { e.shape = w.get_shape(e.handle); e.vel = w.get_velocity(e.handle); }
+
+    // 5. CONTROLLER queries (game-level helpers built on raycast / line_of_sight, §19):
+    update_grounded_and_coyote(w, player);   // footing / edge sensors -> teeter, edge-stop
+    for (auto& en : enemies) en.sees_player = w.line_of_sight(en.pos, player.pos, sight_filter);
+
+    // 6. MOVING-PLATFORM CARRYING (game-level until §19 #1): a rider grounded on a platform
+    //    inherits the platform's delta this frame.
+    carry_riders(w, platforms, dt);
+
+    // 7. SPAWN / DESPAWN -- fire weapons (add bullet), reap dead (w.remove), level changes.
+    flush_spawns(w); reap_dead(w);
+}
+```
+
+### Rules that matter
+- **Set velocities for ALL kinematic bodies before `run()`** (player, enemies, platforms) —
+  `run()` moves them in one slot-ordered pass.
+- **Velocity-in:** gravity, jump curves, acceleration, AI are the game's job; the library only
+  resolves where the requested motion lands.
+- **Read `get_velocity` back after `run()`** — it is the *post-slide* velocity (floor zeroed the
+  fall, walls removed the into-wall component). Accumulate next frame's gravity onto THAT, not
+  the pre-collision guess, or motion goes sticky/jittery.
+- **The event buffer is reused** each `run()` — consume or copy it that frame; never stash the
+  reference across frames.
+- **Game-level today (until the §19 roadmap folds them in):** gravity, moving-platform carrying
+  (#1), and footing/coyote/edge-stop/teeter sensors (#4) — all built on `set_velocity` +
+  `raycast`/`line_of_sight`. When those land, steps 5–6 shrink.
+- **Fixed `dt`** keeps the swept math and deterministic iteration honest; interpolate in render.
+
+Net integration surface: three calls per entity (`set_velocity` → `run` → `get_shape`/
+`get_velocity`) plus event handling.
