@@ -252,3 +252,103 @@ TEST_SUITE("world+grid: invariants & identity") {
         CHECK(w.get_eid(c) == 3u);
     }
 }
+
+TEST_SUITE("world+grid: grid<->BVH agreement (G4.5)") {
+    // Deterministic LCG so a pass is reproducible (no Math.random-style flakiness).
+    struct rng {
+        uint32_t s;
+        uint32_t next() { s = s * 1664525u + 1013904223u; return s; }
+        float f(float lo, float hi) { return lo + (hi - lo) * (static_cast<float>(next() >> 8) / static_cast<float>(1 << 24)); }
+    };
+
+    // A scene of N isolated, cell-aligned tiles (a small box centred in distinct 2x2 cells, with
+    // margin so tiles never touch -> no exact-edge ties between neighbours). Built BOTH as grid
+    // tiles and as BVH static bodies, with identical eids, so the two query paths can be compared.
+    struct scene {
+        world tiles;   // grid path
+        world bodies;  // BVH path
+    };
+
+    scene build(rng& r, int n) {
+        world_config cfg;
+        cfg.bounds = aabb{vec{0, 0}, vec{16, 16}};
+        cfg.grid = world_config::grid_config{vec{2, 2}}; // 8x8 cells
+        scene sc{world(cfg), world(world_config{})};
+        std::set<uint32_t> used;
+        entity_id_t eid = 1;
+        int placed = 0, guard = 0;
+        while (placed < n && guard++ < 1000) {
+            const uint32_t cx = r.next() % 8u, cy = r.next() % 8u;
+            const uint32_t cell = cy * 8u + cx;
+            if (!used.insert(cell).second) continue;
+            // 0.8 x 0.8 box centred in the 2x2 cell (origin 0,0): centre = (cx*2+1, cy*2+1)
+            const float ox = cx * 2.0f + 1.0f, oy = cy * 2.0f + 1.0f;
+            const aabb box{vec{ox - 0.4f, oy - 0.4f}, vec{ox + 0.4f, oy + 0.4f}};
+            sc.tiles.add(eid, tile_body{shape_t{box}, {}, {}});
+            sc.bodies.add(eid, static_body{shape_t{box}, {}, {}});
+            ++eid; ++placed;
+        }
+        return sc;
+    }
+
+    // (eid, toi) of a raycast hit, or nullopt.
+    std::optional<std::pair<entity_id_t, float>> ray_hit(const world& w, const segment& s) {
+        const auto h = w.raycast(s);
+        if (!h) return std::nullopt;
+        return std::make_pair(w.get_eid(h->who), h->toi);
+    }
+
+    TEST_CASE("raycast agrees between the grid and the BVH over random scenes/rays") {
+        rng r{0xC0FFEEu};
+        int compared = 0, hits = 0;
+        for (int trial = 0; trial < 300; ++trial) {
+            scene sc = build(r, 10);
+            for (int q = 0; q < 5; ++q) {
+                const segment s{vec{r.f(0.1f, 15.9f), r.f(0.1f, 15.9f)},
+                                vec{r.f(0.1f, 15.9f), r.f(0.1f, 15.9f)}};
+                const auto a = ray_hit(sc.tiles, s);
+                const auto b = ray_hit(sc.bodies, s);
+                REQUIRE(a.has_value() == b.has_value());
+                if (a) {
+                    CHECK(a->first == b->first);                 // same tile/body eid
+                    CHECK(a->second == doctest::Approx(b->second).epsilon(0.001)); // same toi
+                    ++hits;
+                }
+                ++compared;
+            }
+        }
+        CHECK(compared == 1500);
+        CHECK(hits > 100); // sanity: the rays actually hit things often enough to be meaningful
+    }
+
+    // (eid, toi) of a swept cast, or nullopt.
+    std::optional<std::pair<entity_id_t, float>> cast_hit(const world& w, const aabb& m, vec d) {
+        const auto h = w.cast(moving_shape_t{m}, d);
+        if (!h) return std::nullopt;
+        return std::make_pair(w.get_eid(h->who), h->toi);
+    }
+
+    TEST_CASE("swept cast agrees between the grid and the BVH over random scenes/sweeps") {
+        rng r{0x1234567u};
+        int compared = 0, hits = 0;
+        for (int trial = 0; trial < 300; ++trial) {
+            scene sc = build(r, 10);
+            for (int q = 0; q < 5; ++q) {
+                const float ox = r.f(0.2f, 15.0f), oy = r.f(0.2f, 15.0f);
+                const aabb mover{vec{ox, oy}, vec{ox + 0.3f, oy + 0.3f}}; // small mover
+                const vec delta{r.f(-12.0f, 12.0f), r.f(-12.0f, 12.0f)};
+                const auto a = cast_hit(sc.tiles, mover, delta);
+                const auto b = cast_hit(sc.bodies, mover, delta);
+                REQUIRE(a.has_value() == b.has_value());
+                if (a) {
+                    CHECK(a->first == b->first);
+                    CHECK(a->second == doctest::Approx(b->second).epsilon(0.001));
+                    ++hits;
+                }
+                ++compared;
+            }
+        }
+        CHECK(compared == 1500);
+        CHECK(hits > 100);
+    }
+}

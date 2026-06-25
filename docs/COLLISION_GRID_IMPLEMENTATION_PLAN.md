@@ -1,6 +1,6 @@
 # Static Collision Grid — Design & Implementation Plan
 
-Status: **In progress (G0–G3 + G4.1–G4.4 done: grid enumerators, and tiles integrated into the world's add/queries/move_and_slide; next: G4.5 brute-force grid↔BVH agreement + §15 limitation fixes).** This is Phase 7 of the collision world
+Status: **G0–G4 DONE.** Grid enumerators (region / raycast / swept), tiles fully integrated into the world (unified `add`/`remove`/queries/`move_and_slide`), grid↔BVH agreement validated, both §15 correctness traps closed (per-cell generation, one-cell `ENFORCE`), type-aware trigger keys, and `world::clear()`. Remaining items in §15 are deliberate feature gaps / perf (sensor tiles, lone slopes, hashed/streaming grids), not blockers. This is Phase 7 of the collision world
 (`docs/COLLISION_WORLD_IMPLEMENTATION_PLAN.md` §12, §17). The coordinate substrate is
 implemented in `include/simplex/collide/dynamic/grid.hh` (tested in
 `test/simplex/test_grid.cc`): `grid_coord` (with an invalid sentinel), the row-major
@@ -416,8 +416,10 @@ Follow the established pattern (doctest, ASan/UBSan, brute-force cross-checks):
     `raycast` (nearest, near-to-far early-out). Tile identity via `tile_handle(cell_box)`.
     *Tested:* `test_world_grid.cc` — raycast/cast hit tiles, body↔tile nearest merge, slope
     tile, filter, sensor-body senses tile (begin/end), slide on tile floor + wall.
-  - **G4.5 (next)** the thorough brute-force grid↔BVH agreement on a shared static scene, and
-    the §15 limitation fixes worth doing in v1.
+  - **G4.5 DONE** brute-force grid↔BVH agreement: the same random scene built as tiles and as
+    BVH static bodies; ~3000 random raycast/cast queries must return the same eid + toi from both
+    paths (`test_world_grid.cc`). Plus the v1 §15 fixes: per-cell generation (safe TILE handles),
+    one-cell `ENFORCE`, type-aware trigger keys, and `world::clear()` for level reload.
 
 - **Phase G5 — (Optional) explicit bucketed grid** for free-form statics, and/or
   height-field slope sampling, if §12 calls for them.
