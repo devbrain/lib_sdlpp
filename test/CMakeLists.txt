@@ -115,6 +115,7 @@ add_executable(sdlpp_unittest
         simplex/test_world_queries.cc
         simplex/test_world_run.cc
         simplex/test_world_slide.cc
+        simplex/test_world_grid.cc
 
 
         # General/support tests

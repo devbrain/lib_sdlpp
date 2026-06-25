@@ -1,6 +1,6 @@
 # Static Collision Grid — Design & Implementation Plan
 
-Status: **In progress (G0–G3 done: storage, mappings, region / raycast / swept enumeration; next: G4 world integration).** This is Phase 7 of the collision world
+Status: **In progress (G0–G3 + G4.1–G4.4 done: grid enumerators, and tiles integrated into the world's add/queries/move_and_slide; next: G4.5 brute-force grid↔BVH agreement + §15 limitation fixes).** This is Phase 7 of the collision world
 (`docs/COLLISION_WORLD_IMPLEMENTATION_PLAN.md` §12, §17). The coordinate substrate is
 implemented in `include/simplex/collide/dynamic/grid.hh` (tested in
 `test/simplex/test_grid.cc`): `grid_coord` (with an invalid sentinel), the row-major
@@ -402,13 +402,22 @@ Follow the established pattern (doctest, ASan/UBSan, brute-force cross-checks):
   union, diagonal sweep covers the rectangle (not a thin line), skip-empty + early-out,
   out-of-grid no-op.
 
-- **Phase G4 — World integration (the semantic layer).** The world holds the grid as a
-  private member, defines the cell payload `T` and the cell→shape/material/filter projection
-  (§4), and does the per-cell **narrow-phase + filtering** on the grid's enumerated candidates
-  (mirroring how it narrow-phases BVH candidates). `cast`/`raycast`/`overlap` fan out to grid +
-  BVH and **merge** (nearer / union); tile-hit identity built world-side. *Tests:* grid-vs-BVH
-  agreement on the same static scene; hybrid merge (nearer / union); move-and-slide on a tile
-  level; one-way slopes.
+- **Phase G4 — World integration (the semantic layer). [G4.1–G4.4 DONE; G4.5 next]** The world
+  holds the grid as a private `std::optional<grid<detail::tile>>` whose extent IS
+  `world_config.bounds` (§9). Done so far:
+  - **G4.1** config + `from_tile_size` + the extent≡bounds tie (exact-tiling `ENFORCE`).
+  - **G4.2** `tile_body` (= `static_body` fields) routed through `add`; `collider_id::TILE`
+    (`value` = linear cell handle, `eid` in payload); `remove`/`is_valid`/`get_shape`/
+    `get_velocity`/`get_eid`/`set_shape` dispatch; grid owner handle (`to_cell`/`at`/`clear_at`).
+  - **G4.3** source-agnostic per-candidate `consider(...)` in `overlap`/`cast_core`/`raycast`
+    (acceptors take `material_props`; `material_of(collider_id)` dispatches by type).
+  - **G4.4** grid fan-out merged with the BVH: `overlap` (union), `cast_core`/`move_and_slide`
+    (earliest TOI — tile floors/walls/slopes for free; bullets hit tiles; LoS blocked by tiles),
+    `raycast` (nearest, near-to-far early-out). Tile identity via `tile_handle(cell_box)`.
+    *Tested:* `test_world_grid.cc` — raycast/cast hit tiles, body↔tile nearest merge, slope
+    tile, filter, sensor-body senses tile (begin/end), slide on tile floor + wall.
+  - **G4.5 (next)** the thorough brute-force grid↔BVH agreement on a shared static scene, and
+    the §15 limitation fixes worth doing in v1.
 
 - **Phase G5 — (Optional) explicit bucketed grid** for free-form statics, and/or
   height-field slope sampling, if §12 calls for them.
@@ -420,3 +429,74 @@ Follow the established pattern (doctest, ASan/UBSan, brute-force cross-checks):
 - Dynamic objects in the grid.
 - Polygon/triangle slope shapes (slopes stay `segment`s).
 - 3D / voxel extension (the DDA generalizes, but out of scope here).
+
+---
+
+## 15. Known limitations (as built, after G4.4)
+
+A scan of the world↔grid integration. Severity is relative to a 2D tilemap game; each
+notes the impact, the workaround, and how it would be lifted. The first two are the ones
+worth closing before calling G4 "done"; the rest are feature gaps or perf, not traps.
+
+### Correctness traps
+
+1. **One-cell tile constraint — currently UNVALIDATED.** `add(tile_body)` buckets a tile into
+   the single cell containing its shape's *centre* and stores it only there. A shape larger than
+   a cell, or one that straddles a cell boundary (even if cell-sized but offset), is invisible to
+   queries that hit only the *other* cell it overlaps → missed hits / tunnelling. The world does
+   **not** check that the tile fits its centre cell — it silently mis-stores.
+   *Workaround:* keep tiles cell-aligned and ≤ cell size; use `static_body` (BVH) for anything
+   larger or free-form. *Lift:* `ENFORCE(enclose(shape) ⊆ cell_box)` in `add` (cheap), or insert
+   into every overlapped cell (needs multi-occupancy the grid does not have).
+
+2. **Overwrite/refill silently aliases stale TILE handles; no tile generation safety.**
+   `add(tile_body)` into an occupied cell overwrites it. The previous tile's `collider_id` stays
+   `is_valid() == true` (same cell, still occupied) but now resolves to the **new** tile
+   (`get_eid`/`get_shape`/`material_of` read the new payload). Same hazard after remove-then-refill.
+   Bodies are protected by `generation`; tiles are not (`TILE` generation is always 0).
+   *Workaround:* do not hold a tile handle across a re-add to the same cell. *Lift:* a per-cell
+   generation counter in the grid, bumped on set/clear, stored in the handle.
+
+### Feature gaps
+
+3. **Sensor TILES are not scanned as sensors.** The trigger pass iterates bodies only, so a
+   `tile_body` with `response == SENSOR` never initiates a trigger; and since `solid_pred` treats
+   `SENSOR` as non-solid, such a tile is inert (neither blocks nor triggers). A body-sensor *can*
+   sense a tile (the tile is the "other" side). *Workaround:* model trigger zones as sensor
+   bodies. *Lift:* a second trigger-pass loop scanning the grid for `SENSOR` tiles.
+
+4. **A lone slope tile leaks from its open faces.** A slope is a single `segment` (one face); §7
+   assumes the other two faces border full-block neighbour tiles. An isolated slope (no solid
+   neighbours) lets a mover enter from the open sides. *Lift:* store extra faces, or require
+   neighbour blocks.
+
+### Memory / sizing
+
+5. **Dense cell-index array over the entire `bounds`.** The payload is sparse, but `m_coords` is
+   `cols*rows` `uint32`s allocated for the whole extent, even if few cells are tiled. A large world
+   with sparse tiles wastes that index array. *Lift:* a hashed (unbounded) cell map — a different
+   structure.
+
+6. **Grid is fixed-size; extent ≡ `bounds`; `tile_size` must divide `bounds`.** Set once at
+   construction: no resize/streaming, tiles outside `bounds` are rejected, and a non-dividing
+   `bounds`/`tile_size` is a hard construction error. Streaming/open worlds are out of scope
+   (spatial-hash territory).
+
+### Performance / determinism (minor)
+
+7. **No cross-structure raycast pruning.** `raycast` runs the BVH fully, *then* the grid (the grid
+   early-outs against the BVH's nearest, but the BVH never sees a nearer tile to prune farther
+   boxes). `cast_core`/`move_and_slide` also re-enumerate the swept envelope's tiles on every slide
+   iteration (≤ `max_slide_iter`). Correct, just more work than ideal.
+
+8. **Ties resolve body-over-tile.** When a body and a tile share the exact same TOI/`t`, the body
+   wins (BVH fan-out runs first; the grid keeps a strict `< best`). A determinism note, not a bug.
+
+9. **Origin/edge ray semantics inherited from the grid DDA** (§6b): supercover at mid-ray
+   corners/gridlines, forward-half-open at the origin (a tile touched only at the ray origin,
+   opposite travel, is not reported).
+
+### Confirmed working (the boundary of the above)
+Bullets hit tiles (`BULLET_HIT` carries the tile handle → **destructible tiles** work via the
+event + `remove`); `raycast`/`line_of_sight` are blocked by tiles; `move_and_slide` lands and
+slides on tile floors/walls/slopes; body-sensors sense tiles.

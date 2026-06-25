@@ -813,6 +813,13 @@ namespace simplex::collide {
                 return m_static_grid->at(id.value)->material; // TILE
             }
 
+            // The TILE handle for a grid candidate. The enumerators hand back the cell_box (geometry)
+            // but hide the cell index (identity); recover it from the box centre, which maps back to
+            // the same cell. value = linear cell index (decodes via material_of / at()).
+            [[nodiscard]] collider_id tile_handle(const aabb& cell_box) const {
+                return {m_static_grid->to_cell(cell_box.center()), 0, collider_id::TILE};
+            }
+
             template<class Fn>
             void overlap(uint32_t idx, Fn&& on_hit) const {
                 const auto& self = m_bodies_storage[idx];
@@ -846,6 +853,14 @@ namespace simplex::collide {
                     consider(other.shape, other.filter,
                              collider_id{other_idx, other.generation, collider_id::BODY});
                 });
+
+                // Static tiles in the same region. (A body-sensor can sense tiles; sensor TILES are
+                // not scanned as sensors -- the trigger pass iterates body sensors only. v1 limit.)
+                if (m_static_grid) {
+                    m_static_grid->query(envelope, [&](const detail::tile& t, const aabb& cb) {
+                        consider(t.shape, t.filter, tile_handle(cb));
+                    });
+                }
             }
 
             // Swept-query core: sweep `mover` by `delta` and return the earliest accepted resident
@@ -902,6 +917,15 @@ namespace simplex::collide {
                     consider(other.shape, other.filter, other.material,
                              collider_id{other_idx, other.generation, collider_id::BODY});
                 });
+
+                // Static tiles overlapping the swept band (envelope == the swept bound). Each is
+                // swept narrow-phased in consider(); the earliest TOI across bodies AND tiles wins,
+                // so move_and_slide resolves against tile floors/walls/slopes for free.
+                if (m_static_grid) {
+                    m_static_grid->query(envelope, [&](const detail::tile& t, const aabb& cb) {
+                        consider(t.shape, t.filter, t.material, tile_handle(cb));
+                    });
+                }
                 return out;
             }
 
@@ -988,6 +1012,20 @@ namespace simplex::collide {
                                      // 1.0 (no clip) until we have one.
                                      return out ? out->toi : 1.0f;
                                  });
+
+                // Static tiles along the ray. The grid DDA is near-to-far and reports the cell-entry
+                // parameter t_entry; the precise narrow-phase toi is >= t_entry, so once t_entry
+                // exceeds the best hit so far, no farther tile can beat it -> stop (bool early-out).
+                if (m_static_grid) {
+                    m_static_grid->raycast(s.from, s.to,
+                                           [&](const detail::tile& t, const aabb& cb, float t_entry) -> bool {
+                                               if (out && t_entry > out->toi) {
+                                                   return false; // farther than the best hit -> done
+                                               }
+                                               consider(t.shape, t.filter, tile_handle(cb));
+                                               return true;
+                                           });
+                }
                 return out;
             }
 
