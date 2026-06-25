@@ -46,6 +46,14 @@ namespace simplex::collide {
             // Pre-grow the pool to avoid reallocations during a known batch of inserts.
             void reserve(std::size_t n) { m_pool.reserve(n); }
 
+            // Drops every node and empties the free list -- the arena returns to its
+            // just-constructed state. Allocated capacity is retained for reuse. Any
+            // node_ptr into the old contents is invalidated.
+            void clear() {
+                m_pool.clear();
+                m_free_head = node_ptr{};
+            }
+
         private:
             static void init(node& n, entity_id_t eid, const aabb& box);
 

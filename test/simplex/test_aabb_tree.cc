@@ -325,6 +325,28 @@ TEST_SUITE("aabb_tree: insertion structure") {
         validate_tree(t, {});
     }
 
+    TEST_CASE("reset() empties the tree and leaves it reusable") {
+        tree t;
+        for (int i = 0; i < 8; ++i) {
+            insert_leaf(t, static_cast<entity_id_t>(i), box_at(i * 2, 0));
+        }
+        REQUIRE(static_cast<bool>(t.m_root));
+
+        t.reset();
+        CHECK_FALSE(static_cast<bool>(t.m_root));            // root cleared
+        CHECK(query_ids(t, box_at(0, 0, 100, 100)).empty()); // nothing reported
+        validate_tree(t, {});                                // structurally an empty tree
+
+        // reusable after reset: re-insert and every invariant holds again
+        std::map<entity_id_t, aabb> expected;
+        for (int i = 0; i < 5; ++i) {
+            insert_leaf(t, static_cast<entity_id_t>(i), box_at(i, i));
+            expected[static_cast<entity_id_t>(i)] = box_at(i, i);
+        }
+        validate_tree(t, expected);
+        CHECK(query_ids(t, box_at(0, 0, 100, 100)).size() == 5u);
+    }
+
     TEST_CASE("single insert: root is the leaf itself") {
         tree t;
         insert_leaf(t, 42, box_at(1, 1, 3, 4));

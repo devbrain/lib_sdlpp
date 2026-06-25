@@ -26,6 +26,15 @@ namespace simplex::collide {
         node& operator [](node_ptr idx) {
             return m_storage[idx];
         }
+
+        // Empties the tree: all leaves dropped, root cleared, storage reset to its
+        // just-constructed state (capacity retained). Mirrors grid::reset() -- a cheap
+        // "rebuild from scratch" without reallocating a tree. Any leaf node_ptr handed
+        // out before the reset is invalidated.
+        void reset() {
+            m_storage.clear();
+            m_root = node_ptr{};
+        }
     };
 
     namespace detail {
