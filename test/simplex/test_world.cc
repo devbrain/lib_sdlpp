@@ -15,6 +15,7 @@
 #include <doctest/doctest.h>
 
 #include <set>
+#include <unordered_map>
 #include <vector>
 
 #include <simplex/collide/dynamic/world.hh>
@@ -282,5 +283,45 @@ TEST_SUITE("world: construction") {
         CHECK_NOTHROW(w.set_velocity(a, vec{0, -3}));
         w.remove(a);
         CHECK_FALSE(w.is_valid(a));
+    }
+}
+
+TEST_SUITE("world: collider_id comparison & hashing") {
+    TEST_CASE("aggregate init survives the defaulted comparisons") {
+        const collider_id a{1, 0, collider_id::BODY}; // must still compile as an aggregate
+        CHECK(a.value == 1u);
+        CHECK(a.generation == 0u);
+        CHECK(a.type_id == collider_id::BODY);
+        CHECK(collider_id{}.valid() == false); // default = null sentinel
+    }
+
+    TEST_CASE("equality is full identity (value, generation, type)") {
+        const collider_id a{1, 0, collider_id::BODY};
+        CHECK(a == collider_id{1, 0, collider_id::BODY});
+        CHECK(a != collider_id{2, 0, collider_id::BODY}); // value
+        CHECK(a != collider_id{1, 1, collider_id::BODY}); // generation
+        CHECK(a != collider_id{1, 0, collider_id::BULLET}); // type
+    }
+
+    TEST_CASE("ordering (<=>) is usable for std::set") {
+        std::set<collider_id> s{
+            {1, 0, collider_id::BODY},
+            {1, 0, collider_id::BODY},   // duplicate -> deduped
+            {1, 1, collider_id::BODY},
+            {1, 0, collider_id::BULLET},
+        };
+        CHECK(s.size() == 3u);
+        CHECK(s.count(collider_id{1, 0, collider_id::BODY}) == 1u);
+        CHECK((collider_id{1, 0, collider_id::BODY} <=> collider_id{1, 1, collider_id::BODY})
+              == std::strong_ordering::less);
+    }
+
+    TEST_CASE("std::hash keys unordered containers") {
+        std::unordered_map<collider_id, int> m;
+        m[collider_id{1, 0, collider_id::BODY}] = 7;
+        m[collider_id{1, 1, collider_id::BODY}] = 9;   // distinct generation -> distinct key
+        CHECK(m.size() == 2u);
+        CHECK(m.at(collider_id{1, 0, collider_id::BODY}) == 7);
+        CHECK(m.at(collider_id{1, 1, collider_id::BODY}) == 9);
     }
 }

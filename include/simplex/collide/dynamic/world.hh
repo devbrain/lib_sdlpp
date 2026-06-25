@@ -6,8 +6,10 @@
 
 #include <algorithm>
 #include <array>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <iterator>
 #include <type_traits>
 #include <variant>
@@ -311,6 +313,12 @@ namespace simplex::collide {
         // True unless this is the null sentinel. (Distinct from world::is_valid, which also
         // checks liveness + generation against the storage.)
         [[nodiscard]] bool valid() const { return value != INVALID; }
+
+        // Full-identity comparison (value, generation, type_id in that order). Defaulting these
+        // keeps collider_id an aggregate (no user-provided ctor), so collider_id{idx, gen, type}
+        // still works. == / != are usable as map keys; <=> gives ordering for std::set / sorting.
+        [[nodiscard]] friend bool operator==(const collider_id&, const collider_id&) = default;
+        [[nodiscard]] friend std::strong_ordering operator<=>(const collider_id&, const collider_id&) = default;
     };
 
     struct contact {
@@ -1014,3 +1022,18 @@ namespace simplex::collide {
             std::vector <sensor_pair> m_triggers_prev;   // last frame's (for the begin/end diff)
     };
 }
+
+// Lets collider_id be a key in std::unordered_map / unordered_set. Mixes all three identity
+// fields so handles to different slots/generations/types hash apart.
+template <>
+struct std::hash<simplex::collide::collider_id> {
+    [[nodiscard]] std::size_t operator()(const simplex::collide::collider_id& id) const noexcept {
+        const std::size_t h1 = std::hash<std::uint32_t>{}(id.value);
+        const std::size_t h2 = std::hash<std::uint32_t>{}(id.generation);
+        const std::size_t h3 = std::hash<std::uint32_t>{}(static_cast<std::uint32_t>(id.type_id));
+        std::size_t h = h1;
+        h ^= h2 + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+        h ^= h3 + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+        return h;
+    }
+};
