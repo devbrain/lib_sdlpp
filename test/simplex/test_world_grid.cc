@@ -10,7 +10,12 @@
 #include <doctest/doctest.h>
 
 #include <cmath>
+#include <cstdint>
+#include <optional>
+#include <set>
+#include <utility>
 #include <variant>
+#include <vector>
 
 #include <simplex/collide/dynamic/world.hh>
 
