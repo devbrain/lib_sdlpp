@@ -472,11 +472,10 @@ namespace simplex::collide {
 
             // Add a static tile into the grid. The tile is bucketed into the single cell containing
             // its shape's centre (so the shape must fit within one cell, enforced below). Overwrites
-            // any tile already in that cell (loader-friendly). NOTE: TILE handles carry no
-            // generation, so a handle to an overwritten cell does NOT go invalid -- it silently
-            // ALIASES the new tile (is_valid() stays true, get_eid/get_shape read the new payload).
-            // Accepted v1 behaviour; do not retain a tile handle across a re-add to its cell.
-            // The returned handle's `value` is the linear cell index; `eid` is recovered from payload.
+            // any tile already in that cell (loader-friendly); the overwrite bumps the cell's
+            // generation, so a handle to the previous tile goes invalid (no silent aliasing). The
+            // returned handle's `value` is the linear cell index, `generation` is the cell's; `eid`
+            // is recovered from the payload.
             collider_id add(entity_id_t eid, const tile_body& body) {
                 ENFORCE(m_static_grid)("add(tile_body) requires a grid (world_config.grid)");
                 const aabb bound = std::visit([](const auto& s) { return enclose(s); }, body.shape);
@@ -488,7 +487,9 @@ namespace simplex::collide {
                 ENFORCE(detail::contains(m_static_grid->cell_box_at(cell), bound))
                         ("tile shape must fit within a single grid cell");
                 m_static_grid->set(centre, detail::tile{body.shape, body.material, body.filter, eid});
-                return {cell, 0, collider_id::TILE};
+                // Stamp the post-set generation: a later overwrite/clear of this cell bumps it,
+                // so this handle then reads as invalid instead of silently aliasing the new tile.
+                return {cell, m_static_grid->cell_generation(cell), collider_id::TILE};
             }
 
             void remove(collider_id cid) {
@@ -555,9 +556,11 @@ namespace simplex::collide {
                     return m_bullets_storage.is_alive(cid.value)
                            && m_bullets_storage.generation(cid.value) == cid.generation;
                 }
-                // TILE: live iff the grid exists and the cell is occupied. (No generation: a
-                // removed-then-refilled cell aliases the new tile -- accepted for v1.)
-                return m_static_grid && m_static_grid->at(cid.value) != nullptr;
+                // TILE: live iff the grid exists, the cell is occupied, AND the cell has not been
+                // mutated (overwritten/cleared) since this handle was made -- the generation check
+                // closes the stale-handle alias.
+                return m_static_grid && m_static_grid->at(cid.value) != nullptr
+                       && m_static_grid->cell_generation(cid.value) == cid.generation;
             }
 
             // ---- read-back getters (state after run()/move) -------------------------
@@ -826,9 +829,11 @@ namespace simplex::collide {
 
             // The TILE handle for a grid candidate. The enumerators hand back the cell_box (geometry)
             // but hide the cell index (identity); recover it from the box centre, which maps back to
-            // the same cell. value = linear cell index (decodes via material_of / at()).
+            // the same cell. value = linear cell index, generation = the cell's current generation
+            // (so the handle stays valid until that cell is next mutated). Decodes via material_of/at.
             [[nodiscard]] collider_id tile_handle(const aabb& cell_box) const {
-                return {m_static_grid->to_cell(cell_box.center()), 0, collider_id::TILE};
+                const uint32_t cell = m_static_grid->to_cell(cell_box.center());
+                return {cell, m_static_grid->cell_generation(cell), collider_id::TILE};
             }
 
             template<class Fn>

@@ -43,12 +43,14 @@ namespace simplex::collide {
                     : m_grid_with(w),
                       m_grid_height(h) {
                     m_coords.resize(m_grid_with * m_grid_height, grid_coord::INVALID);
+                    m_generation.resize(m_grid_with * m_grid_height, 0u);
                 }
 
                 template<typename... Args>
                 void set(const grid_coord& c, Args&&... args) {
                     ENFORCE(is_valid(c));
-                    if (const auto idx = index(c); m_coords[idx] == grid_coord::INVALID) {
+                    const auto idx = index(c);
+                    if (m_coords[idx] == grid_coord::INVALID) {
                         if (m_free_list.empty()) {
                             m_grid.emplace_back(std::forward <Args>(args)...);
                             m_coords[idx] = static_cast <uint32_t>(m_grid.size() - 1);
@@ -61,6 +63,7 @@ namespace simplex::collide {
                     } else {
                         m_grid[m_coords[idx]] = T(std::forward <Args>(args)...);
                     }
+                    ++m_generation[idx]; // any set (insert or overwrite) invalidates prior handles
                 }
 
                 void clear(const grid_coord& c) {
@@ -71,6 +74,7 @@ namespace simplex::collide {
                     if (m_coords[idx] != grid_coord::INVALID) {
                         m_free_list.push_back(m_coords[idx]);
                         m_coords[idx] = grid_coord::INVALID;
+                        ++m_generation[idx];
                     }
                 }
 
@@ -78,6 +82,8 @@ namespace simplex::collide {
                     std::fill(m_coords.begin(), m_coords.end(), grid_coord::INVALID);
                     m_free_list.clear();
                     m_grid.clear();
+                    // m_generation is deliberately NOT reset: keeping it monotonic means a handle
+                    // made before the reset can never alias a cell refilled after it.
                 }
 
                 [[nodiscard]] const T* get(const grid_coord& c) const noexcept {
@@ -136,6 +142,14 @@ namespace simplex::collide {
                     }
                     m_free_list.push_back(m_coords[idx]);
                     m_coords[idx] = grid_coord::INVALID;
+                    ++m_generation[idx];
+                }
+
+                // Per-cell mutation counter -- bumped on every set/clear. A stable handle is current
+                // only while the cell's generation still matches the value captured when it was made.
+                // Out-of-range -> 0. NOT reset by reset() (so handles never alias across a reset).
+                [[nodiscard]] uint32_t generation_linear(uint32_t idx) const noexcept {
+                    return idx < m_generation.size() ? m_generation[idx] : 0u;
                 }
 
                 [[nodiscard]] uint32_t get_width() const noexcept {
@@ -155,6 +169,7 @@ namespace simplex::collide {
                 std::vector <T> m_grid;
                 std::vector <uint32_t> m_coords;
                 std::vector <uint32_t> m_free_list;
+                std::vector <uint32_t> m_generation; // per-cell mutation counter (handle staleness)
 
                 uint32_t m_grid_with;
                 uint32_t m_grid_height;
@@ -229,6 +244,10 @@ namespace simplex::collide {
             [[nodiscard]] const T* at(uint32_t cell) const { return m_grid.get_linear(cell); }
             [[nodiscard]] T* at(uint32_t cell) { return m_grid.get_linear(cell); }
             void clear_at(uint32_t cell) { m_grid.clear_linear(cell); }
+
+            // Generation of a cell (handle) -- bumped on every set/clear. The owner stamps this into
+            // a handle at creation and re-checks it to detect a cell overwritten/refilled since.
+            [[nodiscard]] uint32_t cell_generation(uint32_t cell) const { return m_grid.generation_linear(cell); }
 
             // World-space box of a cell addressed by its linear handle (for the owner's
             // "does the payload fit its cell" checks).

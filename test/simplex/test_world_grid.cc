@@ -196,4 +196,26 @@ TEST_SUITE("world+grid: invariants & identity") {
         CHECK(tile_seen);
         CHECK(body_seen);
     }
+
+    TEST_CASE("a TILE handle to an overwritten / removed cell goes invalid (per-cell generation)") {
+        world w = grid_world();
+        const collider_id a = w.add(1, tile_body{aabb{vec{0, 0}, vec{2, 2}}, {}, {}}); // cell 0
+        REQUIRE(w.is_valid(a));
+
+        // overwrite the same cell -> a is now stale, the new handle is live
+        const collider_id b = w.add(2, tile_body{circle{vec{1, 1}, 0.5f}, {}, {}});
+        CHECK(a.value == b.value);          // same cell
+        CHECK_FALSE(w.is_valid(a));         // generation closed the alias (was: silently valid)
+        CHECK(w.is_valid(b));
+        CHECK(w.get_eid(b) == 2u);
+
+        // remove then refill the cell -> b stale, the newest handle live
+        w.remove(b);
+        CHECK_FALSE(w.is_valid(b));
+        const collider_id c = w.add(3, tile_body{aabb{vec{0, 0}, vec{2, 2}}, {}, {}});
+        CHECK(c.value == b.value);
+        CHECK_FALSE(w.is_valid(b));
+        CHECK(w.is_valid(c));
+        CHECK(w.get_eid(c) == 3u);
+    }
 }
