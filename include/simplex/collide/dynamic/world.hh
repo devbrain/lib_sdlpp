@@ -583,8 +583,9 @@ namespace simplex::collide {
                 ENFORCE(is_valid(cid));
                 if (cid.type_id == collider_id::BODY) {
                     auto& stored = m_bodies_storage[cid.value];
-                    if (stored.kind == detail::body_kind::KINEMATIC) {
-                        // a mover must stay an aabb | circle (not a segment or a triangle)
+                    if (stored.kind != detail::body_kind::STATIC) {
+                        // any mover (KINEMATIC actor or CARRIER) must stay an aabb | circle -- a
+                        // segment/triangle would later trip detail::narrow() in the move/carrier pass.
                         ENFORCE(std::holds_alternative<aabb>(shape) || std::holds_alternative<circle>(shape));
                     }
                     stored.shape = shape;
@@ -712,7 +713,7 @@ namespace simplex::collide {
                     // -- carriers are few; a tree query is a perf follow-up.)
                     m_rider_scratch.clear();
                     for (auto jt = m_bodies_storage.begin(); jt != m_bodies_storage.end(); ++jt) {
-                        if (jt->kind == detail::body_kind::KINEMATIC && is_riding(*jt, *it)) {
+                        if (jt->kind == detail::body_kind::KINEMATIC && is_riding(jt.index(), carrier_idx)) {
                             m_rider_scratch.push_back(jt.index());
                         }
                     }
@@ -1335,18 +1336,31 @@ namespace simplex::collide {
 
             // ---- carriers (moving platforms / conveyors / crushers) -----------------------------
 
-            // True if actor `a` rides carrier `c`: nudging `a` a hair OPPOSITE `up` (i.e. "down")
-            // brings it into contact with `c` -- the carrier is the solid directly underfoot. The
-            // nudge bridges the move_and_slide skin gap. General over cfg.up.
-            [[nodiscard]] bool is_riding(const detail::resident_body& a, const detail::resident_body& c) const {
+            // True if actor `actor_idx` rides carrier `carrier_idx`: a short downward (opposite `up`)
+            // swept probe with the ACTOR's filter + the solid acceptor finds, as its NEAREST solid
+            // contact, the carrier itself with an up-facing normal. This (unlike a bare overlap test)
+            // respects contact DIRECTION (a side touch is not "riding"), FILTERS (a rider whose layer
+            // rejects the carrier is not carried), and MATERIAL (a SENSOR/IGNORE carrier is not solid,
+            // so it carries nothing). The probe length bridges the move_and_slide skin gap.
+            [[nodiscard]] bool is_riding(uint32_t actor_idx, uint32_t carrier_idx) const {
+                const auto& a = m_bodies_storage[actor_idx];
+                const auto& c = m_bodies_storage[carrier_idx];
+                // A rider rests in the skin gap ABOVE the carrier, so it must NOT already overlap it.
+                // An overlapping body is wedged against a side / embedded (not riding) -- and skipping
+                // it also avoids a degenerate toi-0 down-cast whose contact normal is unreliable.
+                const bool overlapping = std::visit([&](const auto& as) {
+                    return std::visit([&](const auto& cs) { return collide::intersects(as, cs); }, c.shape);
+                }, a.shape);
+                if (overlapping) {
+                    return false;
+                }
                 const float probe = m_cfg.skin * 2.0f + constants::POINT_EPS;
                 const vec down{-m_cfg.up.x() * probe, -m_cfg.up.y() * probe};
-                const shape_t nudged = std::visit([&](const auto& s) {
-                    return shape_t{collide::translate(s, down)};
-                }, a.shape);
-                return std::visit([&](const auto& as) {
-                    return std::visit([&](const auto& cs) { return collide::intersects(as, cs); }, c.shape);
-                }, nudged);
+                const auto hit = cast_core(detail::narrow(a.shape), units::displacement{down}, a.filter,
+                                           solid_acceptor(), actor_idx);
+                return hit
+                       && hit->who.type_id == collider_id::BODY && hit->who.value == carrier_idx
+                       && euler::dot(hit->normal, m_cfg.up) > GROUND_THRESHOLD;
             }
 
             // Re-fit a resident's broadphase proxy after it moved, only when its tight box escaped the

@@ -111,6 +111,48 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         CHECK(box_of(w, rider).max.x() <= 14.0f + 0.05f); // stopped at the wall's left face, not through it
     }
 
+    TEST_CASE("a body touching the carrier's SIDE is not carried (contact direction)") {
+        world w = carrier_world();
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 12}}}, {}, {}, vec{60, 0}, vec{0, 0}});
+        // body flush against the LEFT side of the carrier (x meets at 10), not on top
+        const collider_id sider = w.add(2, kinematic_body{
+                                            moving_shape_t{aabb{vec{9.0f, 9.0f}, vec{10.0f, 11.0f}}}, {}, {}, vec{0, 0}});
+        const float sx0 = box_of(w, sider).min.x();
+        (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+        CHECK(box_of(w, sider).min.x() == doctest::Approx(sx0)); // side contact is not "riding"
+    }
+
+    TEST_CASE("a rider whose filter rejects the carrier is not carried") {
+        world w = carrier_world();
+        filter_props cf; cf.category = 0x0002; cf.mask = 0xFFFF;     // carrier in category 2
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, cf, vec{60, 0}, vec{0, 0}});
+        filter_props rf; rf.category = 0xFFFF; rf.mask = 0x0001;     // rider masks OUT category 2
+        const collider_id rider = w.add(2, kinematic_body{
+                                            moving_shape_t{aabb{vec{12, 10.01f}, vec{13, 11.01f}}}, {}, rf, vec{0, 0}});
+        const float rx0 = box_of(w, rider).min.x();
+        (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+        CHECK(box_of(w, rider).min.x() == doctest::Approx(rx0)); // filtered out -> not carried
+    }
+
+    TEST_CASE("a SENSOR carrier (non-solid) carries nothing") {
+        world w = carrier_world();
+        material_props sens; sens.response = response_mode::SENSOR;
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, sens, {}, vec{60, 0}, vec{0, 0}});
+        const collider_id rider = add_rider(w, 2, 12, 10);
+        const float rx0 = box_of(w, rider).min.x();
+        (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+        CHECK(box_of(w, rider).min.x() == doctest::Approx(rx0)); // non-solid carrier -> no carry
+    }
+
+    TEST_CASE("set_shape on a carrier rejects a non-mover shape (segment / triangle)") {
+        world w = carrier_world();
+        const collider_id c = w.add(1, carrier_body{
+                                        moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{0, 0}, vec{0, 0}});
+        CHECK_THROWS(w.set_shape(c, shape_t{segment{vec{10, 8}, vec{16, 10}}}));
+        CHECK_THROWS(w.set_shape(c, shape_t{triangle{vec{10, 8}, vec{16, 8}, vec{10, 10}}}));
+        CHECK_NOTHROW(w.set_shape(c, shape_t{circle{vec{13, 9}, 1.0f}})); // a mover shape is fine
+    }
+
     TEST_CASE("set_velocity / set_surface_velocity work on a carrier") {
         world w = carrier_world();
         const collider_id belt = w.add(1, carrier_body{
