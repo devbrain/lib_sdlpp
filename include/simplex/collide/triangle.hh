@@ -179,33 +179,43 @@ namespace simplex::collide {
         [[nodiscard]] std::optional<swept_hit> swept_tri(const Mover& m, const vec& mv,
                                                          const triangle& t, const vec& tv, float time,
                                                          const vec& mover_centre) {
-            // Already overlapping at t=0 -> a toi-0 contact, REGARDLESS of velocity. This must be
-            // checked before the edge sweep: a mover inside the solid moving toward an edge would
-            // otherwise report that future boundary hit instead of the penetration it starts in.
-            // The push-out normal is the nearest edge's outward normal.
+            // The triangle's overlap interval is the union of the per-edge swept intervals: the
+            // mover first touches the solid at the EARLIEST edge entry and last touches it at the
+            // LATEST edge exit (a convex mover vs a convex triangle overlaps over one interval, with
+            // the interior filling between the boundary touches).
+            float entry = constants::INF, exit = constants::NEG_INF;
+            vec entry_n{}, exit_n{};
+            bool any = false;
+            for (const auto& e : tri_edges(t)) {
+                if (const auto h = swept_intersection(m, mv, e, tv, time)) {
+                    any = true;
+                    if (h->entry_time < entry) { entry = h->entry_time; entry_n = h->entry_normal; }
+                    if (h->exit_time > exit) { exit = h->exit_time; exit_n = h->exit_normal; }
+                }
+            }
+
             if (intersects(t, m)) {
+                // Overlapping at t=0: the contact is the penetration it STARTS in -> entry_time 0,
+                // REGARDLESS of velocity (checked independently of the edge sweep). The entry normal
+                // is the nearest edge's outward normal (the push-out direction). The exit is the last
+                // boundary touch, or the whole window when the mover never reaches an edge.
                 const vec ctr = tri_centroid(t);
                 float best_d = constants::INF;
-                vec n{};
+                vec push{};
                 for (const auto& e : tri_edges(t)) {
                     const float d = squared_distance(mover_centre, e);
                     if (d < best_d) {
                         best_d = d;
-                        n = edge_outward_normal(e.from, e.to, ctr);
+                        push = edge_outward_normal(e.from, e.to, ctr);
                     }
                 }
-                return swept_hit{0.0f, time, n, n};
+                return swept_hit{0.0f, any ? exit : time, push, any ? exit_n : push};
             }
-            // Otherwise: the earliest of the swept-vs-each-edge contacts (first boundary touched).
-            std::optional<swept_hit> best;
-            for (const auto& e : tri_edges(t)) {
-                if (const auto h = swept_intersection(m, mv, e, tv, time)) {
-                    if (!best || h->entry_time < best->entry_time) {
-                        best = h;
-                    }
-                }
+
+            if (!any) {
+                return std::nullopt;
             }
-            return best;
+            return swept_hit{entry, exit, entry_n, exit_n};
         }
     }
 
