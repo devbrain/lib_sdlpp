@@ -43,6 +43,7 @@ target_sources(simplex PRIVATE
         ${PROJECT_ROOT}/include/simplex/collide/translate.hh
         ${PROJECT_ROOT}/include/simplex/collide/units.hh
         ${PROJECT_ROOT}/include/simplex/collide/types.hh
+        ${PROJECT_ROOT}/include/simplex/collide/clip.hh
         ${PROJECT_ROOT}/include/simplex/collide/dynamic/aabb_tree_node.hh
         ${PROJECT_ROOT}/include/simplex/collide/dynamic/aabb_tree_storage.hh
         ${PROJECT_ROOT}/include/simplex/collide/dynamic/dynamic_aabb_tree.hh

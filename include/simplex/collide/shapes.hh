@@ -54,3 +54,4 @@
 #include <simplex/collide/distance.hh>
 #include <simplex/collide/overlap.hh>
 #include <simplex/collide/sweep.hh>
+#include <simplex/collide/clip.hh>

@@ -1,6 +1,6 @@
 # Static Collision Grid — Design & Implementation Plan
 
-Status: **In progress (G0 scaffolding).** This is Phase 7 of the collision world
+Status: **In progress (G0–G2 done: storage, mappings, region query, DDA raycast).** This is Phase 7 of the collision world
 (`docs/COLLISION_WORLD_IMPLEMENTATION_PLAN.md` §12, §17). The coordinate substrate is
 implemented in `include/simplex/collide/dynamic/grid.hh` (tested in
 `test/simplex/test_grid.cc`): `grid_coord` (with an invalid sentinel), the row-major
@@ -181,35 +181,57 @@ template <class Fn> void swept  (const aabb& start, vec delta, Fn&& on_cell) con
 Compute the covered cell range `[cx0..cx1] × [cy0..cy1]`, enumerate those cells. The world
 narrow-phases the probe against each non-empty cell. O(cells covered). Feeds `overlap`.
 
-### 6b. Raycast — DDA (Amanatides–Woo), **not plain Bresenham**
+### 6b. Raycast — DDA (Amanatides–Woo), **not plain Bresenham**  *(implemented)*
 A ray crosses a sequence of cells; the **Amanatides–Woo** voxel traversal enumerates them in
 **near-to-far order**, carrying the parametric `t` of each boundary crossing:
 
 ```
-start at the origin cell
-stepX, stepY = sign(dir.x), sign(dir.y)
+clip the segment to the grid bounds        // miss -> no-op; gives entry/exit params t0,t1
+start at the cell the ray ENTERS at t0      // directional on a boundary, see below
+stepX, stepY = sign(dir.x), sign(dir.y)     // 0 for an axis-aligned ray
 tMaxX/tMaxY  = param distance to the first vertical / horizontal cell boundary
-tDeltaX/tDeltaY = cell / |dir.x| , cell / |dir.y|
+tDeltaX/tDeltaY = cell / |dir.x| , cell / |dir.y|     // (inf when dir == 0)
+emit(start cell, t0)                         // world narrow-phases; may signal stop
 loop:
-    if tMaxX < tMaxY: cx += stepX; tMaxX += tDeltaX   // crossed a vertical edge
-    else:             cy += stepY; tMaxY += tDeltaY   // crossed a horizontal edge
-    on_cell(payload, cell_box, t)                     // world narrow-phases; may signal stop
-    stop also when t exceeds the segment length or we leave the grid
+    if tMaxX < tMaxY: cx += stepX; t = tMaxX; tMaxX += tDeltaX   // crossed a vertical edge
+    else:             cy += stepY; t = tMaxY; tMaxY += tDeltaY   // crossed a horizontal edge
+    stop when t > t1 (left the clipped exit) or we step off the grid
+    emit(cell, t)
 ```
 
-Because cells are enumerated in distance order, the world's **first confirmed hit is the
-closest** — it returns `stop` and the traversal ends, with no `t_max` pruning bookkeeping in
-the grid (the order gives it for free).
+`t` is the parameter along the **original** `from→to` ray (in `[0,1]`), so it is directly
+comparable with the BVH raycast for a future grid+BVH merge. The callback is **void-or-bool**
+(same contract as `query`): a `void` callback visits every occupied cell; a `bool` callback
+returns `false` to stop. Because cells are enumerated in distance order, the world's **first
+confirmed hit is the closest** — it returns `stop` and the traversal ends, with no `t_max`
+pruning bookkeeping in the grid (the order gives it for free).
+
+**Coverage guarantee (what "supercover" means here — precise):** raycast visits every cell
+the ray's **forward path** crosses, with conservative supercover at boundary touches *inside*
+the path so nothing leaks:
+- **Mid-ray corner (`tMaxX == tMaxY`):** the ray threads an exact cell corner. Visit **both**
+  side-adjacent cells (not just the diagonal one) — otherwise two solids meeting at a corner
+  would let a diagonal shot leak through the join.
+- **Gridline-parallel travel:** an axis-aligned ray lying exactly on an internal grid line
+  touches both adjacent rows/cols for its whole length — a **shadow** row/col is visited too.
+- **Origin/terminus on a boundary:** a cell touched **only at the start/end point and lying
+  opposite the travel direction** is *not* reported. It is origin-adjacency (behind the ray),
+  not an obstacle in the path; reporting it would be a spurious hit (e.g. a rightward LoS ray
+  "blocked" by a wall to the left). The start cell is therefore chosen **directionally**: on
+  an exact internal boundary, `dir < 0` enters the lower/left cell (`k-1`), `dir > 0` the
+  upper/right cell (`k`), `dir == 0` keeps both via the shadow row/col.
+
+**Epsilons live in the right space:** `tMax`/`t1` are normalized ray parameters, so the
+corner-tie and exit tests use a **parameter-space** tolerance `t_eps = POINT_EPS / |ray|`
+(a world `POINT_EPS` would merge far-apart crossings on a long ray into a false corner). The
+on-gridline checks are in **cell** space, so their tolerance is `POINT_EPS / cell_dim`.
 
 **Bresenham caveats (do NOT reuse a thin/integer Bresenham blindly):**
 - **Corner skipping** → tunneling. Plain Bresenham steps *diagonally* at a cell corner,
-  skipping the two corner-adjacent cells. A solid tile there would be missed (a diagonal
-  shot leaks through a wall join). Collision needs the **supercover** line (every cell the
-  ray touches) — which Amanatides–Woo produces and plain Bresenham does not.
+  skipping the corner-adjacent cells — see the mid-ray-corner rule above. AW + the corner
+  fix produce the supercover path; plain Bresenham does not.
 - **No parametric `t`** → Bresenham is integer-only; collision needs `t` at each boundary
   for distance ordering, finite-ray clamping, and contact info. AW carries it (`tMax`).
-- *If euler's Bresenham iterator is supercover and exposes the crossing parameter, reuse it;
-  otherwise implement the AW loop (it is ~6 lines).*
 
 ### 6c. Swept cast (moving AABB/circle)
 A swept shape is a **band** of cells, not a thin ray:
@@ -359,14 +381,18 @@ Follow the established pattern (doctest, ASan/UBSan, brute-force cross-checks):
   non-origin and rectangular cells; cell_box AABBs, contiguous tiling, and the
   physical_to_grid∘cell_box round-trip. (cell→shape is a world concern, §4 — not part of G0.)
 
-- **Phase G1 — Region cell enumeration.** `region(box, on_cell)` — cell-range scan, callback
-  per cell with `(coord, T, cell_box)`. Pure grid (no narrow-phase). *Tests:* the enumerated
-  cell set equals the box's cell rectangle on random extents; clipping at the bounds.
+- **Phase G1 — Region cell enumeration. [DONE]** `query(box, on_cell)` — cell-range scan,
+  callback `(T, cell_box)` for each occupied cell, void-or-bool early-out. Clips to the grid
+  (`intersects` guard → tolerant no-op when outside). Pure grid (no narrow-phase). *Tested:*
+  the enumerated cell set, empty-skip, edge clipping, outside → no-op, bool early-out.
 
-- **Phase G2 — Raycast cell enumeration (DDA).** `raycast(ray, on_cell)` — Amanatides–Woo,
-  near-to-far, callback `(coord, T, cell_box, t)`, stop on the world's signal. *Tests:*
-  supercover/no-corner-skip, near-to-far ordering, axis-parallel, origin-inside, finite-ray
-  clamping; cross-check the visited-cell set against a fine point-sample of the ray.
+- **Phase G2 — Raycast cell enumeration (DDA). [DONE]** `raycast(from, to, on_cell)` —
+  Amanatides–Woo, near-to-far, callback `(T, cell_box, t)` with `t` along the original ray,
+  void-or-bool early-out. Supercover at mid-ray corners and gridline-parallel travel;
+  forward half-open at the origin (directional start); parameter-space epsilon (§6b).
+  *Tested:* supercover/no-miss cross-check vs a fine point-sample; near-to-far ordering;
+  axis-parallel; early-out; out-of-grid no-op; direct corner & on-gridline cases; long-ray
+  false-corner regression; origin-on-boundary both directions.
 
 - **Phase G3 — Swept cell enumeration.** `swept(start, delta, on_cell)` — cell-rect of the
   swept bound (small moves). *Tests:* the band covers the whole sweep (anti-tunneling at the

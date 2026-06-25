@@ -7,11 +7,14 @@
 // extent [min,max], so the cell size is derived). The mappings are private, so they are
 // reached through the grid_test_access friend tap -- the same pattern as the world tests.
 //
-// Not yet built: the cell->shape materialization and the region/raycast/cast queries.
+// Covered: storage (set/get/clear/free-list), the physical<->cell mappings, the physical
+// set/get/clear/reset API, the region `query`, and the DDA `raycast` (incl. supercover at
+// exact corners and along grid lines). The cell->shape materialization stays in the world.
 //
 #include <doctest/doctest.h>
 
 #include <algorithm>
+#include <set>
 #include <vector>
 
 #include <simplex/collide/dynamic/grid.hh>
@@ -314,5 +317,217 @@ TEST_SUITE("grid: query (region enumeration)") {
         int count = 0;
         CHECK_NOTHROW(g.query(aabb{{100, 100}, {110, 110}}, [&](const int&, const aabb&) { ++count; }));
         CHECK(count == 0);
+    }
+
+    TEST_CASE("a bool callback can stop the scan early") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        for (uint32_t y = 0; y < 4; ++y)            // every cell occupied
+            for (uint32_t x = 0; x < 4; ++x)
+                g.set(vec{x * 2.0f + 1.0f, y * 2.0f + 1.0f}, static_cast<int>(y * 4 + x));
+        int count = 0;
+        g.query(aabb{{0, 0}, {8, 8}}, [&](const int&, const aabb&) {
+            ++count;
+            return false;                            // stop after the first cell
+        });
+        CHECK(count == 1);
+    }
+}
+
+TEST_SUITE("grid: raycast (DDA)") {
+    // dense point-sample of the ray -> the set of in-grid cells it passes through.
+    static std::set<std::pair<uint32_t, uint32_t>>
+    sampled_cells(uint32_t w, uint32_t h, vec mn, vec mx, vec a, vec b) {
+        std::set<std::pair<uint32_t, uint32_t>> s;
+        const vec cell{(mx.x() - mn.x()) / w, (mx.y() - mn.y()) / h};
+        for (int i = 0; i <= 20000; ++i) {
+            const float t = i / 20000.0f;
+            const float px = a.x() + t * (b.x() - a.x());
+            const float py = a.y() + t * (b.y() - a.y());
+            if (px < mn.x() || px > mx.x() || py < mn.y() || py > mx.y()) continue;
+            const auto cx = std::min(static_cast<uint32_t>((px - mn.x()) / cell.x()), w - 1u);
+            const auto cy = std::min(static_cast<uint32_t>((py - mn.y()) / cell.y()), h - 1u);
+            s.insert({cx, cy});
+        }
+        return s;
+    }
+
+    TEST_CASE("visits every cell the ray crosses (no tunnelling) in near->far order") {
+        const vec mn{0, 0}, mx{8, 8};
+        const uint32_t W = 4, H = 4; // cell 2x2
+        // rays chosen to avoid exact cell corners (where a point-sampler is an unreliable oracle).
+        const vec rays[][2] = {
+            {{0.3f, 0.4f}, {7.7f, 7.2f}},   // diagonal-ish
+            {{0.3f, 0.5f}, {7.7f, 2.6f}},   // shallow
+            {{0.4f, 7.7f}, {7.2f, 0.3f}},   // anti-diagonal-ish
+            {{1.0f, 0.3f}, {1.0f, 7.6f}},   // vertical (axis-aligned)
+            {{0.3f, 3.3f}, {7.7f, 3.3f}},   // horizontal (axis-aligned)
+            {{-3.0f, 3.3f}, {11.0f, 3.3f}}, // clipped (starts/ends outside)
+        };
+        for (const auto& r : rays) {
+            grid<int> g(W, H, mn, mx);
+            for (uint32_t y = 0; y < H; ++y)        // fill every cell so the DDA reports each visit
+                for (uint32_t x = 0; x < W; ++x)
+                    g.set(vec{x * 2.0f + 1.0f, y * 2.0f + 1.0f}, static_cast<int>(y * W + x));
+
+            std::set<std::pair<uint32_t, uint32_t>> got;
+            float last = -1.0f;
+            g.raycast(r[0], r[1], [&](const int& v, const aabb&, float t) {
+                CHECK(t >= last - 1e-4f);            // monotonic near -> far
+                last = t;
+                got.insert({static_cast<uint32_t>(v % W), static_cast<uint32_t>(v / W)});
+            });
+            const auto exp = sampled_cells(W, H, mn, mx, r[0], r[1]);
+            for (const auto& c : exp) {
+                CHECK(got.count(c) == 1);            // every sampled cell was visited (no miss)
+            }
+            CHECK_FALSE(got.empty());
+        }
+    }
+
+    TEST_CASE("nearest-first + early-out: a bool callback stops at the first occupied cell") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        g.set(vec{3, 1}, 10);   // cell (1,0)
+        g.set(vec{7, 1}, 30);   // cell (3,0) -- farther along the same row
+        int first = -1, calls = 0;
+        g.raycast(vec{0.5f, 1.0f}, vec{7.5f, 1.0f}, [&](const int& v, const aabb&, float) {
+            ++calls;
+            first = v;
+            return false;        // stop at the first occupied cell
+        });
+        CHECK(calls == 1);
+        CHECK(first == 10);      // the nearer solid, and we stopped there
+    }
+
+    TEST_CASE("a void callback visits all occupied cells along the ray") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        g.set(vec{3, 1}, 10);
+        g.set(vec{7, 1}, 30);
+        int calls = 0;
+        g.raycast(vec{0.5f, 1.0f}, vec{7.5f, 1.0f}, [&](const int&, const aabb&, float) { ++calls; });
+        CHECK(calls == 2);
+    }
+
+    TEST_CASE("a ray that misses the grid is a tolerant no-op") {
+        grid<int> g(4, 4, vec{0, 0}, vec{8, 8});
+        g.set(vec{1, 1}, 1);
+        int calls = 0;
+        CHECK_NOTHROW(g.raycast(vec{100, 100}, vec{200, 200},
+                                [&](const int&, const aabb&, float) { ++calls; return true; }));
+        CHECK(calls == 0);
+    }
+}
+
+TEST_SUITE("grid: raycast supercover (corners & gridlines)") {
+    // 1x1 cells over [0,N]^2 so cell coords == world coords (easy exact-corner setups).
+    static std::vector<int> hits(grid<int>& g, vec a, vec b) {
+        std::vector<int> v;
+        g.raycast(a, b, [&](const int& e, const aabb&, float) { v.push_back(e); });
+        return v;
+    }
+
+    TEST_CASE("diagonal through a corner hits the off-diagonal cell a plain DDA would skip") {
+        grid<int> g(2, 2, vec{0, 0}, vec{2, 2}); // 1x1 cells; corner at (1,1)
+        // Occupy ONLY cell (1,0) -- the side cell a tie-breaks-Y staircase would miss.
+        g.set(vec{1.5f, 0.5f}, 10);
+        const auto h = hits(g, vec{0.0f, 0.0f}, vec{2.0f, 2.0f}); // diagonal through the corner
+        REQUIRE(h.size() == 1);
+        CHECK(h[0] == 10); // supercover visits (1,0) -> no corner tunnelling
+    }
+
+    TEST_CASE("diagonal through a corner also hits the other off-diagonal cell") {
+        grid<int> g(2, 2, vec{0, 0}, vec{2, 2});
+        g.set(vec{0.5f, 1.5f}, 20); // cell (0,1) -- the other side cell
+        const auto h = hits(g, vec{0.0f, 0.0f}, vec{2.0f, 2.0f});
+        REQUIRE(h.size() == 1);
+        CHECK(h[0] == 20);
+    }
+
+    TEST_CASE("a ray exactly on an internal grid line sees cells on BOTH sides") {
+        grid<int> g(2, 2, vec{0, 0}, vec{2, 2}); // line y=1 between row 0 and row 1
+        g.set(vec{0.5f, 0.5f}, 1); // cell (0,0), below the line
+        g.set(vec{0.5f, 1.5f}, 2); // cell (0,1), above the line
+        // horizontal ray running exactly along y=1
+        const auto h = hits(g, vec{0.0f, 1.0f}, vec{2.0f, 1.0f});
+        // both adjacent rows' first column are touched by the on-line ray
+        CHECK(std::find(h.begin(), h.end(), 1) != h.end());
+        CHECK(std::find(h.begin(), h.end(), 2) != h.end());
+    }
+
+    TEST_CASE("vertical ray on an internal grid line sees both columns") {
+        grid<int> g(2, 2, vec{0, 0}, vec{2, 2}); // line x=1 between col 0 and col 1
+        g.set(vec{0.5f, 0.5f}, 7); // col 0
+        g.set(vec{1.5f, 0.5f}, 8); // col 1
+        const auto h = hits(g, vec{1.0f, 0.0f}, vec{1.0f, 2.0f});
+        CHECK(std::find(h.begin(), h.end(), 7) != h.end());
+        CHECK(std::find(h.begin(), h.end(), 8) != h.end());
+    }
+
+    TEST_CASE("an off-line axis-aligned ray does NOT spuriously hit the neighbour row") {
+        grid<int> g(2, 2, vec{0, 0}, vec{2, 2});
+        g.set(vec{0.5f, 1.5f}, 99); // row 1 only
+        // ray well inside row 0 (y=0.5, not on a line) -> must not see row 1
+        const auto h = hits(g, vec{0.0f, 0.5f}, vec{2.0f, 0.5f});
+        CHECK(h.empty());
+    }
+}
+
+TEST_SUITE("grid: raycast long-ray parameter epsilon") {
+    TEST_CASE("a long ray does not merge far-apart crossings into a false corner") {
+        // 1x1 cells over [0,2]^2. The ray crosses x=1 then y=1 at clearly different points, but in
+        // NORMALIZED parameter space those crossings differ by < 1e-6 -- a world eps would treat it
+        // as a corner and spuriously visit (0,1), which the ray never touches.
+        grid<int> g(2, 2, vec{0, 0}, vec{2, 2});
+        g.set(vec{0.5f, 1.5f}, 42); // occupy ONLY cell (0,1)
+        int calls = 0;
+        g.raycast(vec{0.5f, 0.5f}, vec{1000000.5f, 500000.5f},
+                  [&](const int&, const aabb&, float) { ++calls; });
+        CHECK(calls == 0); // the ray goes (0,0)->(1,0)->(1,1); it must NOT report (0,1)
+    }
+}
+
+TEST_SUITE("grid: raycast origin on a boundary (directional start)") {
+    static std::vector<int> hits(grid<int>& g, vec a, vec b) {
+        std::vector<int> v;
+        g.raycast(a, b, [&](const int& e, const aabb&, float) { v.push_back(e); });
+        return v;
+    }
+
+    // 2x1 grid over [0,2]x[0,1] -> 1x1 cells, vertical boundary at x=1 between (0,0) and (1,0).
+    TEST_CASE("moving RIGHT off x=1: the left cell (behind) is not reported") {
+        grid<int> g(2, 1, vec{0, 0}, vec{2, 1});
+        g.set(vec{0.5f, 0.5f}, 100); // cell (0,0), left of the boundary -> behind a rightward ray
+        const auto h = hits(g, vec{1.0f, 0.5f}, vec{1.75f, 0.5f});
+        CHECK(h.empty()); // ray enters cell (1,0); (0,0) is behind, touched only at the origin
+    }
+
+    TEST_CASE("moving LEFT off x=1: the right cell (behind) is not reported") {
+        grid<int> g(2, 1, vec{0, 0}, vec{2, 1});
+        g.set(vec{1.5f, 0.5f}, 200); // cell (1,0), right of the boundary -> behind a leftward ray
+        const auto h = hits(g, vec{1.0f, 0.5f}, vec{0.25f, 0.5f});
+        CHECK(h.empty()); // start is directional -> (0,0); (1,0) behind, no spurious origin hit
+    }
+
+    TEST_CASE("moving LEFT off x=1: the forward (left) cell IS reported") {
+        grid<int> g(2, 1, vec{0, 0}, vec{2, 1});
+        g.set(vec{0.5f, 0.5f}, 300); // cell (0,0) -- the ray enters this going left
+        const auto h = hits(g, vec{1.0f, 0.5f}, vec{0.25f, 0.5f});
+        REQUIRE(h.size() == 1);
+        CHECK(h[0] == 300);
+    }
+
+    // 1x2 grid over [0,1]x[0,2], horizontal boundary at y=1 between (0,0) and (0,1).
+    TEST_CASE("moving DOWN off y=1: the upper cell (behind) is not reported") {
+        grid<int> g(1, 2, vec{0, 0}, vec{1, 2});
+        g.set(vec{0.5f, 1.5f}, 400); // cell (0,1), above the boundary -> behind a downward ray
+        const auto h = hits(g, vec{0.5f, 1.0f}, vec{0.5f, 0.25f});
+        CHECK(h.empty());
+    }
+
+    TEST_CASE("moving DOWN off y=1: the forward (lower) cell IS reported") {
+        grid<int> g(1, 2, vec{0, 0}, vec{1, 2});
+        g.set(vec{0.5f, 0.5f}, 500); // cell (0,0) -- entered going down
+        const auto h = hits(g, vec{0.5f, 1.0f}, vec{0.5f, 0.25f});
+        REQUIRE(h.size() == 1);
+        CHECK(h[0] == 500);
     }
 }
