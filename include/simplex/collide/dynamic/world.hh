@@ -24,7 +24,7 @@
 
 namespace simplex::collide {
     // Full shape set -- static bodies and broadphase targets may be any of these.
-    using shape_t = std::variant <segment, aabb, circle>;
+    using shape_t = std::variant <segment, aabb, circle, triangle>;
     // Movers only -- a kinematic body / bullet is swept each frame, and a segment cannot be a
     // swept mover (that is raycast's job). Restricting the type makes an invalid mover
     // unconstructable, and lets cast's swept dispatch cover every combination with no guard.
@@ -280,11 +280,12 @@ namespace simplex::collide {
         constexpr moving_shape_t narrow(const shape_t& s) {
             return std::visit([]<typename T0>(const T0& shp) -> moving_shape_t {
                 using S = std::decay_t <T0>;
-                if constexpr (std::is_same_v <S, segment>) {
-                    ENFORCE(false)("a moving body/bullet cannot be a segment");
-                    return moving_shape_t{aabb{}}; // unreachable; satisfies the return type
-                } else {
+                if constexpr (std::is_same_v <S, aabb> || std::is_same_v <S, circle>) {
                     return moving_shape_t{shp};
+                } else {
+                    // segment or triangle: not a valid mover (movers are aabb | circle)
+                    ENFORCE(false)("a moving body/bullet must be an aabb or circle");
+                    return moving_shape_t{aabb{}}; // unreachable; satisfies the return type
                 }
             }, s);
         }
@@ -550,7 +551,8 @@ namespace simplex::collide {
                 if (cid.type_id == collider_id::BODY) {
                     auto& stored = m_bodies_storage[cid.value];
                     if (stored.kind == detail::body_kind::KINEMATIC) {
-                        ENFORCE(!std::holds_alternative<segment>(shape));
+                        // a mover must stay an aabb | circle (not a segment or a triangle)
+                        ENFORCE(std::holds_alternative<aabb>(shape) || std::holds_alternative<circle>(shape));
                     }
                     stored.shape = shape;
                     auto box = fatten(stored);

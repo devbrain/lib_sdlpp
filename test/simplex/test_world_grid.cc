@@ -425,3 +425,51 @@ TEST_SUITE("world+grid: grid<->BVH agreement (G4.5)") {
         CHECK(hits > 100);
     }
 }
+
+TEST_SUITE("world+grid: triangle (solid slope) tiles") {
+    // A solid slope filling the lower-left of cell (2,2) = [4,6]^2: legs on the bottom (y=4) and
+    // left (x=4), hypotenuse (6,4)-(4,6). A segment-only slope is just that hypotenuse.
+    static const triangle SLOPE{vec{4, 4}, vec{6, 4}, vec{4, 6}};
+    static const segment  DIAG{vec{6, 4}, vec{4, 6}};
+
+    TEST_CASE("a triangle slope tile is hit by raycast / cast and reports its handle") {
+        world w = grid_world();
+        w.add(1, tile_body{shape_t{SLOPE}, {}, {}});
+        const auto r = w.raycast(segment{vec{0, 4.5f}, vec{16, 4.5f}}); // ray crossing the slope
+        REQUIRE(r.has_value());
+        CHECK(r->who.type_id == collider_id::TILE);
+        CHECK(w.get_eid(r->who) == 1u);
+    }
+
+    TEST_CASE("a solid slope blocks the open bottom face that a segment-only slope leaks") {
+        // mover rising into the slope from BELOW its bottom leg (y=4).
+        auto rise_into = [](const shape_t& slope) {
+            world w = grid_world();
+            material_props m; m.response = response_mode::BLOCK; m.block_normal = vec{0, -1};
+            w.add(1, tile_body{slope, m, {}});
+            const collider_id b = w.add(2, kinematic_body{
+                                           moving_shape_t{aabb{vec{4.4f, 2.0f}, vec{4.9f, 2.5f}}}, {}, {}, vec{0, 240}});
+            (void)w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f); // dy = +4
+            return std::visit([](const auto& s) { return enclose(s); }, w.get_shape(b)).max.y();
+        };
+        const float top_triangle = rise_into(shape_t{SLOPE});
+        const float top_segment  = rise_into(shape_t{DIAG});
+        CHECK(top_triangle < 4.1f); // solid slope: stopped at the bottom leg y=4
+        CHECK(top_segment  > 4.5f); // segment-only: leaked up into the solid, only the diagonal stops it
+    }
+
+    TEST_CASE("a solid slope blocks a mover approaching from every side (no leak)") {
+        auto blocked_from = [](vec start_min, vec start_max, vec vel) {
+            world w = grid_world();
+            material_props m; m.response = response_mode::BLOCK;
+            w.add(1, tile_body{shape_t{SLOPE}, m, {}});
+            const aabb mover{start_min, start_max};
+            // a transient swept cast against the world: a hit means the slope blocks this approach
+            const auto h = w.cast(moving_shape_t{mover}, vel);
+            return h.has_value() && h->who.type_id == collider_id::TILE;
+        };
+        CHECK(blocked_from(vec{1.0f, 4.4f}, vec{1.5f, 4.9f}, vec{6, 0}));   // from the left
+        CHECK(blocked_from(vec{4.4f, 1.0f}, vec{4.9f, 1.5f}, vec{0, 6}));   // from below
+        CHECK(blocked_from(vec{7.0f, 7.0f}, vec{7.5f, 7.5f}, vec{-6, -6})); // from the upper-right (hypotenuse)
+    }
+}

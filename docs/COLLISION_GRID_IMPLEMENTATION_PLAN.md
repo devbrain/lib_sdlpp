@@ -429,7 +429,8 @@ Follow the established pattern (doctest, ASan/UBSan, brute-force cross-checks):
 ## 14. Future / out of scope (v1)
 - Multi-resolution / hierarchical grids.
 - Dynamic objects in the grid.
-- Polygon/triangle slope shapes (slopes stay `segment`s).
+- General convex-polygon shapes (the solid `triangle` covers slopes/ramps; arbitrary N-gons are
+  still out of scope -- decompose into triangles).
 - 3D / voxel extension (the DDA generalizes, but out of scope here).
 
 ---
@@ -470,10 +471,12 @@ notes the impact, the workaround, and how it would be lifted. Both correctness t
    feeding the same begin/end diff. A sensor tile that also overlaps a sensor body dedups to one
    pair via the canonical key. (A sensor tile is still non-solid, so it does not block movement.)
 
-4. **A lone slope tile leaks from its open faces.** A slope is a single `segment` (one face); §7
-   assumes the other two faces border full-block neighbour tiles. An isolated slope (no solid
-   neighbours) lets a mover enter from the open sides. *Lift:* store extra faces, or require
-   neighbour blocks.
+4. **Lone slopes — NOW SUPPORTED (solid `triangle` shape).** `shape_t` gained a `triangle`
+   primitive (a solid 2-D region), so a free-standing ramp is a `triangle` tile that blocks from
+   every side, not just across a diagonal. Narrow-phase lives in `triangle.hh` by decomposing into
+   the 3 edge segments + interior tests (reusing the segment machinery). A single-`segment` slope
+   is still available (and lighter) for the common case where the other two faces border full-block
+   neighbours (§7); use a `triangle` only for an isolated solid ramp.
 
 ### Memory / sizing
 
