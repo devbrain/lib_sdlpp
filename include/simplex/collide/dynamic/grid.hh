@@ -230,6 +230,13 @@ namespace simplex::collide {
             [[nodiscard]] T* at(uint32_t cell) { return m_grid.get_linear(cell); }
             void clear_at(uint32_t cell) { m_grid.clear_linear(cell); }
 
+            // World-space box of a cell addressed by its linear handle (for the owner's
+            // "does the payload fit its cell" checks).
+            [[nodiscard]] aabb cell_box_at(uint32_t cell) const {
+                const uint32_t w = m_grid.get_width();
+                return cell_box(detail::grid_coord{cell % w, cell / w});
+            }
+
             template<typename Fn>
             void query(const aabb& region, Fn&& callback) const {
                 if (!intersects(region, m_physical_bounds)) {

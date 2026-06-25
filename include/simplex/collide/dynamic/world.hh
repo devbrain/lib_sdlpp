@@ -471,15 +471,22 @@ namespace simplex::collide {
             }
 
             // Add a static tile into the grid. The tile is bucketed into the single cell containing
-            // its shape's centre (so the shape must fit within one cell). Overwrites any tile already
-            // in that cell (loader-friendly; the overwritten tile's handle goes stale). The returned
-            // handle's `value` is the linear cell index; `eid` is recovered from the payload.
+            // its shape's centre (so the shape must fit within one cell, enforced below). Overwrites
+            // any tile already in that cell (loader-friendly). NOTE: TILE handles carry no
+            // generation, so a handle to an overwritten cell does NOT go invalid -- it silently
+            // ALIASES the new tile (is_valid() stays true, get_eid/get_shape read the new payload).
+            // Accepted v1 behaviour; do not retain a tile handle across a re-add to its cell.
+            // The returned handle's `value` is the linear cell index; `eid` is recovered from payload.
             collider_id add(entity_id_t eid, const tile_body& body) {
                 ENFORCE(m_static_grid)("add(tile_body) requires a grid (world_config.grid)");
                 const aabb bound = std::visit([](const auto& s) { return enclose(s); }, body.shape);
                 const vec centre = bound.center();
                 const uint32_t cell = m_static_grid->to_cell(centre);
                 ENFORCE(cell != grid<detail::tile>::INVALID_CELL)("tile centre is outside the grid bounds");
+                // A tile is only stored in (and only found via) its centre's cell, so it must fit
+                // within that cell -- otherwise queries through the overhang would silently miss it.
+                ENFORCE(detail::contains(m_static_grid->cell_box_at(cell), bound))
+                        ("tile shape must fit within a single grid cell");
                 m_static_grid->set(centre, detail::tile{body.shape, body.material, body.filter, eid});
                 return {cell, 0, collider_id::TILE};
             }
@@ -515,7 +522,11 @@ namespace simplex::collide {
                 } else if (cid.type_id == collider_id::BULLET) {
                     auto& stored = m_bullets_storage[cid.value];
                     stored.shape = detail::narrow(shape); // ENFORCE non-segment + shape_t -> moving_shape_t
-                } else { // TILE: reshape in place. Must still fit the same cell (no re-bucketing).
+                } else { // TILE: reshape in place. The new shape must still fit the same cell
+                         // (no re-bucketing) -- else it could overhang into a cell that won't find it.
+                    const aabb nb = std::visit([](const auto& s) { return enclose(s); }, shape);
+                    ENFORCE(detail::contains(m_static_grid->cell_box_at(cid.value), nb))
+                            ("set_shape: a tile's new shape must fit within its cell");
                     m_static_grid->at(cid.value)->shape = shape;
                 }
             }
@@ -952,7 +963,8 @@ namespace simplex::collide {
 
         public:
             // Game-facing aiming cast: sweep an arbitrary `mover` shape by `delta` and return the
-            // earliest resident hit passing `filter`, or nullopt. The shape is transient (not in
+            // earliest hit passing `filter`, or nullopt -- across BOTH dynamic residents and static
+            // tiles (the result's collider_id may be BODY or TILE). The shape is transient (not in
             // the world), so nothing is excluded. Use for aim previews, lobbed-shot prediction,
             // "is this move clear" probes -- the swept counterpart to raycast. (Public API takes a
             // plain vec delta; it is wrapped as a displacement for the internal swept math.)
@@ -961,10 +973,11 @@ namespace simplex::collide {
                 return cast_core(mover, units::displacement{delta}, filter, &world::accept_any,
                                  collider_id::INVALID);
             }
-            // First resident the finite segment `s` crosses (nearest along the ray), or nullopt.
-            // Residents only (bullets are not in the tree). Targets may be any shape incl.
-            // segments (walls/slopes), so the target is visited as the full shape_t -- never
-            // narrowed. toi is clamped to >= 0 (an origin already inside a shape reads as 0).
+            // First collider the finite segment `s` crosses (nearest along the ray), or nullopt --
+            // across BOTH dynamic residents and static tiles (the result's collider_id may be BODY
+            // or TILE). Bullets are excluded (not in the tree). Targets may be any shape incl.
+            // segments (walls/slopes), visited as the full shape_t -- never narrowed. toi is clamped
+            // to >= 0 (an origin already inside a shape reads as 0).
             [[nodiscard]] std::optional <contact> raycast(const segment& s, filter_props filter = {}) const {
                 std::optional <contact> out;
 
@@ -1125,17 +1138,21 @@ namespace simplex::collide {
             // rather than the diff silently treating them as "still overlapping". The collider_ids
             // are kept so an END can name the pair even after a body is removed.
             struct sensor_pair {
-                std::array<uint32_t, 4> key{}; // {lo.value, lo.gen, hi.value, hi.gen}; std::array < is lexicographic
+                // {lo.value, lo.gen, lo.type, hi.value, hi.gen, hi.type}; std::array < is lexicographic.
+                // type_id is part of the key: a BODY and a TILE can share value+generation (a cell
+                // index can equal a body slot), so omitting it would alias their pairs.
+                std::array<uint32_t, 6> key{};
                 collider_id sensor{};
                 collider_id other{};
             };
 
-            // Canonical, generation-aware pair key (order the two handles by value then gen).
-            static std::array<uint32_t, 4> pair_key(const collider_id& a, const collider_id& b) {
-                const bool a_lo = (a.value != b.value) ? (a.value < b.value) : (a.generation < b.generation);
-                const collider_id& lo = a_lo ? a : b;
-                const collider_id& hi = a_lo ? b : a;
-                return {lo.value, lo.generation, hi.value, hi.generation};
+            // Canonical, full-identity pair key (order the two handles by the whole collider_id:
+            // value, then generation, then type_id -- via the defaulted operator<=>).
+            static std::array<uint32_t, 6> pair_key(const collider_id& a, const collider_id& b) {
+                const collider_id& lo = (a < b) ? a : b;
+                const collider_id& hi = (a < b) ? b : a;
+                return {lo.value, lo.generation, static_cast<uint32_t>(lo.type_id),
+                        hi.value, hi.generation, static_cast<uint32_t>(hi.type_id)};
             }
 
             void emit_trigger(event_kind kind, const sensor_pair& p) {

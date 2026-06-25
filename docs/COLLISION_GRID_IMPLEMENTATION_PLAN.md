@@ -435,27 +435,30 @@ Follow the established pattern (doctest, ASan/UBSan, brute-force cross-checks):
 ## 15. Known limitations (as built, after G4.4)
 
 A scan of the world↔grid integration. Severity is relative to a 2D tilemap game; each
-notes the impact, the workaround, and how it would be lifted. The first two are the ones
-worth closing before calling G4 "done"; the rest are feature gaps or perf, not traps.
+notes the impact, the workaround, and how it would be lifted. The rest are feature gaps or
+perf, not traps.
 
 ### Correctness traps
 
-1. **One-cell tile constraint — currently UNVALIDATED.** `add(tile_body)` buckets a tile into
-   the single cell containing its shape's *centre* and stores it only there. A shape larger than
-   a cell, or one that straddles a cell boundary (even if cell-sized but offset), is invisible to
-   queries that hit only the *other* cell it overlaps → missed hits / tunnelling. The world does
-   **not** check that the tile fits its centre cell — it silently mis-stores.
-   *Workaround:* keep tiles cell-aligned and ≤ cell size; use `static_body` (BVH) for anything
-   larger or free-form. *Lift:* `ENFORCE(enclose(shape) ⊆ cell_box)` in `add` (cheap), or insert
-   into every overlapped cell (needs multi-occupancy the grid does not have).
+1. **One-cell tile constraint — NOW ENFORCED.** `add(tile_body)` buckets a tile into the single
+   cell containing its shape's *centre* and stores it only there, so a shape that overhangs that
+   cell would be invisible to queries hitting the other cell. `add` and `set_shape` now
+   `ENFORCE(detail::contains(cell_box, enclose(shape)))` — an overhanging tile is rejected loudly
+   instead of silently mis-stored. *Remaining choice if ever needed:* multi-cell occupancy
+   (insert into every overlapped cell), which the grid does not support. For now: cell-sized,
+   cell-aligned tiles only; use `static_body` (BVH) for larger/free-form statics.
 
-2. **Overwrite/refill silently aliases stale TILE handles; no tile generation safety.**
+2. **Overwrite/refill silently aliases TILE handles; no tile generation safety (accepted v1).**
    `add(tile_body)` into an occupied cell overwrites it. The previous tile's `collider_id` stays
    `is_valid() == true` (same cell, still occupied) but now resolves to the **new** tile
-   (`get_eid`/`get_shape`/`material_of` read the new payload). Same hazard after remove-then-refill.
-   Bodies are protected by `generation`; tiles are not (`TILE` generation is always 0).
-   *Workaround:* do not hold a tile handle across a re-add to the same cell. *Lift:* a per-cell
-   generation counter in the grid, bumped on set/clear, stored in the handle.
+   (`get_eid`/`get_shape`/`material_of` read the new payload) — it does NOT go invalid, it
+   aliases. Same after remove-then-refill. Bodies are protected by `generation`; tiles are not
+   (`TILE` generation is always 0). *Workaround:* do not hold a tile handle across a re-add to its
+   cell. *Lift:* a per-cell generation counter in the grid, bumped on set/clear, stored in the
+   handle.
+
+   (Separately fixed: trigger pair keys now include `type_id` and order by the full `collider_id`,
+   so a BODY and a TILE sharing value+generation no longer alias in the sensor begin/end diff.)
 
 ### Feature gaps
 

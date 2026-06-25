@@ -164,3 +164,36 @@ TEST_SUITE("world+grid: cast (aiming probe)") {
         CHECK(w.get_eid(hit->who) == 1u);
     }
 }
+
+TEST_SUITE("world+grid: invariants & identity") {
+    TEST_CASE("a tile must fit within a single cell (add and set_shape ENFORCE)") {
+        world w = grid_world();
+        // spans two cells (x 0..4 over 2-wide cells) -> rejected
+        CHECK_THROWS(w.add(1, tile_body{aabb{vec{0, 0}, vec{4, 2}}, {}, {}}));
+        const collider_id t = w.add(2, tile_body{aabb{vec{0, 0}, vec{2, 2}}, {}, {}}); // cell-sized
+        REQUIRE(w.is_valid(t));
+        CHECK_THROWS(w.set_shape(t, shape_t{aabb{vec{0, 0}, vec{4, 2}}})); // would overhang
+        CHECK_NOTHROW(w.set_shape(t, shape_t{circle{vec{1, 1}, 0.5f}}));   // fits
+    }
+
+    TEST_CASE("trigger keys include type_id: BODY and TILE sharing value+gen don't alias") {
+        world w = grid_world();
+        w.add(100, tile_body{aabb{vec{0, 0}, vec{2, 2}}, {}, {}});                        // TILE cell 0
+        w.add(200, static_body{shape_t{aabb{vec{0.2f, 0.2f}, vec{1.8f, 1.8f}}}, {}, {}}); // BODY slot 0
+        material_props sens; sens.response = response_mode::SENSOR;
+        w.add(300, kinematic_body{moving_shape_t{aabb{vec{0.1f, 0.1f}, vec{1.9f, 1.9f}}}, sens, {}, vec{0, 0}});
+
+        const auto& evs = w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f);
+        int begins = 0;
+        bool tile_seen = false, body_seen = false;
+        for (const auto& e : evs) {
+            if (e.kind != event_kind::TRIGGER_BEGIN) continue;
+            ++begins;
+            if (e.target.type_id == collider_id::TILE && w.get_eid(e.target) == 100u) tile_seen = true;
+            if (e.target.type_id == collider_id::BODY && w.get_eid(e.target) == 200u) body_seen = true;
+        }
+        CHECK(begins == 2);          // both pairs fire -- no aliasing despite value==0,gen==0 for both
+        CHECK(tile_seen);
+        CHECK(body_seen);
+    }
+}
