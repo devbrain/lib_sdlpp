@@ -243,7 +243,10 @@ namespace simplex::collide {
             }
             if (end_overlap) { // still penetrating at t=time -> no separation within the window
                 out.exit_time = time;
-                out.exit_normal = nearest_outward(mover_centre + mdisp);
+                // nearest_outward uses the ORIGINAL triangle, so feed the mover's end position
+                // RELATIVE to the triangle's end (subtract the triangle's displacement). For a
+                // static triangle (tdisp == 0) this is just the mover end; it matters when tv != 0.
+                out.exit_normal = nearest_outward(mover_centre + mdisp - tdisp);
             } else {
                 out.exit_time = exit;
                 out.exit_normal = exit_n;

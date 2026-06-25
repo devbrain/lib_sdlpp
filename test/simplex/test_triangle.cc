@@ -166,6 +166,18 @@ TEST_SUITE("triangle: swept_intersection (no leak from any side)") {
         CHECK(h->exit_time == doctest::Approx(1.0f)); // ends inside -> no separation in the window
     }
 
+    TEST_CASE("a MOVING triangle anchors the end normal against its end position (tv != 0)") {
+        // stationary mover at (6,0.5); triangle slides right by (3,0). At t=1 the mover is inside the
+        // moved triangle {(3,0),(7,0),(3,4)}, nearest to its HYPOTENUSE -> outward ~ (+,+). Computing
+        // the nearest edge against the original (un-moved) triangle would pick the bottom leg (~0,-1).
+        const aabb mover{vec{5.9f, 0.4f}, vec{6.1f, 0.6f}};
+        const auto h = swept_intersection(mover, vec{0, 0}, T, vec{3, 0}, 1.0f);
+        REQUIRE(h.has_value());
+        CHECK(h->exit_time == doctest::Approx(1.0f));   // ends inside the moved triangle
+        CHECK(h->exit_normal.x() > 0.5f);               // hypotenuse outward (+x,+y), not the bottom leg
+        CHECK(h->exit_normal.y() > 0.5f);
+    }
+
     TEST_CASE("a pass-through mover's exit is the far boundary, not the entry edge's exit") {
         // box left of T moving right all the way across: enters the left leg, exits the hypotenuse.
         const auto h = swept_intersection(aabb{vec{-2.0f, 0.4f}, vec{-1.6f, 0.8f}}, vec{12, 0}, T, vec{0, 0}, 1.0f);
