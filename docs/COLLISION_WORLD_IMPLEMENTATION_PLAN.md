@@ -742,11 +742,9 @@ missing dynamics.
 ### Shmups (Slordax / Stargunner) — covered
 Fast bullets vs ships (swept probes, anti-tunnelling), many entities (BVH), off-screen
 cull + despawn (`active_region` + `BULLET_EXPIRED`), hit/hurt boxes (`filter` + circle/aabb),
-graze (a larger sensor circle on the player). Two thin spots, both already expressible from
-primitives, worth only a convenience wrapper:
-- **Piercing bullets / lasers** — the bullet pass stops at the first solid; a beam that hits
-  everything along its path is a `raycast` with the void (visit-all) callback.
-- **Continuous laser beam** — a `raycast` or a thin sensor `aabb`.
+graze (a larger sensor circle on the player). The one real missing capability is
+**multi-hit queries** (beams / piercing shots / boss hurtbox scans) — public `world::raycast`
+and `cast` return only the NEAREST hit; see "Cross-cutting" below.
 
 ### Platformers (Mario / Sonic) — gaps, in priority order
 1. **Moving platforms — carrying / pushing / crushing (kinematic-vs-kinematic).** [highest value]
@@ -762,18 +760,43 @@ primitives, worth only a convenience wrapper:
    today (probe down with `raycast`, re-snap after the move using the contact normal +
    `grounded`), but there is no built-in `snap_to_ground` helper — every slope game will
    re-write it.
-3. **Tile-seam snagging (internal-edge / "ghost vertex").** A flat floor is a row of
-   per-cell aabb tiles; a fast horizontal mover can catch on the shared vertical edges
-   between adjacent solid tiles. Swept + skin mitigates it, but it is a known quality bug at
-   high speed. Usual fixes (edge/chain shapes, or merging collinear tile faces) are absent.
-4. **Depenetration pass.** No "resolve an existing overlap" step — the world is swept-only.
+3. **Step-up / ledge forgiveness.** Distinct from snap-down: a mover walking into a small lip
+   (a 1–4 px ledge, the top of a short step) should ride up over it instead of stopping dead,
+   when a small upward probe clears. Built from a short up-probe + re-cast, but not provided;
+   without it characters catch on tiny tile lips. (Distinct from the tile-seam item below —
+   this is intended geometry, not a seam artifact.)
+4. **Tile-seam snagging → compile the tilemap into a boundary collider.** A flat floor is a
+   row of per-cell aabb tiles, so a fast horizontal mover can catch on the shared INTERNAL
+   vertical edges between adjacent solids. The fix is not per-tile tuning but a build step:
+   compile the solid-tile mask into its BOUNDARY only — merged collinear runs / edge chains /
+   boundary faces — so internal edges are never query candidates at all. (Swept + skin only
+   masks the symptom.)
+5. **Depenetration pass.** No "resolve an existing overlap" step — the world is swept-only.
    The `penetration`/MTV math exists in `collide` (overlap.hh) but is not used by the world,
    so a body shoved into geometry (spawned overlapping, squeezed by a crusher) has no
    relaxation.
-5. **Sonic is a sensor-based controller** (floor/wall/ceiling ray sensors + ground angle for
+6. **Sonic is a sensor-based controller** (floor/wall/ceiling ray sensors + ground angle for
    loops/walls), not an AABB-slide model. The `raycast` primitives can build it, but
-   `move_and_slide` is the Mario/Celeste style and will not, by itself, produce loops.
-   Treat it as "the primitives are there; the Sonic controller is game-level."
+   `move_and_slide` is the Mario/Celeste style and will not, by itself, produce loops —
+   the Sonic controller is game-level. (Mario-style SOLID ramps, by contrast, are now well
+   covered: a `triangle` tile is a free-standing ramp that blocks from every side, not just
+   across a diagonal — see grid-plan §15 #4. Only loop/wall-running remains controller-level.)
+
+### Cross-cutting roadmap items (both genres)
+- **Multi-hit queries (`raycast_all` / `cast_all`).** Public `raycast`/`cast` return the
+  NEAREST hit. Add all-hits variants, ordered by `toi`, with early-out and an optional
+  max-hit count. Covers beams, piercing bullets, melee/sword arcs, explosion sweeps, and
+  boss multi-hurtbox scans. The grid enumerators already support visit-all callbacks; this is
+  the world-level public surface for it (plus the BVH fan-out, no `t_max` clipping).
+- **Swept / crossing triggers.** Triggers are an overlap DIFF at frame boundaries, so a fast
+  body can cross a thin pickup / checkpoint / tripwire BETWEEN frames without ever overlapping
+  it at a sampled endpoint. Add sensors tested along the mover's delta (a swept overlap), or a
+  helper built on `cast_all`, so thin/fast crossings still fire.
+- **Entity-level collider grouping.** One entity often has several colliders by role — hurtbox,
+  hitbox, graze box, weak points, shield zones. The primitives already express these (several
+  bodies sharing an eid + `filter`), but events/queries may need game-side dedup by eid or by
+  collider role — especially with multi-hit queries (one beam should not report the same enemy
+  five times). Worth a small convention (a role tag on the handle, or eid-dedup in the helper).
 
 ### Genre-specific niceties (optional)
 - **Conveyor / surface velocity** — a tile/material that imparts a tangential velocity to
