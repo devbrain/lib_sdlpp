@@ -70,6 +70,20 @@ namespace simplex::collide {
         vec velocity;
     };
 
+    // A carrier ("solid" in the actors-and-solids model): a kinematic body that moves RIGIDLY on a
+    // scripted path and transports the actors riding it -- moving platforms, elevators, crushers,
+    // conveyors. Distinct type from kinematic_body purely so world::add tags it CARRIER. Each frame
+    // it translates by `velocity*dt`, and a rider on top inherits `(velocity + surface_velocity)*dt`:
+    //   moving platform -> surface_velocity {0,0}; conveyor -> velocity {0,0}, surface_velocity = belt
+    //   speed; a moving conveyor sets both (the rider gets the sum).
+    struct carrier_body {
+        moving_shape_t shape;
+        material_props material;
+        filter_props filter;
+        vec velocity{};         // the carrier's own rigid motion
+        vec surface_velocity{}; // tangential drag imparted to riders without moving the carrier
+    };
+
     struct bullet {
         moving_shape_t shape;
         material_props material;
@@ -101,7 +115,8 @@ namespace simplex::collide {
     namespace detail {
         enum class body_kind {
             STATIC,
-            KINEMATIC
+            KINEMATIC,
+            CARRIER // a kinematic "solid": moves rigidly on a path and carries/pushes riders
         };
 
         struct resident_body {
@@ -109,6 +124,7 @@ namespace simplex::collide {
             material_props material;
             filter_props filter;
             vec velocity{0, 0};
+            vec surface_velocity{0, 0}; // CARRIER only: tangential drag imparted to riders (conveyor)
             entity_id_t eid{};
             body_kind kind{body_kind::STATIC};
             node_ptr proxy{}; // broadphase handle
@@ -470,6 +486,23 @@ namespace simplex::collide {
                 return {idx, m_bodies_storage.generation(idx), collider_id::BODY};
             }
 
+            collider_id add(entity_id_t eid, const carrier_body& body) {
+                auto idx = m_bodies_storage.allocate();
+                auto& stored = m_bodies_storage[idx];
+
+                stored.shape = detail::widen(body.shape);
+                stored.kind = detail::body_kind::CARRIER;
+                stored.filter = body.filter;
+                stored.material = body.material;
+                stored.velocity = body.velocity;
+                stored.surface_velocity = body.surface_velocity;
+                stored.eid = eid;
+
+                auto box = fatten(stored);
+                stored.proxy = insert_leaf(m_space_partition, idx, box);
+                return {idx, m_bodies_storage.generation(idx), collider_id::BODY};
+            }
+
             collider_id add(entity_id_t eid, const bullet& body) {
                 auto idx = m_bullets_storage.allocate();
                 auto& stored = m_bullets_storage[idx];
@@ -576,12 +609,22 @@ namespace simplex::collide {
                 ENFORCE(cid.type_id != collider_id::TILE)("a tile has no velocity");
                 if (cid.type_id == collider_id::BODY) {
                     auto& stored = m_bodies_storage[cid.value];
-                    ENFORCE(stored.kind == detail::body_kind::KINEMATIC);
+                    // A static body has no velocity; kinematic actors AND carriers (scripted paths) do.
+                    ENFORCE(stored.kind != detail::body_kind::STATIC)("a static body has no velocity");
                     stored.velocity = v;
                 } else {
                     auto& stored = m_bullets_storage[cid.value];
                     stored.velocity = v;
                 }
+            }
+
+            // Carrier-only: the tangential drag imparted to riders (a conveyor's belt speed; set to
+            // {0,0} to switch the belt off). The carrier's own motion is set via set_velocity.
+            void set_surface_velocity(collider_id cid, const vec& v) {
+                ENFORCE(is_valid(cid) && cid.type_id == collider_id::BODY);
+                auto& stored = m_bodies_storage[cid.value];
+                ENFORCE(stored.kind == detail::body_kind::CARRIER)("surface_velocity is carrier-only");
+                stored.surface_velocity = v;
             }
 
             [[nodiscard]] bool is_valid(collider_id cid) const {
@@ -642,6 +685,42 @@ namespace simplex::collide {
 
             [[nodiscard]] const std::vector <world_event>& run(const aabb& active_region, float dt) {
                 m_events.clear();
+
+                // Carrier pass (actors-and-solids): each carrier moves RIGIDLY on its scripted path
+                // and transports the actors riding it. Runs BEFORE the actor movement pass, so actors
+                // then see carriers at their resolved positions. A rider inherits
+                // (velocity + surface_velocity)*dt -- the platform's own delta plus any conveyor drag
+                // -- collision-aware against everything but its carrier. (MP1: carrying only; pushing
+                // and crushing are follow-ups.) Carriers are body_kind::CARRIER, so the movement pass
+                // below (which only processes KINEMATIC) leaves them alone.
+                for (auto it = m_bodies_storage.begin(); it != m_bodies_storage.end(); ++it) {
+                    if (it->kind != detail::body_kind::CARRIER) {
+                        continue;
+                    }
+                    const vec body_delta{it->velocity.x() * dt, it->velocity.y() * dt};
+                    const vec rider_delta{(it->velocity.x() + it->surface_velocity.x()) * dt,
+                                          (it->velocity.y() + it->surface_velocity.y()) * dt};
+                    if (near_zero(body_delta) && near_zero(rider_delta)) {
+                        continue; // a stationary carrier with no belt: nothing to do
+                    }
+                    if (!intersects(swept_bound(detail::narrow(it->shape), units::displacement{body_delta}),
+                                    active_region)) {
+                        continue; // off-region carrier: dormant (like off-region movers)
+                    }
+                    const uint32_t carrier_idx = it.index();
+                    // Collect riders at the carrier's CURRENT position, before it moves. (Linear scan
+                    // -- carriers are few; a tree query is a perf follow-up.)
+                    m_rider_scratch.clear();
+                    for (auto jt = m_bodies_storage.begin(); jt != m_bodies_storage.end(); ++jt) {
+                        if (jt->kind == detail::body_kind::KINEMATIC && is_riding(*jt, *it)) {
+                            m_rider_scratch.push_back(jt.index());
+                        }
+                    }
+                    move_carrier_rigid(carrier_idx, body_delta);
+                    for (const uint32_t r : m_rider_scratch) {
+                        carry_translate(r, carrier_idx, rider_delta);
+                    }
+                }
 
                 // Movement pass: resolve each kinematic mover via move-and-slide against the
                 // solid residents, in fixed slot order (deterministic). Off-region movers are
@@ -952,7 +1031,8 @@ namespace simplex::collide {
             [[nodiscard]] std::optional <contact> cast_core(const moving_shape_t& mover,
                                                             units::displacement delta,
                                                             filter_props self_filter, Accept&& accept,
-                                                            uint32_t exclude_idx) const {
+                                                            uint32_t exclude_idx,
+                                                            uint32_t exclude_idx2 = collider_id::INVALID) const {
                 const aabb envelope = swept_bound(mover, delta);
                 const vec dv = delta.value;
 
@@ -986,8 +1066,8 @@ namespace simplex::collide {
                 };
 
                 query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
-                    if (other_idx == exclude_idx) {
-                        return; // self (or nothing, when exclude_idx == INVALID)
+                    if (other_idx == exclude_idx || other_idx == exclude_idx2) {
+                        return; // self, and (for a carried rider) the carrier it is locked to
                     }
                     const auto& other = m_bodies_storage[other_idx];
                     consider(other.shape, other.filter, other.material,
@@ -1253,6 +1333,62 @@ namespace simplex::collide {
                 body.shape = new_shape;
             }
 
+            // ---- carriers (moving platforms / conveyors / crushers) -----------------------------
+
+            // True if actor `a` rides carrier `c`: nudging `a` a hair OPPOSITE `up` (i.e. "down")
+            // brings it into contact with `c` -- the carrier is the solid directly underfoot. The
+            // nudge bridges the move_and_slide skin gap. General over cfg.up.
+            [[nodiscard]] bool is_riding(const detail::resident_body& a, const detail::resident_body& c) const {
+                const float probe = m_cfg.skin * 2.0f + constants::POINT_EPS;
+                const vec down{-m_cfg.up.x() * probe, -m_cfg.up.y() * probe};
+                const shape_t nudged = std::visit([&](const auto& s) {
+                    return shape_t{collide::translate(s, down)};
+                }, a.shape);
+                return std::visit([&](const auto& as) {
+                    return std::visit([&](const auto& cs) { return collide::intersects(as, cs); }, c.shape);
+                }, nudged);
+            }
+
+            // Re-fit a resident's broadphase proxy after it moved, only when its tight box escaped the
+            // stored fat box (same containment short-circuit as move_and_slide).
+            void refit_proxy(detail::resident_body& b) {
+                const aabb tight = std::visit([](const auto& s) { return enclose(s); }, b.shape);
+                if (!detail::contains(m_space_partition[b.proxy].box, tight)) {
+                    update_leaf(m_space_partition, b.proxy, fatten(b));
+                }
+            }
+
+            // Move a carrier rigidly by `d` (it is never blocked -- it pushes/carries, §MP2/3).
+            void move_carrier_rigid(uint32_t idx, const vec& d) {
+                auto& c = m_bodies_storage[idx];
+                translate(c, d);
+                refit_proxy(c);
+            }
+
+            // Carry rider `j` (locked to carrier `carrier_idx`) by `d`: a collision-aware move that
+            // hits every solid EXCEPT its carrier, so it rides freely but still stops at walls /
+            // ceilings / other carriers. Stops a skin short of the first hit. (MP1: a blocked rider
+            // simply stops; MP3 will turn "still pinned" into a CRUSH event.)
+            void carry_translate(uint32_t j, uint32_t carrier_idx, const vec& d) {
+                if (near_zero(d)) {
+                    return;
+                }
+                auto& a = m_bodies_storage[j];
+                const auto hit = cast_core(detail::narrow(a.shape), units::displacement{d}, a.filter,
+                                           solid_acceptor(), j, carrier_idx);
+                float frac = 1.0f;
+                if (hit) {
+                    const float len = euler::length(d);
+                    const float skin_frac = (len > constants::POINT_EPS) ? (m_cfg.skin / len) : 0.0f;
+                    frac = std::max(0.0f, hit->toi - skin_frac);
+                }
+                if (frac <= 0.0f) {
+                    return;
+                }
+                translate(a, vec{d.x() * frac, d.y() * frac});
+                refit_proxy(a);
+            }
+
         private:
             world_config m_cfg;
             detail::bodies_storage m_bodies_storage;
@@ -1262,6 +1398,7 @@ namespace simplex::collide {
             std::optional <grid <detail::tile>> m_static_grid; // statics (tiles); unset = none
 
             std::vector <world_event> m_events;          // reused per-frame event buffer
+            std::vector <uint32_t> m_rider_scratch;      // reused per-carrier rider list (carrier pass)
             std::vector <sensor_pair> m_triggers_curr;   // this frame's sensor overlaps
             std::vector <sensor_pair> m_triggers_prev;   // last frame's (for the begin/end diff)
             std::vector <collider_id> m_sensor_tiles;    // SENSOR tile handles (lazily pruned)

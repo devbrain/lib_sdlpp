@@ -748,14 +748,19 @@ graze (a larger sensor circle on the player). The one real missing capability is
 and `cast` return only the NEAREST hit; see "Cross-cutting" below.
 
 ### Platformers (Mario / Sonic) — gaps, in priority order
-1. **Moving platforms — carrying / pushing / crushing (kinematic-vs-kinematic).** [highest value]
-   `move_and_slide` treats residents as STATIONARY during a mover's CCD (§8c), so movers do
-   not transfer motion to each other. Today a horizontal lift slides out from under the
-   player (no "ride"), and a platform rising into the player is *blocked by* the player
-   rather than carrying/crushing it. Elevators, conveyor rides, crushers, and pushable
-   blocks all need this. *Design notes:* resolution order (move carriers before riders),
-   a rider inherits the carrier's per-frame delta (detect "grounded on carrier" via the
-   COLLISION event's target), and a crush rule when a rider is pinned between two movers.
+1. **Moving platforms — kinematic-vs-kinematic.** [highest value] *(MP1 carrying DONE; MP2 push /
+   MP3 crush pending.)* Modelled actors-and-solids: a **`carrier_body`** is a kinematic "solid"
+   (`body_kind::CARRIER`) that moves rigidly on a scripted path and transports its riders. A new
+   **carrier pass** runs first in `run()`: each carrier translates by `velocity*dt`, and every actor
+   riding on top inherits `(velocity + surface_velocity)*dt` (collision-aware against everything but
+   its own carrier; stops at walls). The `surface_velocity` makes a **conveyor** fall out for free
+   (carrier `velocity {0,0}`, belt speed in `surface_velocity`); a moving conveyor sets both (rider
+   gets the sum). Carriers are excluded from the actor `move_and_slide` pass. *Tested:*
+   `test_world_carriers.cc` — horizontal carry, elevator, conveyor (belt doesn't move), moving
+   conveyor (sum), non-rider untouched, blocked-at-wall, `set_velocity`/`set_surface_velocity`.
+   - **MP2 (pushing) — pending:** a carrier moving *into* an actor displaces it.
+   - **MP3 (crushing) — pending:** an actor pinned between a carrier and other solid geometry →
+     a `CRUSH` event. (Today a carried rider that can't move simply stops.)
 2. **Ground snapping ("stick to the floor" on slopes/stairs).** Walking down a slope/stairs
    should not go airborne each step (and Sonic must hug the ground at speed). Composable
    today (probe down with `raycast`, re-snap after the move using the contact normal +
