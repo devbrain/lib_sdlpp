@@ -129,4 +129,25 @@ TEST_SUITE("triangle: swept_intersection (no leak from any side)") {
         REQUIRE(h.has_value());
         CHECK(h->entry_time == doctest::Approx(0.0f));
     }
+
+    TEST_CASE("a mover fully inside with NONZERO velocity still reports toi 0 (not a future edge)") {
+        // box inside the triangle, moving toward the left leg: the penetration it starts in wins.
+        const auto h = swept_intersection(aabb{vec{1.0f, 1.0f}, vec{1.4f, 1.4f}}, vec{-4, 0}, T, vec{0, 0}, 1.0f);
+        REQUIRE(h.has_value());
+        CHECK(h->entry_time == doctest::Approx(0.0f));
+        const auto hc = swept_intersection(circle{vec{1.0f, 1.0f}, 0.3f}, vec{0, -4}, T, vec{0, 0}, 1.0f);
+        REQUIRE(hc.has_value());
+        CHECK(hc->entry_time == doctest::Approx(0.0f));
+    }
+}
+
+TEST_SUITE("triangle: degenerate (collinear) behaves like its longest edge") {
+    TEST_CASE("contains accepts only points on the longest edge, not the whole line") {
+        const triangle deg{vec{0, 0}, vec{2, 0}, vec{4, 0}}; // collinear on the x-axis; longest edge [0,4]
+        CHECK(contains(deg, vec{1, 0}));    // on the segment
+        CHECK(contains(deg, vec{4, 0}));    // endpoint
+        CHECK_FALSE(contains(deg, vec{5, 0}));  // on the line but past the longest edge
+        CHECK_FALSE(contains(deg, vec{-1, 0})); // on the line but before it
+        CHECK_FALSE(contains(deg, vec{1, 0.5f})); // off the line
+    }
 }

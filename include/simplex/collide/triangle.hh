@@ -12,6 +12,7 @@
 //
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <optional>
 #include <cmath>
@@ -48,7 +49,19 @@ namespace simplex::collide {
     }
 
     /// @brief Test if a (solid) triangle contains a point (inclusive of the boundary).
+    ///
+    /// The bounding-box guard also gives a DEGENERATE (collinear) triangle the documented
+    /// "behaves like its longest edge" semantics: the same-sign cross test alone is true for the
+    /// whole infinite line when the area is zero, but the bbox of three collinear points is exactly
+    /// the longest edge's extent, so the two together accept only points on that edge.
     [[nodiscard]] inline bool contains(const triangle& t, const vec& p) noexcept {
+        const float min_x = std::min({t.a.x(), t.b.x(), t.c.x()});
+        const float max_x = std::max({t.a.x(), t.b.x(), t.c.x()});
+        const float min_y = std::min({t.a.y(), t.b.y(), t.c.y()});
+        const float max_y = std::max({t.a.y(), t.b.y(), t.c.y()});
+        if (p.x() < min_x || p.x() > max_x || p.y() < min_y || p.y() > max_y) {
+            return false;
+        }
         const auto cross = [](const vec& u, const vec& v, const vec& w) {
             return (v.x() - u.x()) * (w.y() - u.y()) - (v.y() - u.y()) * (w.x() - u.x());
         };
@@ -166,21 +179,12 @@ namespace simplex::collide {
         [[nodiscard]] std::optional<swept_hit> swept_tri(const Mover& m, const vec& mv,
                                                          const triangle& t, const vec& tv, float time,
                                                          const vec& mover_centre) {
-            std::optional<swept_hit> best;
-            for (const auto& e : tri_edges(t)) {
-                if (const auto h = swept_intersection(m, mv, e, tv, time)) {
-                    if (!best || h->entry_time < best->entry_time) {
-                        best = h;
-                    }
-                }
-            }
-            if (best) {
-                return best;
-            }
-            // No edge crossed during the sweep: only a contact if the mover starts inside the solid.
+            // Already overlapping at t=0 -> a toi-0 contact, REGARDLESS of velocity. This must be
+            // checked before the edge sweep: a mover inside the solid moving toward an edge would
+            // otherwise report that future boundary hit instead of the penetration it starts in.
+            // The push-out normal is the nearest edge's outward normal.
             if (intersects(t, m)) {
                 const vec ctr = tri_centroid(t);
-                // nearest edge to the mover centre -> its outward normal pushes the mover out
                 float best_d = constants::INF;
                 vec n{};
                 for (const auto& e : tri_edges(t)) {
@@ -192,7 +196,16 @@ namespace simplex::collide {
                 }
                 return swept_hit{0.0f, time, n, n};
             }
-            return std::nullopt;
+            // Otherwise: the earliest of the swept-vs-each-edge contacts (first boundary touched).
+            std::optional<swept_hit> best;
+            for (const auto& e : tri_edges(t)) {
+                if (const auto h = swept_intersection(m, mv, e, tv, time)) {
+                    if (!best || h->entry_time < best->entry_time) {
+                        best = h;
+                    }
+                }
+            }
+            return best;
         }
     }
 

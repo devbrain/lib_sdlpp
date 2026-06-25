@@ -18,6 +18,7 @@
 //   - <simplex/collide/distance.hh>  closest-point / squared-distance queries
 //   - <simplex/collide/overlap.hh>   static boolean overlap predicates
 //   - <simplex/collide/sweep.hh>     parametric + continuous collision queries
+//   - <simplex/collide/triangle.hh>  solid-triangle narrow-phase (slopes/ramps)
 //
 // Query categories (kept distinct in both naming and result type):
 //   - intersects(A, B)            -> bool       : static overlap of two shapes.
@@ -29,14 +30,17 @@
 //   - overlap(A, B)               -> penetration: static MTV to separate A from B.
 //
 // Supported shape pairs (argument order is interchangeable where both forms exist):
-//   contains:            (aabb|circle|segment, point)          -- full point row of the matrix
-//   intersects (static): every pair of {point,segment,circle,aabb} (point via contains)
+//   contains:            (aabb|circle|segment|triangle, point)  -- full point row of the matrix
+//   intersects (static): every pair of {point,segment,circle,aabb,triangle} (point via contains)
 //   overlap (MTV):       (aabb,aabb) (circle,circle) (circle,aabb)|(aabb,circle)  -> penetration
-//   intersect_param:     (aabb,segment) (circle,segment) (segment,segment)   -> line_hit
+//   intersect_param:     (aabb,segment) (circle,segment) (segment,segment) (triangle,segment) -> line_hit
 //   swept_intersection:  (aabb,aabb) (circle,circle) (circle,aabb)|(aabb,circle)
-//                         (circle,segment) (aabb,segment)                       -> swept_hit
+//                         (circle,segment) (aabb,segment) (aabb,triangle) (circle,triangle)  -> swept_hit
 //   closest_point:       (point, segment|aabb|circle)
 //   squared_distance:    every pair of {point,segment,circle,aabb} (filled regions; 0 if overlapping)
+//
+// The solid `triangle` (slopes/ramps) lives in <simplex/collide/triangle.hh>; its narrow-phase is
+// built by decomposing into the 3 edge segments + interior tests, reusing the segment machinery.
 //
 // constexpr: a query is constexpr exactly when it avoids std::sqrt, which is not
 // constexpr in C++20 (euler's vector/matrix expression evaluation is otherwise
