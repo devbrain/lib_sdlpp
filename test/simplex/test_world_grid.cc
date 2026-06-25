@@ -197,6 +197,39 @@ TEST_SUITE("world+grid: invariants & identity") {
         CHECK(body_seen);
     }
 
+    TEST_CASE("clear() empties the world (bodies, bullets, tiles) and is reusable") {
+        world w = grid_world();
+        const collider_id body = w.add(1, kinematic_body{
+                                          moving_shape_t{aabb{vec{1, 1}, vec{2, 2}}}, {}, {}, vec{0, 0}});
+        const collider_id tile = w.add(2, tile_body{aabb{vec{4, 4}, vec{6, 6}}, {}, {}});
+        const collider_id bul = w.add(3, bullet{
+                                         moving_shape_t{aabb{vec{0, 0}, vec{1, 1}}}, {}, {}, vec{1, 0}});
+        REQUIRE(w.is_valid(body));
+        REQUIRE(w.is_valid(tile));
+        REQUIRE(w.is_valid(bul));
+
+        w.clear();
+        CHECK_FALSE(w.is_valid(body)); // all handles invalid (monotonic generations)
+        CHECK_FALSE(w.is_valid(tile));
+        CHECK_FALSE(w.is_valid(bul));
+
+        // reusable, and no aliasing with the pre-clear handles even if slots/cells are reused
+        const collider_id tile2 = w.add(20, tile_body{aabb{vec{4, 4}, vec{6, 6}}, {}, {}});
+        CHECK(w.is_valid(tile2));
+        CHECK(w.get_eid(tile2) == 20u);
+        CHECK_FALSE(w.is_valid(tile));
+        const auto hit = w.raycast(segment{vec{3, 5}, vec{16, 5}}); // finds the new tile only
+        REQUIRE(hit.has_value());
+        CHECK(hit->who.type_id == collider_id::TILE);
+        CHECK(w.get_eid(hit->who) == 20u);
+    }
+
+    TEST_CASE("clear() on a pure-dynamic world (no grid) is fine") {
+        world w(world_config{});
+        w.add(1, static_body{shape_t{aabb{vec{0, 0}, vec{1, 1}}}, {}, {}});
+        CHECK_NOTHROW(w.clear());
+    }
+
     TEST_CASE("a TILE handle to an overwritten / removed cell goes invalid (per-cell generation)") {
         world w = grid_world();
         const collider_id a = w.add(1, tile_body{aabb{vec{0, 0}, vec{2, 2}}, {}, {}}); // cell 0

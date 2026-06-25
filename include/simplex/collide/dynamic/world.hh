@@ -160,6 +160,17 @@ namespace simplex::collide {
                     m_free.push_back(idx);
                 }
 
+                // Drop every element. Each live slot is deallocated (so its generation bumps and the
+                // free list is rebuilt), leaving all generations MONOTONIC -- a handle held across a
+                // clear never aliases a slot reused afterwards. Capacity is retained for reuse.
+                void clear() {
+                    for (uint32_t i = 0; i < m_pool.size(); ++i) {
+                        if (m_pool[i].alive) {
+                            deallocate(i);
+                        }
+                    }
+                }
+
                 Body& operator[](uint32_t idx) {
                     return m_pool[idx];
                 }
@@ -505,6 +516,23 @@ namespace simplex::collide {
                 } else { // TILE
                     m_static_grid->clear_at(cid.value);
                 }
+            }
+
+            // Empty the world for a level reload: drops every body, bullet and tile, the broadphase
+            // tree, and the trigger/event buffers, keeping the configuration (bounds, grid, skin,
+            // ...) intact. All storages keep their generation counters monotonic, so any handle held
+            // across clear() reads as invalid afterwards rather than aliasing a reused slot/cell.
+            // Capacity is retained for reuse.
+            void clear() {
+                m_bodies_storage.clear();
+                m_bullets_storage.clear();
+                m_space_partition.reset();
+                if (m_static_grid) {
+                    m_static_grid->reset();
+                }
+                m_events.clear();
+                m_triggers_curr.clear();
+                m_triggers_prev.clear();
             }
 
             // resize/teleport. Takes the wide shape_t; a moving body cannot become a segment,
