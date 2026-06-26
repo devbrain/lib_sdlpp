@@ -234,6 +234,19 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         CHECK(box_of(w, act).max.x() <= 18.0f + 0.001f); // stopped at the wall's left face
     }
 
+    TEST_CASE("a FAST carrier does not tunnel past a thin actor (swept-band push)") {
+        world w = carrier_world();
+        // carrier [10,8]-[16,10] moving right by +20/frame (vel 1200) -- it would jump well past
+        // a thin actor in one step; the swept-band gate must still catch and push it.
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{1200, 0}, vec{0, 0}});
+        const collider_id thin = w.add(2, kinematic_body{
+                                           moving_shape_t{aabb{vec{20.0f, 8}, vec{20.2f, 10}}}, {}, {}, vec{0, 0}});
+        const float tx0 = box_of(w, thin).min.x();
+        (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT); // carrier right 16 -> 36, past x=20
+        CHECK(box_of(w, thin).min.x() > tx0);              // it was pushed, not tunnelled through
+        CHECK(box_of(w, thin).min.x() >= 36.0f - 0.05f);   // shoved to the carrier's final leading edge
+    }
+
     TEST_CASE("a conveyor (no body motion) does not push an actor beside it") {
         world w = carrier_world();
         w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{0, 0}, vec{120, 0}});

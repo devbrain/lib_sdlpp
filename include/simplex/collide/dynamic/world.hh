@@ -723,18 +723,25 @@ namespace simplex::collide {
                     }
 
                     // MP2 -- pushing: a carrier that MOVED (body_delta != 0) shoves any non-rider
-                    // actor it now overlaps out along its motion. (A conveyor with body_delta 0 does
-                    // not push -- it only drags riders.) The push is collision-aware: blocked against
-                    // other geometry it stops, leaving a residual overlap MP3 will read as a crush.
-                    // Candidates are COLLECTED first, then pushed -- pushing mutates the tree, which
-                    // must not happen during the query traversal. (Limitation: the push uses the
-                    // carrier's FINAL box, so a fast carrier can still tunnel past a thin actor; a
-                    // swept-band push is a follow-up.)
+                    // actor its sweep RAN INTO clear along its motion. (A conveyor with body_delta 0
+                    // does not push -- it only drags riders.) The candidate gate is a swept test of
+                    // the carrier (from its start, by body_delta) vs the actor: this is anti-tunnel
+                    // (a fast carrier still catches a thin actor anywhere in the band) AND directional
+                    // (a carrier moving AWAY from a trailing actor never hits it). Each hit is shoved
+                    // to the carrier's FINAL leading edge via the collision-aware carry_translate
+                    // (blocked at a wall it stops, leaving a residual overlap MP3 reads as a crush).
+                    // Collect-then-push -- pushing mutates the tree and must not run during the query.
                     if (!near_zero(body_delta)) {
-                        const aabb cbox = std::visit([](const auto& s) { return enclose(s); },
+                        const vec back{-body_delta.x(), -body_delta.y()};
+                        const aabb fbox = std::visit([](const auto& s) { return enclose(s); },
                                                      m_bodies_storage[carrier_idx].shape);
+                        const aabb band = aabb::combine(fbox, collide::translate(fbox, back)); // start .. final sweep
+                        const moving_shape_t cstart = detail::narrow(std::visit([&](const auto& s) {
+                            return shape_t{collide::translate(s, back)};
+                        }, m_bodies_storage[carrier_idx].shape));
+
                         m_push_scratch.clear();
-                        query(m_space_partition, cbox, [&](entity_id_t actor_idx, const aabb&) {
+                        query(m_space_partition, band, [&](entity_id_t actor_idx, const aabb&) {
                             if (actor_idx == carrier_idx) {
                                 return;
                             }
@@ -748,18 +755,32 @@ namespace simplex::collide {
                                     return; // already handled as a rider (carried, not pushed)
                                 }
                             }
-                            const bool overlaps = std::visit([&](const auto& as) {
-                                return std::visit([&](const auto& cs) { return collide::intersects(as, cs); },
-                                                  m_bodies_storage[carrier_idx].shape);
-                            }, act.shape);
-                            if (overlaps) {
+                            // Directional gate: ignore an actor entirely BEHIND the carrier's start
+                            // along the motion (the carrier moves away from it). This drops a body
+                            // merely touching the carrier's trailing edge, which the swept test below
+                            // would otherwise report as a toi-0 initial-overlap hit regardless of direction.
+                            const aabb sbox = collide::translate(fbox, back);
+                            const aabb abox0 = std::visit([](const auto& s) { return enclose(s); }, act.shape);
+                            const float e = constants::POINT_EPS;
+                            if ((body_delta.x() > e && abox0.max.x() <= sbox.min.x() + e)
+                                || (body_delta.x() < -e && abox0.min.x() >= sbox.max.x() - e)
+                                || (body_delta.y() > e && abox0.max.y() <= sbox.min.y() + e)
+                                || (body_delta.y() < -e && abox0.min.y() >= sbox.max.y() - e)) {
+                                return;
+                            }
+                            const bool ran_into = std::visit([&](const auto& mv) {
+                                return std::visit([&](const auto& tgt) {
+                                    return swept_intersection(mv, body_delta, tgt, vec{0, 0}, 1.0f).has_value();
+                                }, act.shape);
+                            }, cstart);
+                            if (ran_into) {
                                 m_push_scratch.push_back(actor_idx);
                             }
                         });
                         for (const uint32_t aidx : m_push_scratch) {
                             const aabb abox = std::visit([](const auto& s) { return enclose(s); },
                                                          m_bodies_storage[aidx].shape);
-                            carry_translate(aidx, carrier_idx, clear_push(abox, cbox, body_delta));
+                            carry_translate(aidx, carrier_idx, clear_push(abox, fbox, body_delta));
                         }
                     }
                 }

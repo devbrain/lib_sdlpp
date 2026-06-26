@@ -758,12 +758,14 @@ and `cast` return only the NEAREST hit; see "Cross-cutting" below.
    gets the sum). Carriers are excluded from the actor `move_and_slide` pass. *Tested:*
    `test_world_carriers.cc` — horizontal carry, elevator, conveyor (belt doesn't move), moving
    conveyor (sum), non-rider untouched, blocked-at-wall, `set_velocity`/`set_surface_velocity`.
-   - **MP2 (pushing) — DONE:** after a carrier moves, it shoves any non-rider actor it now overlaps
-     clear along its motion (`clear_push`), collision-aware (stops at walls; conveyors with no body
-     motion don't push). Candidates are collected then pushed (pushing mutates the tree, so it can't
-     run during the query). *Limitation:* the push uses the carrier's FINAL box, so a fast carrier can
-     still tunnel past a thin actor — a swept-band push is a follow-up. *Tested:* push-forward,
-     move-away no-push, stop-at-wall, conveyor-no-push.
+   - **MP2 (pushing) — DONE:** after a carrier moves, it shoves any non-rider actor its sweep ran
+     into clear along its motion (`clear_push`), collision-aware (stops at walls; conveyors with no
+     body motion don't push). The candidate gate is **anti-tunnel and directional**: query the
+     carrier's swept *band* (start ∪ final), drop actors entirely behind the start (carrier moving
+     away), then confirm with a **swept test** of the carrier vs the actor — so a fast carrier still
+     catches a thin actor anywhere in the band. Candidates are collected then pushed (pushing mutates
+     the tree, so it can't run during the query). *Tested:* push-forward, move-away no-push,
+     stop-at-wall, conveyor-no-push, fast-carrier-vs-thin-actor (no tunnel), side-toucher excluded.
    - **MP3 (crushing) — pending:** an actor pinned between a carrier and other solid geometry →
      a `CRUSH` event. (Today a carried/pushed actor that can't move simply stops with a residual
      overlap.)
