@@ -247,6 +247,19 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         CHECK(box_of(w, thin).min.x() >= 36.0f - 0.05f);   // shoved to the carrier's final leading edge
     }
 
+    TEST_CASE("a moving SENSOR / IGNORE carrier pushes nothing (non-solid, like the ride path)") {
+        for (const response_mode resp : {response_mode::SENSOR, response_mode::IGNORE}) {
+            world w = carrier_world();
+            material_props m; m.response = resp;
+            w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, m, {}, vec{60, 0}, vec{0, 0}});
+            const collider_id act = w.add(2, kinematic_body{
+                                              moving_shape_t{aabb{vec{16.5f, 8}, vec{17.5f, 10}}}, {}, {}, vec{0, 0}});
+            const float ax0 = box_of(w, act).min.x();
+            (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+            CHECK(box_of(w, act).min.x() == doctest::Approx(ax0)); // non-solid carrier -> no push
+        }
+    }
+
     TEST_CASE("a conveyor (no body motion) does not push an actor beside it") {
         world w = carrier_world();
         w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{0, 0}, vec{120, 0}});

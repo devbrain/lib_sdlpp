@@ -768,12 +768,20 @@ namespace simplex::collide {
                                 || (body_delta.y() < -e && abox0.min.y() >= sbox.max.y() - e)) {
                                 return;
                             }
-                            const bool ran_into = std::visit([&](const auto& mv) {
+                            const auto swept = std::visit([&](const auto& mv) {
                                 return std::visit([&](const auto& tgt) {
-                                    return swept_intersection(mv, body_delta, tgt, vec{0, 0}, 1.0f).has_value();
+                                    return swept_intersection(mv, body_delta, tgt, vec{0, 0}, 1.0f);
                                 }, act.shape);
                             }, cstart);
-                            if (ran_into) {
+                            if (!swept) {
+                                return; // the carrier's sweep doesn't reach the actor
+                            }
+                            // The carrier pushes only if it is SOLID for this contact -- same rule as
+                            // riding (a SENSOR/IGNORE carrier pushes nothing; a one-way carrier only
+                            // from its blocked face). The carrier-face normal is the opposite of the
+                            // swept normal (which points outward from the actor it hit).
+                            const vec carrier_face{-swept->entry_normal.x(), -swept->entry_normal.y()};
+                            if (solid_pred{}(m_bodies_storage[carrier_idx].material, carrier_face)) {
                                 m_push_scratch.push_back(actor_idx);
                             }
                         });
