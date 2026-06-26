@@ -768,23 +768,27 @@ namespace simplex::collide {
                                 || (body_delta.y() < -e && abox0.min.y() >= sbox.max.y() - e)) {
                                 return;
                             }
-                            const bool ran_into = std::visit([&](const auto& mv) {
+                            const auto swept = std::visit([&](const auto& mv) {
                                 return std::visit([&](const auto& tgt) {
-                                    return swept_intersection(mv, body_delta, tgt, vec{0, 0}, 1.0f).has_value();
+                                    return swept_intersection(mv, body_delta, tgt, vec{0, 0}, 1.0f);
                                 }, act.shape);
                             }, cstart);
-                            if (!ran_into) {
+                            if (!swept) {
                                 return; // the carrier's sweep doesn't reach the actor
                             }
                             // The carrier pushes only if it is SOLID for this contact -- same rule as
                             // riding (a SENSOR/IGNORE carrier pushes nothing; a one-way carrier only
-                            // from its blocked face). The carrier-face normal is its MOTION direction
-                            // (the carrier shoves with its leading face): convention-independent, unlike
-                            // the swept normal, whose outward side differs across shape pairs
-                            // (e.g. aabb-vs-circle is outward from the aabb, not the circle).
-                            const float dlen = euler::length(body_delta); // > 0 here (block is gated on !near_zero)
-                            const vec carrier_face{body_delta.x() / dlen, body_delta.y() / dlen};
-                            if (solid_pred{}(m_bodies_storage[carrier_idx].material, carrier_face)) {
+                            // from its blocked face). Use the ACTUAL swept contact normal, oriented to
+                            // point in the carrier's motion hemisphere (its push side): this normalizes
+                            // the per-shape-pair convention difference (swept's outward side is the aabb
+                            // for aabb-vs-circle but the target for aabb-vs-aabb) while keying one-way on
+                            // the real contact face -- a motion-direction guess mis-evaluates diagonal
+                            // carriers (a face hit can differ from the velocity direction).
+                            vec n = swept->entry_normal;
+                            if (euler::dot(n, body_delta) < 0.0f) {
+                                n = vec{-n.x(), -n.y()};
+                            }
+                            if (solid_pred{}(m_bodies_storage[carrier_idx].material, n)) {
                                 m_push_scratch.push_back(actor_idx);
                             }
                         });

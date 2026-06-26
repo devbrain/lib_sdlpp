@@ -286,6 +286,33 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         }
     }
 
+    TEST_CASE("a DIAGONAL one-way carrier keys on the contact face, not the motion direction") {
+        // Carrier moves 45° up-right but first contacts an actor to its RIGHT on its RIGHT face.
+        // The contact-face normal is {1,0}; the motion direction is ~(0.7,0.7). A motion-based
+        // guess would push for BOTH block_normals (both dot > 0.5); the real contact face must
+        // push only for block_normal {1,0}.
+        const auto setup = [](world& w, vec block_normal) {
+            material_props ow; ow.response = response_mode::ONE_WAY; ow.block_normal = block_normal;
+            w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, ow, {}, vec{60, 60}, vec{0, 0}});
+            return w.add(2, kinematic_body{
+                              moving_shape_t{aabb{vec{16.5f, 8}, vec{17.5f, 10}}}, {}, {}, vec{0, 0}});
+        };
+        SUBCASE("block_normal {1,0} (the contacted face) -> pushes") {
+            world w = carrier_world();
+            const collider_id act = setup(w, vec{1, 0});
+            const float ax0 = box_of(w, act).min.x();
+            (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+            CHECK(box_of(w, act).min.x() > ax0);
+        }
+        SUBCASE("block_normal {0,1} (not the contacted face) -> does NOT push") {
+            world w = carrier_world();
+            const collider_id act = setup(w, vec{0, 1});
+            const float ax0 = box_of(w, act).min.x();
+            (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+            CHECK(box_of(w, act).min.x() == doctest::Approx(ax0)); // motion-guess would wrongly push here
+        }
+    }
+
     TEST_CASE("a conveyor (no body motion) does not push an actor beside it") {
         world w = carrier_world();
         w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{0, 0}, vec{120, 0}});
