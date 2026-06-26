@@ -260,10 +260,12 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         }
     }
 
-    TEST_CASE("a one-way carrier pushes a CIRCLE only from its blocked face (motion-based normal)") {
+    TEST_CASE("a one-way carrier pushes a CIRCLE only from its blocked face (oriented contact normal)") {
         // block_normal +x: the carrier is solid on its right face, so it pushes when moving +x and
         // passes through when moving -x. A circle actor exercises the aabb-vs-circle swept normal,
-        // whose outward side differs from aabb-vs-aabb -- the push must key on the motion, not it.
+        // whose outward side differs from aabb-vs-aabb -- the push keys on the swept CONTACT normal
+        // oriented into the carrier's motion hemisphere (which here, axis-aligned, equals the moved
+        // face), not on a raw motion-direction guess.
         material_props oneway; oneway.response = response_mode::ONE_WAY; oneway.block_normal = vec{1, 0};
 
         SUBCASE("moving toward the blocked face (+x) pushes the circle") {
