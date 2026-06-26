@@ -768,19 +768,22 @@ namespace simplex::collide {
                                 || (body_delta.y() < -e && abox0.min.y() >= sbox.max.y() - e)) {
                                 return;
                             }
-                            const auto swept = std::visit([&](const auto& mv) {
+                            const bool ran_into = std::visit([&](const auto& mv) {
                                 return std::visit([&](const auto& tgt) {
-                                    return swept_intersection(mv, body_delta, tgt, vec{0, 0}, 1.0f);
+                                    return swept_intersection(mv, body_delta, tgt, vec{0, 0}, 1.0f).has_value();
                                 }, act.shape);
                             }, cstart);
-                            if (!swept) {
+                            if (!ran_into) {
                                 return; // the carrier's sweep doesn't reach the actor
                             }
                             // The carrier pushes only if it is SOLID for this contact -- same rule as
                             // riding (a SENSOR/IGNORE carrier pushes nothing; a one-way carrier only
-                            // from its blocked face). The carrier-face normal is the opposite of the
-                            // swept normal (which points outward from the actor it hit).
-                            const vec carrier_face{-swept->entry_normal.x(), -swept->entry_normal.y()};
+                            // from its blocked face). The carrier-face normal is its MOTION direction
+                            // (the carrier shoves with its leading face): convention-independent, unlike
+                            // the swept normal, whose outward side differs across shape pairs
+                            // (e.g. aabb-vs-circle is outward from the aabb, not the circle).
+                            const float dlen = euler::length(body_delta); // > 0 here (block is gated on !near_zero)
+                            const vec carrier_face{body_delta.x() / dlen, body_delta.y() / dlen};
                             if (solid_pred{}(m_bodies_storage[carrier_idx].material, carrier_face)) {
                                 m_push_scratch.push_back(actor_idx);
                             }

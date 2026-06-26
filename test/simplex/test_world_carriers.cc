@@ -260,6 +260,32 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         }
     }
 
+    TEST_CASE("a one-way carrier pushes a CIRCLE only from its blocked face (motion-based normal)") {
+        // block_normal +x: the carrier is solid on its right face, so it pushes when moving +x and
+        // passes through when moving -x. A circle actor exercises the aabb-vs-circle swept normal,
+        // whose outward side differs from aabb-vs-aabb -- the push must key on the motion, not it.
+        material_props oneway; oneway.response = response_mode::ONE_WAY; oneway.block_normal = vec{1, 0};
+
+        SUBCASE("moving toward the blocked face (+x) pushes the circle") {
+            world w = carrier_world();
+            w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, oneway, {}, vec{60, 0}, vec{0, 0}});
+            const collider_id act = w.add(2, kinematic_body{
+                                              moving_shape_t{circle{vec{16.5f, 9}, 0.6f}}, {}, {}, vec{0, 0}});
+            const float ax0 = box_of(w, act).center().x();
+            (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+            CHECK(box_of(w, act).center().x() > ax0); // blocked face leads -> pushed
+        }
+        SUBCASE("moving from the pass-through side (-x) does not push the circle") {
+            world w = carrier_world();
+            w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, oneway, {}, vec{-60, 0}, vec{0, 0}});
+            const collider_id act = w.add(2, kinematic_body{
+                                              moving_shape_t{circle{vec{9.5f, 9}, 0.6f}}, {}, {}, vec{0, 0}});
+            const float ax0 = box_of(w, act).center().x();
+            (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+            CHECK(box_of(w, act).center().x() == doctest::Approx(ax0)); // wrong (pass-through) face -> no push
+        }
+    }
+
     TEST_CASE("a conveyor (no body motion) does not push an actor beside it") {
         world w = carrier_world();
         w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{0, 0}, vec{120, 0}});
