@@ -1336,12 +1336,19 @@ namespace simplex::collide {
 
             // ---- carriers (moving platforms / conveyors / crushers) -----------------------------
 
-            // True if actor `actor_idx` rides carrier `carrier_idx`: a short downward (opposite `up`)
-            // swept probe with the ACTOR's filter + the solid acceptor finds, as its NEAREST solid
-            // contact, the carrier itself with an up-facing normal. This (unlike a bare overlap test)
-            // respects contact DIRECTION (a side touch is not "riding"), FILTERS (a rider whose layer
-            // rejects the carrier is not carried), and MATERIAL (a SENSOR/IGNORE carrier is not solid,
-            // so it carries nothing). The probe length bridges the move_and_slide skin gap.
+            // True if actor `actor_idx` rides carrier `carrier_idx`. Two gates:
+            //   (1) DIRECTION (cheap, box-based): the actor's UNDERSIDE -- its lowest extent along
+            //       `up` -- rests at/just above the carrier's TOP, within the skin gap. Projecting
+            //       the enclosing boxes onto `up` is exact for the vertical extent (a circle's box
+            //       bottom is its true lowest point), and excludes a body wedged against a side
+            //       (whose underside is below the carrier top).
+            //   (2) CONTACT (shape-aware): nudging the actor down by the gap makes its REAL shape
+            //       intersect the carrier. This uses the actual shapes, so a circle merely near a
+            //       carrier CORNER (whose bounding box overlaps but the circle does not touch) is
+            //       correctly rejected -- a box-only perpendicular-overlap test would false-positive.
+            // Plus FILTER (layers interact) and MATERIAL (the carrier is solid from above -- a
+            // SENSOR/IGNORE or wrong-side one-way carrier carries nothing). Box-based, so an exact
+            // zero-gap top contact rides cleanly with no degenerate swept normal. General over `up`.
             [[nodiscard]] bool is_riding(uint32_t actor_idx, uint32_t carrier_idx) const {
                 const auto& a = m_bodies_storage[actor_idx];
                 const auto& c = m_bodies_storage[carrier_idx];
@@ -1352,31 +1359,39 @@ namespace simplex::collide {
                     return false; // carrier isn't solid from above (SENSOR/IGNORE, or one-way wrong side)
                 }
 
-                // Geometric "on top" over the enclosing boxes, general over `up`: project both boxes
-                // onto the up axis and its perpendicular. The actor rides iff its UNDERSIDE (lowest
-                // along up) rests at/just above the carrier's TOP (within the skin gap) AND they
-                // STRICTLY overlap perpendicular (genuinely over the top -- not edge-touching a side).
-                // Uses boxes (not a swept cast) so an exact top-contact (gap 0) rides cleanly and a
-                // boundary touch never produces a degenerate contact normal.
-                struct span { float lo, hi; };
-                const auto proj = [](const aabb& b, const vec& ax) -> span {
-                    const float c0 = b.min.x() * ax.x() + b.min.y() * ax.y();
-                    const float c1 = b.max.x() * ax.x() + b.min.y() * ax.y();
-                    const float c2 = b.min.x() * ax.x() + b.max.y() * ax.y();
-                    const float c3 = b.max.x() * ax.x() + b.max.y() * ax.y();
-                    return span{std::min({c0, c1, c2, c3}), std::max({c0, c1, c2, c3})};
-                };
-                const aabb ra = std::visit([](const auto& s) { return enclose(s); }, a.shape);
-                const aabb rc = std::visit([](const auto& s) { return enclose(s); }, c.shape);
                 const vec u = m_cfg.up;
-                const vec perp{u.y(), -u.x()};
-                const span au = proj(ra, u), cu = proj(rc, u);
-                const span ap = proj(ra, perp), cp = proj(rc, perp);
                 const float eps = constants::POINT_EPS;
                 const float gap = m_cfg.skin * 2.0f + eps; // touching .. within the move_and_slide skin gap
-                const bool on_top = (au.lo >= cu.hi - eps) && (au.lo <= cu.hi + gap);
-                const bool perp_overlap = (ap.hi > cp.lo + eps) && (ap.lo < cp.hi - eps);
-                return on_top && perp_overlap;
+
+                // (1) vertical gate: actor underside (min along up) at/within-gap of carrier top.
+                const auto up_lo = [&](const shape_t& s) {
+                    const aabb b = std::visit([](const auto& sh) { return enclose(sh); }, s);
+                    return std::min({b.min.x() * u.x() + b.min.y() * u.y(),
+                                     b.max.x() * u.x() + b.min.y() * u.y(),
+                                     b.min.x() * u.x() + b.max.y() * u.y(),
+                                     b.max.x() * u.x() + b.max.y() * u.y()});
+                };
+                const auto up_hi = [&](const shape_t& s) {
+                    const aabb b = std::visit([](const auto& sh) { return enclose(sh); }, s);
+                    return std::max({b.min.x() * u.x() + b.min.y() * u.y(),
+                                     b.max.x() * u.x() + b.min.y() * u.y(),
+                                     b.min.x() * u.x() + b.max.y() * u.y(),
+                                     b.max.x() * u.x() + b.max.y() * u.y()});
+                };
+                const float actor_under = up_lo(a.shape);
+                const float carrier_top = up_hi(c.shape);
+                if (!(actor_under >= carrier_top - eps && actor_under <= carrier_top + gap)) {
+                    return false;
+                }
+
+                // (2) shape-aware contact: the actor, nudged down by the gap, really touches the carrier.
+                const vec down{-u.x() * gap, -u.y() * gap};
+                const shape_t nudged = std::visit([&](const auto& s) {
+                    return shape_t{collide::translate(s, down)};
+                }, a.shape);
+                return std::visit([&](const auto& as) {
+                    return std::visit([&](const auto& cs) { return collide::intersects(as, cs); }, c.shape);
+                }, nudged);
             }
 
             // Re-fit a resident's broadphase proxy after it moved, only when its tight box escaped the

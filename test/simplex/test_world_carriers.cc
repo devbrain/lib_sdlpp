@@ -99,6 +99,30 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         CHECK(box_of(w, rider).min.x() == doctest::Approx(rx0 + 3.0f).epsilon(0.05));
     }
 
+    TEST_CASE("a circle rider sitting on a carrier top is carried") {
+        world w = carrier_world();
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{60, 0}, vec{0, 0}});
+        // circle centred over the top, bottom (center.y - r) just above the carrier top (y=10)
+        const collider_id rider = w.add(2, kinematic_body{
+                                            moving_shape_t{circle{vec{13, 11.0f}, 1.0f}}, {}, {}, vec{0, 0}});
+        const float cx0 = box_of(w, rider).center().x();
+        (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+        CHECK(box_of(w, rider).center().x() == doctest::Approx(cx0 + 1.0f).epsilon(0.05));
+    }
+
+    TEST_CASE("a circle merely near a carrier CORNER (bbox overlaps, circle doesn't touch) is NOT carried") {
+        world w = carrier_world();
+        // carrier top-right corner at (1,0)
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{0, -1}, vec{1, 0}}}, {}, {}, vec{60, 0}, vec{0, 0}});
+        // circle at (1.9,1) r1: its bbox bottom is y=0 and x-span [0.9,2.9] overlaps the carrier in x,
+        // but the circle itself is ~1.33 from the corner -> not touching, must not be carried.
+        const collider_id rider = w.add(2, kinematic_body{
+                                            moving_shape_t{circle{vec{1.9f, 1.0f}, 1.0f}}, {}, {}, vec{0, 0}});
+        const float cx0 = box_of(w, rider).center().x();
+        (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+        CHECK(box_of(w, rider).center().x() == doctest::Approx(cx0)); // bbox lied; shape-aware says no
+    }
+
     TEST_CASE("a body that is not riding is not carried") {
         world w = carrier_world();
         w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{60, 0}, vec{0, 0}});
