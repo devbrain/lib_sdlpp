@@ -110,11 +110,12 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         CHECK(box_of(w, rider).center().x() == doctest::Approx(cx0 + 1.0f).epsilon(0.05));
     }
 
-    TEST_CASE("an AABB touching only the carrier's top corner (no real support) is NOT carried") {
+    TEST_CASE("an AABB touching only the carrier's top corner (no real support) is not a rider") {
         world w = carrier_world();
-        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{60, 0}, vec{0, 0}});
-        // actor's bottom-left at the carrier's top-right corner (16,10): touches the corner only,
-        // zero perpendicular overlap (actor x[16,17] meets carrier x[10,16] just at the edge).
+        // a CONVEYOR (no body motion -> no MP2 push) isolates the carry/ride decision: a corner
+        // toucher must not be dragged by the belt, since it isn't a rider.
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{0, 0}, vec{120, 0}});
+        // bottom-left at the carrier's top-right corner (16,10): zero perpendicular overlap.
         const collider_id corner = w.add(2, kinematic_body{
                                              moving_shape_t{aabb{vec{16, 10}, vec{17, 11}}}, {}, {}, vec{0, 0}});
         const float cx0 = box_of(w, corner).min.x();
@@ -122,12 +123,12 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         CHECK(box_of(w, corner).min.x() == doctest::Approx(cx0)); // edge/corner touch is not support
     }
 
-    TEST_CASE("a circle merely near a carrier CORNER (bbox overlaps, circle doesn't touch) is NOT carried") {
+    TEST_CASE("a circle merely near a carrier CORNER (bbox overlaps, circle doesn't touch) is not a rider") {
         world w = carrier_world();
-        // carrier top-right corner at (1,0)
-        w.add(1, carrier_body{moving_shape_t{aabb{vec{0, -1}, vec{1, 0}}}, {}, {}, vec{60, 0}, vec{0, 0}});
-        // circle at (1.9,1) r1: its bbox bottom is y=0 and x-span [0.9,2.9] overlaps the carrier in x,
-        // but the circle itself is ~1.33 from the corner -> not touching, must not be carried.
+        // conveyor again, to test the ride decision without MP2 push.
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{0, -1}, vec{1, 0}}}, {}, {}, vec{0, 0}, vec{120, 0}});
+        // circle at (1.9,1) r1: bbox bottom y=0, x-span [0.9,2.9] overlaps the carrier in x, but the
+        // circle is ~1.33 from the corner -> not touching, must not be dragged.
         const collider_id rider = w.add(2, kinematic_body{
                                             moving_shape_t{circle{vec{1.9f, 1.0f}, 1.0f}}, {}, {}, vec{0, 0}});
         const float cx0 = box_of(w, rider).center().x();
@@ -198,6 +199,49 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         CHECK_THROWS(w.set_shape(c, shape_t{segment{vec{10, 8}, vec{16, 10}}}));
         CHECK_THROWS(w.set_shape(c, shape_t{triangle{vec{10, 8}, vec{16, 8}, vec{10, 10}}}));
         CHECK_NOTHROW(w.set_shape(c, shape_t{circle{vec{13, 9}, 1.0f}})); // a mover shape is fine
+    }
+
+    // --- MP2: pushing (a carrier moving into an actor displaces it along its motion) ---
+
+    TEST_CASE("a carrier moving into an actor pushes it forward, clear of the carrier") {
+        world w = carrier_world();
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{60, 0}, vec{0, 0}}); // +x
+        const collider_id act = w.add(2, kinematic_body{
+                                          moving_shape_t{aabb{vec{16.5f, 8}, vec{17.5f, 10}}}, {}, {}, vec{0, 0}});
+        const float ax0 = box_of(w, act).min.x();
+        (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT); // carrier right 16 -> 17
+        CHECK(box_of(w, act).min.x() > ax0);                 // pushed forward
+        CHECK(box_of(w, act).min.x() >= 17.0f - 0.001f);     // left edge clear of the carrier's right
+    }
+
+    TEST_CASE("a carrier moving AWAY from an actor does not push it") {
+        world w = carrier_world();
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{-60, 0}, vec{0, 0}}); // -x
+        const collider_id act = w.add(2, kinematic_body{
+                                          moving_shape_t{aabb{vec{16.5f, 8}, vec{17.5f, 10}}}, {}, {}, vec{0, 0}});
+        const float ax0 = box_of(w, act).min.x();
+        (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+        CHECK(box_of(w, act).min.x() == doctest::Approx(ax0)); // untouched
+    }
+
+    TEST_CASE("a pushed actor stops at a wall (does not tunnel; residual overlap is MP3's job)") {
+        world w = carrier_world();
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{60, 0}, vec{0, 0}});
+        w.add(3, static_body{shape_t{aabb{vec{18, 8}, vec{19, 10}}}, {}, {}}); // wall
+        const collider_id act = w.add(2, kinematic_body{
+                                          moving_shape_t{aabb{vec{16.5f, 8}, vec{17.5f, 10}}}, {}, {}, vec{0, 0}});
+        (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+        CHECK(box_of(w, act).max.x() <= 18.0f + 0.001f); // stopped at the wall's left face
+    }
+
+    TEST_CASE("a conveyor (no body motion) does not push an actor beside it") {
+        world w = carrier_world();
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{0, 0}, vec{120, 0}});
+        const collider_id act = w.add(2, kinematic_body{
+                                          moving_shape_t{aabb{vec{15.5f, 8}, vec{16.5f, 10}}}, {}, {}, vec{0, 0}});
+        const float ax0 = box_of(w, act).min.x();
+        (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+        CHECK(box_of(w, act).min.x() == doctest::Approx(ax0)); // belt drags top riders only, never pushes
     }
 
     TEST_CASE("set_velocity / set_surface_velocity work on a carrier") {

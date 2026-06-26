@@ -721,6 +721,47 @@ namespace simplex::collide {
                     for (const uint32_t r : m_rider_scratch) {
                         carry_translate(r, carrier_idx, rider_delta);
                     }
+
+                    // MP2 -- pushing: a carrier that MOVED (body_delta != 0) shoves any non-rider
+                    // actor it now overlaps out along its motion. (A conveyor with body_delta 0 does
+                    // not push -- it only drags riders.) The push is collision-aware: blocked against
+                    // other geometry it stops, leaving a residual overlap MP3 will read as a crush.
+                    // Candidates are COLLECTED first, then pushed -- pushing mutates the tree, which
+                    // must not happen during the query traversal. (Limitation: the push uses the
+                    // carrier's FINAL box, so a fast carrier can still tunnel past a thin actor; a
+                    // swept-band push is a follow-up.)
+                    if (!near_zero(body_delta)) {
+                        const aabb cbox = std::visit([](const auto& s) { return enclose(s); },
+                                                     m_bodies_storage[carrier_idx].shape);
+                        m_push_scratch.clear();
+                        query(m_space_partition, cbox, [&](entity_id_t actor_idx, const aabb&) {
+                            if (actor_idx == carrier_idx) {
+                                return;
+                            }
+                            const auto& act = m_bodies_storage[actor_idx];
+                            if (act.kind != detail::body_kind::KINEMATIC
+                                || !should_collide(act.filter, m_bodies_storage[carrier_idx].filter)) {
+                                return; // only actors that interact with the carrier are pushed
+                            }
+                            for (const uint32_t r : m_rider_scratch) {
+                                if (r == actor_idx) {
+                                    return; // already handled as a rider (carried, not pushed)
+                                }
+                            }
+                            const bool overlaps = std::visit([&](const auto& as) {
+                                return std::visit([&](const auto& cs) { return collide::intersects(as, cs); },
+                                                  m_bodies_storage[carrier_idx].shape);
+                            }, act.shape);
+                            if (overlaps) {
+                                m_push_scratch.push_back(actor_idx);
+                            }
+                        });
+                        for (const uint32_t aidx : m_push_scratch) {
+                            const aabb abox = std::visit([](const auto& s) { return enclose(s); },
+                                                         m_bodies_storage[aidx].shape);
+                            carry_translate(aidx, carrier_idx, clear_push(abox, cbox, body_delta));
+                        }
+                    }
                 }
 
                 // Movement pass: resolve each kinematic mover via move-and-slide against the
@@ -1445,6 +1486,21 @@ namespace simplex::collide {
                 refit_proxy(a);
             }
 
+            // Displacement that shoves actor box `a` clear of carrier box `c` ALONG the carrier's
+            // motion `d` (only the axes the carrier moves on), leaving a skin gap. Used by MP2 to
+            // push an actor the carrier ran into. Box-level (the actual move is shape-aware).
+            [[nodiscard]] vec clear_push(const aabb& a, const aabb& c, const vec& d) const {
+                const float eps = constants::POINT_EPS;
+                const float s = m_cfg.skin;
+                const float px = d.x() > eps ? (c.max.x() - a.min.x() + s)
+                                 : d.x() < -eps ? (c.min.x() - a.max.x() - s)
+                                 : 0.0f;
+                const float py = d.y() > eps ? (c.max.y() - a.min.y() + s)
+                                 : d.y() < -eps ? (c.min.y() - a.max.y() - s)
+                                 : 0.0f;
+                return vec{px, py};
+            }
+
         private:
             world_config m_cfg;
             detail::bodies_storage m_bodies_storage;
@@ -1455,6 +1511,7 @@ namespace simplex::collide {
 
             std::vector <world_event> m_events;          // reused per-frame event buffer
             std::vector <uint32_t> m_rider_scratch;      // reused per-carrier rider list (carrier pass)
+            std::vector <uint32_t> m_push_scratch;       // reused per-carrier pushed-actor list (MP2)
             std::vector <sensor_pair> m_triggers_curr;   // this frame's sensor overlaps
             std::vector <sensor_pair> m_triggers_prev;   // last frame's (for the begin/end diff)
             std::vector <collider_id> m_sensor_tiles;    // SENSOR tile handles (lazily pruned)
