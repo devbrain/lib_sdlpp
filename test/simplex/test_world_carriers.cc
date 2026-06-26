@@ -110,6 +110,18 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         CHECK(box_of(w, rider).center().x() == doctest::Approx(cx0 + 1.0f).epsilon(0.05));
     }
 
+    TEST_CASE("an AABB touching only the carrier's top corner (no real support) is NOT carried") {
+        world w = carrier_world();
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{60, 0}, vec{0, 0}});
+        // actor's bottom-left at the carrier's top-right corner (16,10): touches the corner only,
+        // zero perpendicular overlap (actor x[16,17] meets carrier x[10,16] just at the edge).
+        const collider_id corner = w.add(2, kinematic_body{
+                                             moving_shape_t{aabb{vec{16, 10}, vec{17, 11}}}, {}, {}, vec{0, 0}});
+        const float cx0 = box_of(w, corner).min.x();
+        (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+        CHECK(box_of(w, corner).min.x() == doctest::Approx(cx0)); // edge/corner touch is not support
+    }
+
     TEST_CASE("a circle merely near a carrier CORNER (bbox overlaps, circle doesn't touch) is NOT carried") {
         world w = carrier_world();
         // carrier top-right corner at (1,0)

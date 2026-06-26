@@ -1336,19 +1336,20 @@ namespace simplex::collide {
 
             // ---- carriers (moving platforms / conveyors / crushers) -----------------------------
 
-            // True if actor `actor_idx` rides carrier `carrier_idx`. Two gates:
-            //   (1) DIRECTION (cheap, box-based): the actor's UNDERSIDE -- its lowest extent along
-            //       `up` -- rests at/just above the carrier's TOP, within the skin gap. Projecting
-            //       the enclosing boxes onto `up` is exact for the vertical extent (a circle's box
-            //       bottom is its true lowest point), and excludes a body wedged against a side
-            //       (whose underside is below the carrier top).
-            //   (2) CONTACT (shape-aware): nudging the actor down by the gap makes its REAL shape
-            //       intersect the carrier. This uses the actual shapes, so a circle merely near a
-            //       carrier CORNER (whose bounding box overlaps but the circle does not touch) is
-            //       correctly rejected -- a box-only perpendicular-overlap test would false-positive.
-            // Plus FILTER (layers interact) and MATERIAL (the carrier is solid from above -- a
-            // SENSOR/IGNORE or wrong-side one-way carrier carries nothing). Box-based, so an exact
-            // zero-gap top contact rides cleanly with no degenerate swept normal. General over `up`.
+            // True if actor `actor_idx` rides carrier `carrier_idx`. Three gates (plus filter +
+            // material), all shape-aware so they hold for aabb/circle riders on ANY `up`:
+            //   (1) VERTICAL: the actor's underside (min extent along `up`) rests at/just above the
+            //       carrier's top, within the skin gap -- excludes a body wedged against a side.
+            //   (2) PERPENDICULAR: the actor and carrier STRICTLY overlap across `up` -- excludes an
+            //       aabb touching only a top edge/corner (zero real support; inclusive contact alone
+            //       would carry it).
+            //   (3) CONTACT (shape-aware): nudging the actor down by the gap makes its REAL shape
+            //       intersect the carrier -- excludes a circle merely near a corner (its enclosing
+            //       box overlaps but the circle does not touch), which the box gates cannot see.
+            // FILTER (layers interact) and MATERIAL (carrier solid from above -- a SENSOR/IGNORE or
+            // wrong-side one-way carrier carries nothing) gate first. An exact zero-gap top contact
+            // rides cleanly (no degenerate swept normal). Extents are exact: a circle's is
+            // center·axis ± r, so a non-cardinal `up` is handled (an enclosing box would overestimate).
             [[nodiscard]] bool is_riding(uint32_t actor_idx, uint32_t carrier_idx) const {
                 const auto& a = m_bodies_storage[actor_idx];
                 const auto& c = m_bodies_storage[carrier_idx];
@@ -1360,31 +1361,41 @@ namespace simplex::collide {
                 }
 
                 const vec u = m_cfg.up;
+                const vec perp{u.y(), -u.x()};
                 const float eps = constants::POINT_EPS;
                 const float gap = m_cfg.skin * 2.0f + eps; // touching .. within the move_and_slide skin gap
 
-                // (1) vertical gate: actor underside (min along up) at/within-gap of carrier top.
-                const auto up_lo = [&](const shape_t& s) {
-                    const aabb b = std::visit([](const auto& sh) { return enclose(sh); }, s);
-                    return std::min({b.min.x() * u.x() + b.min.y() * u.y(),
-                                     b.max.x() * u.x() + b.min.y() * u.y(),
-                                     b.min.x() * u.x() + b.max.y() * u.y(),
-                                     b.max.x() * u.x() + b.max.y() * u.y()});
+                // [lo, hi] extent of a shape projected onto `axis` -- exact per shape (a circle is
+                // center·axis ± r; others use their enclosing-box corners).
+                struct span { float lo, hi; };
+                const auto extent = [](const shape_t& s, const vec& axis) -> span {
+                    return std::visit([&](const auto& sh) -> span {
+                        using S = std::decay_t<decltype(sh)>;
+                        if constexpr (std::is_same_v<S, circle>) {
+                            const float c0 = sh.center.x() * axis.x() + sh.center.y() * axis.y();
+                            return span{c0 - sh.radius, c0 + sh.radius};
+                        } else {
+                            const aabb b = enclose(sh);
+                            const float p0 = b.min.x() * axis.x() + b.min.y() * axis.y();
+                            const float p1 = b.max.x() * axis.x() + b.min.y() * axis.y();
+                            const float p2 = b.min.x() * axis.x() + b.max.y() * axis.y();
+                            const float p3 = b.max.x() * axis.x() + b.max.y() * axis.y();
+                            return span{std::min({p0, p1, p2, p3}), std::max({p0, p1, p2, p3})};
+                        }
+                    }, s);
                 };
-                const auto up_hi = [&](const shape_t& s) {
-                    const aabb b = std::visit([](const auto& sh) { return enclose(sh); }, s);
-                    return std::max({b.min.x() * u.x() + b.min.y() * u.y(),
-                                     b.max.x() * u.x() + b.min.y() * u.y(),
-                                     b.min.x() * u.x() + b.max.y() * u.y(),
-                                     b.max.x() * u.x() + b.max.y() * u.y()});
-                };
-                const float actor_under = up_lo(a.shape);
-                const float carrier_top = up_hi(c.shape);
-                if (!(actor_under >= carrier_top - eps && actor_under <= carrier_top + gap)) {
+
+                // (1) vertical: actor underside at/within-gap of carrier top.
+                const span au = extent(a.shape, u), cu = extent(c.shape, u);
+                if (!(au.lo >= cu.hi - eps && au.lo <= cu.hi + gap)) {
                     return false;
                 }
-
-                // (2) shape-aware contact: the actor, nudged down by the gap, really touches the carrier.
+                // (2) perpendicular: strict overlap across up (not a mere edge/corner touch).
+                const span ap = extent(a.shape, perp), cp = extent(c.shape, perp);
+                if (!(ap.hi > cp.lo + eps && ap.lo < cp.hi - eps)) {
+                    return false;
+                }
+                // (3) shape-aware contact: the actor, nudged down by the gap, really touches the carrier.
                 const vec down{-u.x() * gap, -u.y() * gap};
                 const shape_t nudged = std::visit([&](const auto& s) {
                     return shape_t{collide::translate(s, down)};
