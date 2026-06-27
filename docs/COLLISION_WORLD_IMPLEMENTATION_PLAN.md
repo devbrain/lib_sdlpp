@@ -905,6 +905,7 @@ void step(world& w, float dt) {
         case event_kind::BULLET_EXPIRED: despawn(ev.mover); break;
         case event_kind::TRIGGER_BEGIN:  on_enter(ev.mover, ev.target); break;
         case event_kind::TRIGGER_END:    on_exit (ev.mover, ev.target); break;
+        case event_kind::CRUSH:          crush(ev.mover); break; // pinned by a carrier (ev.target)
     }
 
     // 4. READ BACK -- resolved shape + POST-slide velocity (friction/restitution applied, the

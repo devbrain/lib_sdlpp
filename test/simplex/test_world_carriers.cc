@@ -10,6 +10,7 @@
 #include <doctest/doctest.h>
 
 #include <variant>
+#include <vector>
 
 #include <simplex/collide/dynamic/world.hh>
 
@@ -32,6 +33,12 @@ namespace {
     collider_id add_rider(world& w, entity_id_t eid, float x, float top) {
         return w.add(eid, kinematic_body{
                          moving_shape_t{aabb{vec{x, top + 0.01f}, vec{x + 1.0f, top + 1.01f}}}, {}, {}, vec{0, 0}});
+    }
+
+    int crush_count(const std::vector<world_event>& evs) {
+        int n = 0;
+        for (const auto& e : evs) if (e.kind == event_kind::CRUSH) ++n;
+        return n;
     }
 
     constexpr float DT = 1.0f / 60.0f;
@@ -58,8 +65,9 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         const collider_id rider = w.add(2, kinematic_body{
                                             moving_shape_t{aabb{vec{12, 10.0f}, vec{13, 11.0f}}}, {}, {}, vec{0, 0}});
         const float rx0 = box_of(w, rider).min.x();
-        (void)w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+        const auto& evs = w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
         CHECK(box_of(w, rider).min.x() == doctest::Approx(rx0 + 1.0f).epsilon(0.05));
+        CHECK(crush_count(evs) == 0); // a flush (zero-gap) rider rides; mere contact is NOT a crush
     }
 
     TEST_CASE("a vertical elevator carries its rider up") {
@@ -326,12 +334,6 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
     }
 
     // --- MP3: crushing (a pinned actor that can't move clear -> CRUSH event) ---
-
-    static int crush_count(const std::vector<world_event>& evs) {
-        int n = 0;
-        for (const auto& e : evs) if (e.kind == event_kind::CRUSH) ++n;
-        return n;
-    }
 
     TEST_CASE("a pushed actor pinned against a wall is crushed (CRUSH names actor + carrier)") {
         world w = carrier_world();

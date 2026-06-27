@@ -1531,10 +1531,15 @@ namespace simplex::collide {
             // clean carry/push leaves mean an un-pinned actor does not overlap, so this only fires on a
             // genuine pin. `crush_dir` is the (un-normalized) direction the actor was being moved.
             void emit_crush_if_pinned(uint32_t actor_idx, uint32_t carrier_idx, const vec& crush_dir) {
+                // STRICT penetration (overlap -> a positive depth), not inclusive intersects: a clean
+                // carry/push leaves the actor at best TOUCHING the carrier (a zero-gap rider rides flush
+                // on the top), which must NOT read as a crush. Actors and carriers are always movers
+                // (aabb|circle), so narrow both -> overlap()'s aabb/circle overloads cover every combo.
+                const moving_shape_t a = detail::narrow(m_bodies_storage[actor_idx].shape);
+                const moving_shape_t c = detail::narrow(m_bodies_storage[carrier_idx].shape);
                 const bool pinned = std::visit([&](const auto& as) {
-                    return std::visit([&](const auto& cs) { return collide::intersects(as, cs); },
-                                      m_bodies_storage[carrier_idx].shape);
-                }, m_bodies_storage[actor_idx].shape);
+                    return std::visit([&](const auto& cs) { return collide::overlap(as, cs).has_value(); }, c);
+                }, a);
                 if (!pinned) {
                     return;
                 }
