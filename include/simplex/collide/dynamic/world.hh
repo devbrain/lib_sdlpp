@@ -539,9 +539,12 @@ namespace simplex::collide {
                 // within that cell -- otherwise queries through the overhang would silently miss it.
                 ENFORCE(detail::contains(m_static_grid->cell_box_at(cell), bound))
                         ("tile shape must fit within a single grid cell");
+                // Mergeable (static) geometry is baked once on the first run(); it cannot be added
+                // afterwards (the bake is destructive and not re-run). Non-mergeable tiles are free.
+                ENFORCE(!(body.mergeable && m_compiled))
+                        ("mergeable tiles must be added before the first run() (static geometry is baked once)");
                 m_static_grid->set(centre,
                                    detail::tile{body.shape, body.material, body.filter, eid, body.mergeable});
-                m_grid_dirty = true; // a tile changed -> (re)compile merged runs on the next run()
                 // Stamp the post-set generation: a later overwrite/clear of this cell bumps it,
                 // so this handle then reads as invalid instead of silently aliasing the new tile.
                 const collider_id id{cell, m_static_grid->cell_generation(cell), collider_id::TILE};
@@ -565,7 +568,6 @@ namespace simplex::collide {
                     m_bullets_storage.deallocate(cid.value);
                 } else { // TILE
                     m_static_grid->clear_at(cid.value);
-                    m_grid_dirty = true;
                 }
             }
 
@@ -585,7 +587,7 @@ namespace simplex::collide {
                 m_triggers_curr.clear();
                 m_triggers_prev.clear();
                 m_sensor_tiles.clear();
-                m_grid_dirty = false;
+                m_compiled = false; // a fresh level may bake again
             }
 
             // resize/teleport. Takes the wide shape_t; a moving body cannot become a segment,
@@ -612,7 +614,6 @@ namespace simplex::collide {
                     ENFORCE(detail::contains(m_static_grid->cell_box_at(cid.value), nb))
                             ("set_shape: a tile's new shape must fit within its cell");
                     m_static_grid->at(cid.value)->shape = shape;
-                    m_grid_dirty = true;
                 }
             }
 
@@ -700,8 +701,8 @@ namespace simplex::collide {
             [[nodiscard]] const std::vector <world_event>& run(const aabb& active_region, float dt) {
                 m_events.clear();
 
-                // Boundary-compile opted-in tiles into merged residents (lazy, on the first run after
-                // a tile change) before anything queries -- so the seamless geometry is in place.
+                // One-shot boundary-bake of opted-in tiles into merged residents, on the first run()
+                // (before anything queries), so the seamless geometry is in place.
                 compile_static_grid();
 
                 // Carrier pass (actors-and-solids): each carrier moves RIGIDLY on its scripted path
@@ -1433,14 +1434,16 @@ namespace simplex::collide {
 
             // Boundary-compile the static grid (§19 #4): merge adjacent opted-in solid tiles into
             // bigger AABB residents so a flat/run of tiles has no internal seams to snag fast movers.
-            // Runs lazily when a tile changed (dirty), driving the grid's generic compile_runs with
-            // the world's "mergeable group" rule and installing each merged region as a STATIC body.
-            // Merged tiles leave the grid; their TILE handles go invalid (mergeable opted into that).
+            // ONE-SHOT: runs once, lazily, on the first run(); add all mergeable (static) tiles before
+            // that. The compile is destructive (it clears the source cells and installs untracked
+            // residents), so it is not re-run -- add(tile_body) rejects a mergeable tile afterwards,
+            // and clear() resets the bake for a level reload. Non-mergeable tiles stay editable.
+            // Drives the grid's generic compile_runs with the world's "mergeable group" rule.
             void compile_static_grid() {
-                if (!m_static_grid || !m_grid_dirty) {
+                if (!m_static_grid || m_compiled) {
                     return;
                 }
-                m_grid_dirty = false;
+                m_compiled = true;
 
                 // A cell is mergeable iff it opted in and is a solid BLOCK aabb that fills its cell;
                 // two such cells share a group iff they have the same material + filter.
@@ -1640,7 +1643,7 @@ namespace simplex::collide {
 
             tree m_space_partition;
             std::optional <grid <detail::tile>> m_static_grid; // statics (tiles); unset = none
-            bool m_grid_dirty = false; // a tile changed -> recompile merged runs on the next run()
+            bool m_compiled = false; // the one-shot tile boundary-bake has run (reset by clear())
 
             std::vector <world_event> m_events;          // reused per-frame event buffer
             std::vector <uint32_t> m_rider_scratch;      // reused per-carrier rider list (carrier pass)

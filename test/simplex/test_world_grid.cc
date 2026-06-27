@@ -495,6 +495,16 @@ TEST_SUITE("world+grid: tile boundary compilation (§19 #4)") {
         CHECK(w.raycast(segment{vec{15, 8}, vec{15, -1}}).has_value());
     }
 
+    TEST_CASE("the bake is one-shot: mergeable tiles are rejected after the first run; clear() re-enables it") {
+        world w = grid_world();
+        w.add(1, tile_body{shape_t{aabb{vec{0, 0}, vec{2, 2}}}, {}, {}, true});
+        (void)w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f); // bake
+        CHECK_THROWS(w.add(2, tile_body{shape_t{aabb{vec{2, 0}, vec{4, 2}}}, {}, {}, true})); // post-bake mergeable
+        CHECK_NOTHROW(w.add(3, tile_body{shape_t{aabb{vec{8, 8}, vec{10, 10}}}, {}, {}, false})); // non-mergeable ok
+        w.clear();
+        CHECK_NOTHROW(w.add(4, tile_body{shape_t{aabb{vec{0, 0}, vec{2, 2}}}, {}, {}, true})); // bake reset
+    }
+
     TEST_CASE("non-mergeable tiles and slopes are left in the grid (keep their TILE handles)") {
         world w = grid_world();
         const collider_id plain = w.add(1, tile_body{shape_t{aabb{vec{0, 0}, vec{2, 2}}}, {}, {}, false});

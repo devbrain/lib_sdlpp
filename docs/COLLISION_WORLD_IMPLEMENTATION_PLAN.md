@@ -796,8 +796,11 @@ and `cast` return only the NEAREST hit; see "Cross-cutting" below.
    the ledge falls — which is also exactly **Sonic's twin floor sensors (A/B)**. Same small
    raycast-helper family as #2 (ground-snap) and #3 (step-up); no new physics primitive.
 5. **Tile-seam snagging → merged-run boundary compile. [DONE]** A flat run of per-cell aabb
-   tiles has shared INTERNAL vertical edges a fast mover can catch on. Fixed by a lazy build
-   step: on the first `run()` after a tile change, opted-in (`tile_body.mergeable`) cell-filling
+   tiles has shared INTERNAL vertical edges a fast mover can catch on. Fixed by a **one-shot**
+   build step on the first `run()` (the bake is destructive -- it clears the source cells and
+   installs untracked residents -- so it is not re-run; add all mergeable static tiles *before*
+   the first run, `add(tile_body{mergeable})` is rejected afterwards, and `clear()` resets the bake
+   for a level reload). Opted-in (`tile_body.mergeable`) cell-filling
    solid `BLOCK` aabb tiles with matching material+filter are greedily merged into maximal-
    rectangle **AABB residents** (in the BVH) and removed from the grid, so the floor is a few big
    boxes with no internal seams. The grid hosts a generic, semantics-free `compile_runs(same_group,
