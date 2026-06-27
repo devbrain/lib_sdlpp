@@ -505,6 +505,16 @@ TEST_SUITE("world+grid: tile boundary compilation (§19 #4)") {
         CHECK_NOTHROW(w.add(4, tile_body{shape_t{aabb{vec{0, 0}, vec{2, 2}}}, {}, {}, true})); // bake reset
     }
 
+    TEST_CASE("a mergeable tile that survived the bake (slope) cannot be reshaped into static AABB geometry") {
+        world w = grid_world();
+        // mergeable=true but a segment -> not an aabb -> survives the bake in the grid
+        const collider_id slope = w.add(1, tile_body{shape_t{segment{vec{4, 4}, vec{6, 6}}}, {}, {}, true});
+        (void)w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f);
+        REQUIRE(w.is_valid(slope));
+        // reshaping it post-bake (into anything) is rejected -- it would smuggle un-baked static geometry
+        CHECK_THROWS(w.set_shape(slope, shape_t{aabb{vec{4, 4}, vec{6, 6}}}));
+    }
+
     TEST_CASE("non-mergeable tiles and slopes are left in the grid (keep their TILE handles)") {
         world w = grid_world();
         const collider_id plain = w.add(1, tile_body{shape_t{aabb{vec{0, 0}, vec{2, 2}}}, {}, {}, false});

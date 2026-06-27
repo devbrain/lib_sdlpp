@@ -613,6 +613,11 @@ namespace simplex::collide {
                     const aabb nb = std::visit([](const auto& s) { return enclose(s); }, shape);
                     ENFORCE(detail::contains(m_static_grid->cell_box_at(cid.value), nb))
                             ("set_shape: a tile's new shape must fit within its cell");
+                    // A mergeable tile is frozen after the one-shot bake -- otherwise a mergeable
+                    // tile that survived the bake (e.g. a slope, not an aabb) could be reshaped into a
+                    // cell-filling BLOCK aabb and smuggle un-baked static geometry past add()'s guard.
+                    ENFORCE(!(m_compiled && m_static_grid->at(cid.value)->mergeable))
+                            ("a mergeable tile cannot be reshaped after the first run() (static geometry is baked once)");
                     m_static_grid->at(cid.value)->shape = shape;
                 }
             }
