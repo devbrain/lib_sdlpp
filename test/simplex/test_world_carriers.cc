@@ -325,6 +325,52 @@ TEST_SUITE("world: carriers (moving platforms / conveyors)") {
         CHECK(box_of(w, act).min.x() == doctest::Approx(ax0)); // belt drags top riders only, never pushes
     }
 
+    // --- MP3: crushing (a pinned actor that can't move clear -> CRUSH event) ---
+
+    static int crush_count(const std::vector<world_event>& evs) {
+        int n = 0;
+        for (const auto& e : evs) if (e.kind == event_kind::CRUSH) ++n;
+        return n;
+    }
+
+    TEST_CASE("a pushed actor pinned against a wall is crushed (CRUSH names actor + carrier)") {
+        world w = carrier_world();
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{120, 0}, vec{0, 0}});
+        w.add(3, static_body{shape_t{aabb{vec{17, 8}, vec{18, 10}}}, {}, {}}); // wall close on the right
+        w.add(2, kinematic_body{moving_shape_t{aabb{vec{16.5f, 8}, vec{17.0f, 10}}}, {}, {}, vec{0, 0}});
+        const auto& evs = w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+        CHECK(crush_count(evs) >= 1);
+        bool named = false;
+        for (const auto& e : evs)
+            if (e.kind == event_kind::CRUSH)
+                named = (w.get_eid(e.mover) == 2u && w.get_eid(e.target) == 1u);
+        CHECK(named); // mover = the pinned actor, target = the carrier
+    }
+
+    TEST_CASE("an elevator carrying a rider into a ceiling crushes it") {
+        world w = carrier_world();
+        w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{0, 120}, vec{0, 0}}); // up
+        w.add(3, static_body{shape_t{aabb{vec{10, 11.2f}, vec{16, 12}}}, {}, {}}); // ceiling just above
+        w.add(2, kinematic_body{moving_shape_t{aabb{vec{12, 10.01f}, vec{13, 11.01f}}}, {}, {}, vec{0, 0}}); // rider
+        const auto& evs = w.run(aabb{vec{0, 0}, vec{64, 64}}, DT);
+        CHECK(crush_count(evs) >= 1); // carried up, blocked by the ceiling, carrier rises into it
+    }
+
+    TEST_CASE("a clean push or carry (room to move) does not crush") {
+        SUBCASE("clean push") {
+            world w = carrier_world();
+            w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{60, 0}, vec{0, 0}});
+            w.add(2, kinematic_body{moving_shape_t{aabb{vec{16.5f, 8}, vec{17.5f, 10}}}, {}, {}, vec{0, 0}});
+            CHECK(crush_count(w.run(aabb{vec{0, 0}, vec{64, 64}}, DT)) == 0);
+        }
+        SUBCASE("clean carry") {
+            world w = carrier_world();
+            w.add(1, carrier_body{moving_shape_t{aabb{vec{10, 8}, vec{16, 10}}}, {}, {}, vec{60, 0}, vec{0, 0}});
+            w.add(2, kinematic_body{moving_shape_t{aabb{vec{12, 10.01f}, vec{13, 11.01f}}}, {}, {}, vec{0, 0}});
+            CHECK(crush_count(w.run(aabb{vec{0, 0}, vec{64, 64}}, DT)) == 0);
+        }
+    }
+
     TEST_CASE("set_velocity / set_surface_velocity work on a carrier") {
         world w = carrier_world();
         const collider_id belt = w.add(1, carrier_body{

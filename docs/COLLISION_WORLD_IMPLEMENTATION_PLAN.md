@@ -766,9 +766,15 @@ and `cast` return only the NEAREST hit; see "Cross-cutting" below.
      catches a thin actor anywhere in the band. Candidates are collected then pushed (pushing mutates
      the tree, so it can't run during the query). *Tested:* push-forward, move-away no-push,
      stop-at-wall, conveyor-no-push, fast-carrier-vs-thin-actor (no tunnel), side-toucher excluded.
-   - **MP3 (crushing) — pending:** an actor pinned between a carrier and other solid geometry →
-     a `CRUSH` event. (Today a carried/pushed actor that can't move simply stops with a residual
-     overlap.)
+   - **MP3 (crushing) — DONE:** after a carry or push, if the actor still overlaps the carrier (it
+     couldn't move clear -- pinned against other solid geometry) the world emits an
+     `event_kind::CRUSH` (`mover` = the actor, `target` = the carrier, normal = the crush direction).
+     The skin gaps a clean carry/push leaves mean an un-pinned actor doesn't overlap, so it only
+     fires on a genuine pin. *Tested:* pushed-into-wall crush, elevator-into-ceiling crush, and no
+     crush on a clean carry/push.
+
+   **§19 #1 (moving platforms) is complete: carry + conveyor (MP1), push (MP2, anti-tunnel +
+   material/face-aware), and crush (MP3).**
 2. **Ground snapping ("stick to the floor" on slopes/stairs).** Walking down a slope/stairs
    should not go airborne each step (and Sonic must hug the ground at speed). Composable
    today (probe down with `raycast`, re-snap after the move using the contact normal +

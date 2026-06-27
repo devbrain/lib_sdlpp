@@ -383,7 +383,8 @@ namespace simplex::collide {
         BULLET_HIT,
         BULLET_EXPIRED, // a bullet left the world bounds; the game should despawn it
         TRIGGER_BEGIN,
-        TRIGGER_END
+        TRIGGER_END,
+        CRUSH // a carrier pinned an actor against other solid geometry (the actor couldn't move clear)
     };
 
     struct world_event {
@@ -720,6 +721,7 @@ namespace simplex::collide {
                     move_carrier_rigid(carrier_idx, body_delta);
                     for (const uint32_t r : m_rider_scratch) {
                         carry_translate(r, carrier_idx, rider_delta);
+                        emit_crush_if_pinned(r, carrier_idx, rider_delta); // MP3: carried into a wall
                     }
 
                     // MP2 -- pushing: a carrier that MOVED (body_delta != 0) shoves any non-rider
@@ -795,7 +797,9 @@ namespace simplex::collide {
                         for (const uint32_t aidx : m_push_scratch) {
                             const aabb abox = std::visit([](const auto& s) { return enclose(s); },
                                                          m_bodies_storage[aidx].shape);
-                            carry_translate(aidx, carrier_idx, clear_push(abox, fbox, body_delta));
+                            const vec push = clear_push(abox, fbox, body_delta);
+                            carry_translate(aidx, carrier_idx, push);
+                            emit_crush_if_pinned(aidx, carrier_idx, push); // MP3: pushed into a wall
                         }
                     }
                 }
@@ -1520,6 +1524,29 @@ namespace simplex::collide {
                 }
                 translate(a, vec{d.x() * frac, d.y() * frac});
                 refit_proxy(a);
+            }
+
+            // MP3 -- crush: after a carry/push, if the actor still overlaps the carrier (it could not
+            // move clear -- pinned against other solid geometry), emit a CRUSH event. The skin gaps a
+            // clean carry/push leaves mean an un-pinned actor does not overlap, so this only fires on a
+            // genuine pin. `crush_dir` is the (un-normalized) direction the actor was being moved.
+            void emit_crush_if_pinned(uint32_t actor_idx, uint32_t carrier_idx, const vec& crush_dir) {
+                const bool pinned = std::visit([&](const auto& as) {
+                    return std::visit([&](const auto& cs) { return collide::intersects(as, cs); },
+                                      m_bodies_storage[carrier_idx].shape);
+                }, m_bodies_storage[actor_idx].shape);
+                if (!pinned) {
+                    return;
+                }
+                const float len = euler::length(crush_dir);
+                const vec n = len > constants::POINT_EPS
+                                  ? vec{crush_dir.x() / len, crush_dir.y() / len}
+                                  : vec{0, 0};
+                m_events.emplace_back(
+                    event_kind::CRUSH,
+                    collider_id{actor_idx, m_bodies_storage.generation(actor_idx), collider_id::BODY},
+                    collider_id{carrier_idx, m_bodies_storage.generation(carrier_idx), collider_id::BODY},
+                    n, 0.0f);
             }
 
             // Displacement that shoves actor box `a` clear of carrier box `c` ALONG the carrier's
