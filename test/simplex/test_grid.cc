@@ -626,3 +626,33 @@ TEST_SUITE("grid: from_tile_size factory") {
         CHECK(g.get(vec{1, 1}) == nullptr); // outside
     }
 }
+
+TEST_SUITE("grid: compile_runs (boundary merge)") {
+    TEST_CASE("merges maximal rectangles of same-group occupied cells and clears them") {
+        grid<int> g = grid<int>::from_tile_size(vec{0, 0}, vec{2, 2}, 4, 4); // 4x4 cells of 2x2
+        g.set(vec{1, 1}, 5); g.set(vec{3, 1}, 5); g.set(vec{5, 1}, 5);        // 3-wide run of 5 (row 0)
+        g.set(vec{1, 5}, 7); g.set(vec{3, 5}, 7); g.set(vec{1, 7}, 7); g.set(vec{3, 7}, 7); // 2x2 of 7
+        g.set(vec{7, 7}, 9);                                                   // isolated 9
+        g.set(vec{7, 1}, 0);                                                   // group 0 -> never merged
+
+        const auto same = [](const int& a, const int& b, const aabb&) { return b != 0 && a == b; };
+        std::vector<std::pair<aabb, int>> runs;
+        g.compile_runs(same, [&](const aabb& r, const int& s) { runs.push_back({r, s}); });
+
+        int n5 = 0, n7 = 0, n9 = 0;
+        for (const auto& [r, s] : runs) { n5 += s == 5; n7 += s == 7; n9 += s == 9; }
+        CHECK(runs.size() == 3u);
+        CHECK((n5 == 1 && n7 == 1 && n9 == 1));
+        for (const auto& [r, s] : runs) {
+            if (s == 5) { CHECK(r.min.x() == 0.0f); CHECK(r.max.x() == 6.0f); CHECK(r.max.y() == 2.0f); }
+            if (s == 7) { CHECK(r.max.x() == 4.0f); CHECK(r.min.y() == 4.0f); CHECK(r.max.y() == 8.0f); }
+        }
+        // merged cells are cleared; the un-grouped cell is kept
+        CHECK(g.get(vec{1, 1}) == nullptr);
+        CHECK(g.get(vec{1, 5}) == nullptr);
+        CHECK(g.get(vec{7, 7}) == nullptr);
+        const int* kept = g.get(vec{7, 1});
+        REQUIRE(kept != nullptr);
+        CHECK(*kept == 0);
+    }
+}

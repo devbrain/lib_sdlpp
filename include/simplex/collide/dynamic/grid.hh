@@ -256,6 +256,78 @@ namespace simplex::collide {
                 return cell_box(detail::grid_coord{cell % w, cell / w});
             }
 
+            // Generic boundary-compile post-process (pure spatial, semantics-free): greedily merge
+            // maximal RECTANGLES of occupied cells that the caller deems one group, emit each merged
+            // region as a world-space aabb (the union of its cell boxes) with a sample payload, and
+            // CLEAR those cells from the grid. Cells the caller never groups are left in place.
+            //
+            //   same_group(const T& seed, const T& cell, const aabb& cell_box) -> bool
+            //       true iff `cell` is mergeable AND belongs to `seed`'s group. A cell is a rectangle
+            //       seed iff same_group(cell, cell, cell_box) holds. The owner encodes ALL semantics
+            //       here (e.g. "a solid block tile filling its cell, same material/filter, opted-in").
+            //   on_run(const aabb& region, const T& sample) -> void   per merged rectangle.
+            //
+            // The owner turns each region into its own collider (e.g. a merged BVH resident), so the
+            // grid keeps only the un-merged remainder -- removing the internal tile seams that cause
+            // ghost-vertex snagging on long flat/sloped runs.
+            template<class SameGroup, class OnRun>
+            void compile_runs(SameGroup&& same_group, OnRun&& on_run) {
+                const uint32_t w = m_grid.get_width();
+                const uint32_t h = m_grid.get_height();
+                std::vector <char> consumed(static_cast <std::size_t>(w) * h, 0);
+                const auto idx = [w](uint32_t x, uint32_t y) { return y * w + x; };
+                const auto box = [this](uint32_t x, uint32_t y) {
+                    return cell_box(detail::grid_coord{x, y});
+                };
+                // payload at (x,y) iff occupied, not yet consumed, and same group as `seed` (or, when
+                // seed == nullptr, mergeable on its own -> a valid rectangle seed). Returns nullptr otherwise.
+                const auto match = [&](uint32_t x, uint32_t y, const T* seed) -> const T* {
+                    const uint32_t c = idx(x, y);
+                    if (consumed[c]) {
+                        return nullptr;
+                    }
+                    const T* p = m_grid.get_linear(c);
+                    if (!p) {
+                        return nullptr;
+                    }
+                    return same_group(seed ? *seed : *p, *p, box(x, y)) ? p : nullptr;
+                };
+
+                for (uint32_t y = 0; y < h; ++y) {
+                    for (uint32_t x = 0; x < w; ++x) {
+                        const T* seed = match(x, y, nullptr);
+                        if (!seed) {
+                            continue;
+                        }
+                        const T sample = *seed; // copy before any clear invalidates the pointer
+                        uint32_t x2 = x;
+                        while (x2 + 1 < w && match(x2 + 1, y, &sample)) {
+                            ++x2;
+                        }
+                        const auto row_ok = [&](uint32_t ry) {
+                            for (uint32_t cx = x; cx <= x2; ++cx) {
+                                if (!match(cx, ry, &sample)) {
+                                    return false;
+                                }
+                            }
+                            return true;
+                        };
+                        uint32_t y2 = y;
+                        while (y2 + 1 < h && row_ok(y2 + 1)) {
+                            ++y2;
+                        }
+                        const aabb region = aabb::combine(box(x, y), box(x2, y2));
+                        for (uint32_t ry = y; ry <= y2; ++ry) {
+                            for (uint32_t cx = x; cx <= x2; ++cx) {
+                                consumed[idx(cx, ry)] = 1;
+                                m_grid.clear_linear(idx(cx, ry));
+                            }
+                        }
+                        on_run(region, sample);
+                    }
+                }
+            }
+
             template<typename Fn>
             void query(const aabb& region, Fn&& callback) const {
                 if (!intersects(region, m_physical_bounds)) {

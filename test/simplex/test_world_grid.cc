@@ -473,3 +473,52 @@ TEST_SUITE("world+grid: triangle (solid slope) tiles") {
         CHECK(blocked_from(vec{7.0f, 7.0f}, vec{7.5f, 7.5f}, vec{-6, -6})); // from the upper-right (hypotenuse)
     }
 }
+
+TEST_SUITE("world+grid: tile boundary compilation (§19 #4)") {
+    TEST_CASE("mergeable solid tiles compile to merged residents on the first run; floor stays solid") {
+        world w = grid_world(); // 8x8 cells of 2x2 over [0,16]^2
+        material_props m; m.response = response_mode::BLOCK; m.block_normal = vec{0, 1};
+        std::vector<collider_id> tiles;
+        for (uint32_t cx = 0; cx < 8; ++cx) {
+            const float x0 = cx * 2.0f;
+            tiles.push_back(w.add(100 + cx, tile_body{shape_t{aabb{vec{x0, 0}, vec{x0 + 2, 2}}}, m, {}, true}));
+        }
+        for (const auto t : tiles) CHECK(w.is_valid(t)); // valid as TILEs before compile
+
+        (void)w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f); // first run compiles
+
+        for (const auto t : tiles) CHECK_FALSE(w.is_valid(t)); // merged away (handles invalidated)
+        // the floor still collides, now as merged BODY geometry, across the whole row
+        const auto a = w.raycast(segment{vec{5, 8}, vec{5, -1}});
+        REQUIRE(a.has_value());
+        CHECK(a->who.type_id == collider_id::BODY);
+        CHECK(w.raycast(segment{vec{15, 8}, vec{15, -1}}).has_value());
+    }
+
+    TEST_CASE("non-mergeable tiles and slopes are left in the grid (keep their TILE handles)") {
+        world w = grid_world();
+        const collider_id plain = w.add(1, tile_body{shape_t{aabb{vec{0, 0}, vec{2, 2}}}, {}, {}, false});
+        const collider_id slope = w.add(2, tile_body{shape_t{segment{vec{4, 4}, vec{6, 6}}}, {}, {}, true}); // mergeable but not an aabb
+        (void)w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f);
+        CHECK(w.is_valid(plain));
+        CHECK(plain.type_id == collider_id::TILE);
+        CHECK(w.is_valid(slope)); // a segment can't merge into an aabb -> kept
+        CHECK(slope.type_id == collider_id::TILE);
+    }
+
+    TEST_CASE("a destructible (non-mergeable) tile still reports per-tile hits after compilation") {
+        world w = grid_world();
+        material_props block; block.response = response_mode::BLOCK;
+        // a seamless floor (mergeable) plus one addressable brick (not mergeable) sitting on it
+        for (uint32_t cx = 0; cx < 4; ++cx)
+            w.add(10 + cx, tile_body{shape_t{aabb{vec{cx * 2.0f, 0}, vec{cx * 2.0f + 2, 2}}}, block, {}, true});
+        const collider_id brick = w.add(99, tile_body{shape_t{aabb{vec{4, 2}, vec{6, 4}}}, block, {}, false});
+        (void)w.run(aabb{vec{0, 0}, vec{16, 16}}, 1.0f / 60.0f);
+        // the brick is still a live TILE and a ray into it reports its eid
+        REQUIRE(w.is_valid(brick));
+        const auto hit = w.raycast(segment{vec{0, 3}, vec{16, 3}}); // at y=3, through the brick row
+        REQUIRE(hit.has_value());
+        CHECK(hit->who.type_id == collider_id::TILE);
+        CHECK(w.get_eid(hit->who) == 99u);
+    }
+}

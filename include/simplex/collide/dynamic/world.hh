@@ -99,6 +99,12 @@ namespace simplex::collide {
         shape_t shape;
         material_props material;
         filter_props filter;
+        // Opt a plain static solid tile into boundary-compilation: on the first run() the world
+        // merges adjacent mergeable cell-filling BLOCK aabb tiles (same material+filter) into bigger
+        // AABB residents, removing the internal tile seams that snag fast movers. Merged tiles lose
+        // their per-cell TILE handle (it goes invalid), so leave this false for tiles you address
+        // individually (destructibles, sensors, slopes -- which also can't merge anyway).
+        bool mergeable = false;
     };
 
     namespace detail {
@@ -109,6 +115,7 @@ namespace simplex::collide {
             material_props material;
             filter_props filter;
             entity_id_t eid{};
+            bool mergeable{false}; // opted into boundary-compilation (§19 #4)
         };
     }
 
@@ -532,7 +539,9 @@ namespace simplex::collide {
                 // within that cell -- otherwise queries through the overhang would silently miss it.
                 ENFORCE(detail::contains(m_static_grid->cell_box_at(cell), bound))
                         ("tile shape must fit within a single grid cell");
-                m_static_grid->set(centre, detail::tile{body.shape, body.material, body.filter, eid});
+                m_static_grid->set(centre,
+                                   detail::tile{body.shape, body.material, body.filter, eid, body.mergeable});
+                m_grid_dirty = true; // a tile changed -> (re)compile merged runs on the next run()
                 // Stamp the post-set generation: a later overwrite/clear of this cell bumps it,
                 // so this handle then reads as invalid instead of silently aliasing the new tile.
                 const collider_id id{cell, m_static_grid->cell_generation(cell), collider_id::TILE};
@@ -556,6 +565,7 @@ namespace simplex::collide {
                     m_bullets_storage.deallocate(cid.value);
                 } else { // TILE
                     m_static_grid->clear_at(cid.value);
+                    m_grid_dirty = true;
                 }
             }
 
@@ -575,6 +585,7 @@ namespace simplex::collide {
                 m_triggers_curr.clear();
                 m_triggers_prev.clear();
                 m_sensor_tiles.clear();
+                m_grid_dirty = false;
             }
 
             // resize/teleport. Takes the wide shape_t; a moving body cannot become a segment,
@@ -601,6 +612,7 @@ namespace simplex::collide {
                     ENFORCE(detail::contains(m_static_grid->cell_box_at(cid.value), nb))
                             ("set_shape: a tile's new shape must fit within its cell");
                     m_static_grid->at(cid.value)->shape = shape;
+                    m_grid_dirty = true;
                 }
             }
 
@@ -687,6 +699,10 @@ namespace simplex::collide {
 
             [[nodiscard]] const std::vector <world_event>& run(const aabb& active_region, float dt) {
                 m_events.clear();
+
+                // Boundary-compile opted-in tiles into merged residents (lazy, on the first run after
+                // a tile change) before anything queries -- so the seamless geometry is in place.
+                compile_static_grid();
 
                 // Carrier pass (actors-and-solids): each carrier moves RIGIDLY on its scripted path
                 // and transports the actors riding it. Runs BEFORE the actor movement pass, so actors
@@ -1415,6 +1431,54 @@ namespace simplex::collide {
                 body.shape = new_shape;
             }
 
+            // Boundary-compile the static grid (§19 #4): merge adjacent opted-in solid tiles into
+            // bigger AABB residents so a flat/run of tiles has no internal seams to snag fast movers.
+            // Runs lazily when a tile changed (dirty), driving the grid's generic compile_runs with
+            // the world's "mergeable group" rule and installing each merged region as a STATIC body.
+            // Merged tiles leave the grid; their TILE handles go invalid (mergeable opted into that).
+            void compile_static_grid() {
+                if (!m_static_grid || !m_grid_dirty) {
+                    return;
+                }
+                m_grid_dirty = false;
+
+                // A cell is mergeable iff it opted in and is a solid BLOCK aabb that fills its cell;
+                // two such cells share a group iff they have the same material + filter.
+                const auto same_group = [](const detail::tile& seed, const detail::tile& cell, const aabb& cb) {
+                    if (!cell.mergeable || cell.material.response != response_mode::BLOCK
+                        || !std::holds_alternative<aabb>(cell.shape)) {
+                        return false;
+                    }
+                    const aabb cs = std::get<aabb>(cell.shape);
+                    const float e = constants::POINT_EPS;
+                    const bool fills = std::abs(cs.min.x() - cb.min.x()) < e && std::abs(cs.min.y() - cb.min.y()) < e
+                                       && std::abs(cs.max.x() - cb.max.x()) < e && std::abs(cs.max.y() - cb.max.y()) < e;
+                    if (!fills) {
+                        return false;
+                    }
+                    const material_props& a = seed.material;
+                    const material_props& b = cell.material;
+                    const bool same_mat = a.restitution == b.restitution && a.friction == b.friction
+                                          && a.response == b.response
+                                          && a.block_normal.x() == b.block_normal.x()
+                                          && a.block_normal.y() == b.block_normal.y();
+                    const bool same_filter = seed.filter.category == cell.filter.category
+                                             && seed.filter.mask == cell.filter.mask;
+                    return same_mat && same_filter;
+                };
+                m_static_grid->compile_runs(same_group, [this](const aabb& region, const detail::tile& sample) {
+                    const uint32_t i = m_bodies_storage.allocate();
+                    auto& stored = m_bodies_storage[i];
+                    stored.shape = shape_t{region};
+                    stored.kind = detail::body_kind::STATIC;
+                    stored.material = sample.material;
+                    stored.filter = sample.filter;
+                    stored.eid = sample.eid;
+                    stored.velocity = vec{0, 0};
+                    stored.proxy = insert_leaf(m_space_partition, i, fatten(stored));
+                });
+            }
+
             // ---- carriers (moving platforms / conveyors / crushers) -----------------------------
 
             // True if actor `actor_idx` rides carrier `carrier_idx`. Three gates (plus filter +
@@ -1576,6 +1640,7 @@ namespace simplex::collide {
 
             tree m_space_partition;
             std::optional <grid <detail::tile>> m_static_grid; // statics (tiles); unset = none
+            bool m_grid_dirty = false; // a tile changed -> recompile merged runs on the next run()
 
             std::vector <world_event> m_events;          // reused per-frame event buffer
             std::vector <uint32_t> m_rider_scratch;      // reused per-carrier rider list (carrier pass)
