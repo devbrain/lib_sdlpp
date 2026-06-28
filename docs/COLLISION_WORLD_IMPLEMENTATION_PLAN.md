@@ -794,18 +794,25 @@ and `cast` return only the NEAREST hit; see "Cross-cutting" below.
    stopping dead. `world::step_up(cid, step, max_step)` is the *upward mirror* of
    `snap_to_ground`: when a horizontal move is blocked it lifts the actor up to `max_step`
    (capped by headroom), re-casts the horizontal `step` from the raised position, and — if the
-   path is now clear AND there is a tread to land on — carries it forward over the lip and
-   settles it onto that tread (the classic up→forward→down move). A riser taller than
-   `max_step`, no headroom to lift, or a *ledge* with no tread beyond the lip leaves the actor
-   untouched (`nullopt`) — the last case undoes the whole move so the actor is never launched
-   out over a drop. `max_step` is the gate that separates a *step* from a wall (mirroring
-   `max_drop`'s step-vs-cliff). Built on the self-excluding swept `cast` + `translate` — no new
-   physics primitive. Relies on the SKIN-SHORT post-solver state (a flush actor reads its own
-   support as a toi-0 hit that masks the obstruction). *Tested:* `test_world_stepup.cc` —
-   climbs a short lip and settles on the tread, riser taller than `max_step` stays a wall, no
-   obstruction → no-op, insufficient headroom (low ceiling) → no step, ledge-with-no-tread →
-   full undo. (Distinct from the tile-seam item below — this is intended geometry, not a seam
-   artifact.)
+   path is now clear AND a WALKABLE tread waits below — carries it forward over the lip and
+   settles it onto that tread (the classic up→forward→down move). The tread is gated by the same
+   `normal·up > GROUND_THRESHOLD` test as `snap_to_ground` — a clear forward path does not prove
+   a standable surface waits below, so a steep/side face is rejected. A riser taller than
+   `max_step`, no headroom to lift, a *ledge* with no tread, or a non-walkable tread leaves the
+   actor untouched (`nullopt`); the ledge/steep cases undo the whole move so the actor is never
+   launched out over a drop or left standing on a wall. `max_step` is the gate that separates a
+   *step* from a wall (mirroring `max_drop`'s step-vs-cliff). **Contract:** step_up performs the
+   *whole* stepped move from the actor's CURRENT position by `step` — it IS the move, not a nudge
+   layered on a completed slide. `step` is the displacement to apply *from where the actor is
+   now* (the full frame delta when used as an alternative to the slide; the *remaining* delta
+   when used after a slide already carried the actor to the lip — never the original frame delta
+   on top of a slide). Built on the self-excluding swept `cast` + `translate` — no new physics
+   primitive. Relies on the SKIN-SHORT post-solver state (a flush actor reads its own support as
+   a toi-0 hit that masks the obstruction). *Tested:* `test_world_stepup.cc` — climbs a short lip
+   and settles on the tread, advances by `step` from the current position (remaining-delta), riser
+   taller than `max_step` stays a wall, no obstruction → no-op, insufficient headroom → no step,
+   non-walkable (steep) tread → undo, ledge-with-no-tread → full undo. (Distinct from the
+   tile-seam item below — this is intended geometry, not a seam artifact.)
 4. **Footing / edge sensors — `ground_support(footprint, max_drop)`.** Detecting that a body
    stands at a ledge (most of its footprint off the edge) drives the **balance/teeter** animation
    (Jazz Jackrabbit, Sonic), **edge-stop** ("don't auto-walk off"), **coyote-time**, and

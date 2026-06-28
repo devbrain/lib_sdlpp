@@ -1340,20 +1340,27 @@ namespace simplex::collide {
             }
 
             // §19 #3 -- step-up / ledge forgiveness. A mover walking into a small lip (a low step
-            // riser, a curb, a tile edge) should ride up over it rather than jam against it. Call
-            // step_up(cid, step, max_step) when a horizontal move was blocked: it lifts the actor up
-            // to `max_step` (capped by headroom), re-casts the horizontal `step` from the raised
-            // position, and -- if the path is now clear AND there is a tread to land on -- carries it
-            // forward over the lip and settles it down onto that tread. A riser taller than
-            // `max_step`, no headroom to lift, or only a ledge beyond the lip leaves the actor
-            // untouched and returns nullopt.
+            // riser, a curb, a tile edge) should ride up over it rather than jam against it.
+            // step_up(cid, step, max_step) lifts the actor up to `max_step` (capped by headroom),
+            // re-casts the horizontal `step` from the raised position, and -- if the path is now
+            // clear AND a WALKABLE tread waits below -- carries it forward over the lip and settles it
+            // down onto that tread. A riser taller than `max_step`, no headroom to lift, a ledge with
+            // no tread, or a non-walkable (steep/side) tread leaves the actor untouched (nullopt).
             //
-            // `step` is the horizontal displacement to carry the actor over the lip (typically the
-            // same velocity*dt used for the move); its component along `up` is ignored. Returns the
-            // tread contact it settled on, or nullopt when nothing was stepped over (path already
-            // clear, a true wall, no headroom, or a ledge with no tread). POLICY is the caller's:
-            // enable it for characters that should climb steps, not for crates/projectiles. Built on
-            // the self-excluding swept cast + translate -- no new physics primitive.
+            // CONTRACT: step_up performs the WHOLE stepped move from the actor's CURRENT position by
+            // `step` -- it IS the move, not a nudge layered on top of one already taken. So `step` is
+            // the horizontal displacement to apply FROM WHERE THE ACTOR IS NOW (its component along
+            // `up` is ignored), and the caller must not also apply that same displacement elsewhere:
+            //   * as an alternative to a normal slide: call from the pre-move position with the full
+            //     frame delta (velocity*dt); on success the horizontal move is DONE for this frame --
+            //     do not also run the ordinary slide.
+            //   * after a slide that hit a lip: pass the REMAINING delta (intended - already-moved),
+            //     NOT the original frame delta, or the actor is advanced twice (move_and_slide has
+            //     already carried it up to the lip).
+            // Returns the tread contact it settled on (normal usable for slope-aligned velocity), or
+            // nullopt when nothing was stepped over. POLICY is the caller's: enable it for characters
+            // that should climb steps, not for crates/projectiles. Built on the self-excluding swept
+            // cast + translate -- no new physics primitive.
             //
             // Call it on a body resting at the SKIN-SHORT gap the solver leaves (the post-run state):
             // a body flush against its support reads every cast as a toi-0 contact (the support masks
@@ -1395,12 +1402,14 @@ namespace simplex::collide {
                 translate(self, horiz); // carry forward over the lip
 
                 // Settle down onto the tread. We climbed `lift`, so we fall at most that far (never
-                // past the original floor); no walkable gate, since we have committed to the step we
-                // just cleared. No tread within reach means we stepped onto a ledge, not a step --
-                // undo the whole move so the actor is not launched out over a drop.
+                // past the original floor). The tread must be WALKABLE (normal faces up past the
+                // ground threshold, exactly as snap_to_ground requires) -- a clear forward path does
+                // NOT prove a standable surface waits below it. A missing tread (a ledge) OR a steep
+                // /side/vertical face means this was not a clean step: undo the whole move so the
+                // actor is never left stranded mid-air or "standing" on a wall.
                 const auto tread = cast(cid.value, collider_id::BODY,
                                         units::displacement{-m_cfg.up * lift}, solid_acceptor());
-                if (!tread) {
+                if (!tread || euler::dot(tread->normal, m_cfg.up) <= GROUND_THRESHOLD) {
                     translate(self, -horiz);
                     translate(self, -m_cfg.up * lift);
                     refit_proxy(self);
