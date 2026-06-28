@@ -27,6 +27,9 @@ namespace simplex::collide {
 
     class world {
         public:
+            // ====================================================================================
+            // Construction & lifecycle: ctor, add/remove/clear, set_* intent, get_* read-back, run().
+            // ====================================================================================
             world() = default;
 
             explicit world(const world_config& cfg)
@@ -295,11 +298,23 @@ namespace simplex::collide {
 
             [[nodiscard]] const std::vector <world_event>& run(const aabb& active_region, float dt) {
                 m_events.clear();
+                compile_static_grid(); // one-shot tile boundary-bake, before anything queries
+                carrier_pass(active_region, dt);  // §19 #1: carry (MP1) + push (MP2) + crush (MP3)
+                movement_pass(active_region, dt); // kinematic move-and-slide -> COLLISION events
+                bullet_pass(active_region, dt);   // bullets -> BULLET_HIT / BULLET_EXPIRED
+                trigger_pass();                   // sensor overlap diff -> TRIGGER_BEGIN / END
+                return m_events;
+            }
 
-                // One-shot boundary-bake of opted-in tiles into merged residents, on the first run()
-                // (before anything queries), so the seamless geometry is in place.
-                compile_static_grid();
+        private:
+            // ====================================================================================
+            // Internals, part 1: run()'s per-phase passes, then the broadphase glue and query core
+            // (fatten / swept_bound / material_of / tile_handle, the fan-out + narrow-phase plumbing,
+            // and overlap_core / cast_core that the public queries below are built on).
+            // ====================================================================================
+            // ---- run() passes (each owns one phase of a step; orchestrated by run() above) -------
 
+            void carrier_pass(const aabb& active_region, float dt) {
                 // Carrier pass (actors-and-solids): each carrier moves RIGIDLY on its scripted path
                 // and transports the actors riding it. Runs BEFORE the actor movement pass, so actors
                 // then see carriers at their resolved positions. A rider inherits
@@ -409,7 +424,9 @@ namespace simplex::collide {
                         }
                     }
                 }
+            }
 
+            void movement_pass(const aabb& active_region, float dt) {
                 // Movement pass: resolve each kinematic mover via move-and-slide against the
                 // solid residents, in fixed slot order (deterministic). Off-region movers are
                 // culled (skipped, so they stay dormant off-screen); statics and zero-velocity
@@ -437,7 +454,9 @@ namespace simplex::collide {
                             res.contacts[i].toi);
                     }
                 }
+            }
 
+            void bullet_pass(const aabb& active_region, float dt) {
                 // Bullet pass: integrate every live bullet, but only pay for the cast when its
                 // swept bound touches the active region (off-region bullets keep flying so they
                 // can re-enter, they just skip the expensive tree query). The game despawns
@@ -470,7 +489,9 @@ namespace simplex::collide {
                             collider_id{}, vec{}, -1.0f);
                     }
                 }
+            }
 
+            void trigger_pass() {
                 // Trigger pass: detect SENSOR overlaps and diff against last frame to emit only
                 // the begin/end EDGES. (response_mode is the classifier: solids were handled by
                 // the movement pass as COLLISION; sensors are reported here -- there is no generic
@@ -535,11 +556,8 @@ namespace simplex::collide {
                     emit_trigger(event_kind::TRIGGER_END, m_triggers_prev[j]);
                 }
                 std::swap(m_triggers_curr, m_triggers_prev); // this frame becomes "previous"
-
-                return m_events;
             }
 
-        private:
             [[nodiscard]] aabb fatten(const detail::resident_body& body) const {
                 auto box = std::visit([](const auto& shape) {
                     return enclose(shape);
@@ -838,6 +856,11 @@ namespace simplex::collide {
             }
 
         public:
+            // ====================================================================================
+            // Public queries & §19 controller helpers: cast / cast_all / raycast / raycast_all /
+            // swept_triggers / dedup_by_entity / line_of_sight / snap_to_ground / step_up /
+            // ground_support. All const except the snap/step helpers, which move the actor.
+            // ====================================================================================
             // Game-facing aiming cast: sweep an arbitrary `mover` shape by `delta` and return the
             // earliest hit passing `filter`, or nullopt -- across BOTH dynamic residents and static
             // tiles (the result's collider_id may be BODY or TILE). The shape is transient (not in
@@ -1180,7 +1203,10 @@ namespace simplex::collide {
             }
 
         private:
-
+            // ====================================================================================
+            // Internals, part 2: the slide solver (move_and_slide), carriers (MP1/2/3 helpers),
+            // trigger bookkeeping, grid boundary-bake, shared constants, and the member state.
+            // ====================================================================================
             struct slide_result {
                 vec velocity; // post-slide velocity (also written back to the body)
                 bool grounded = false;
@@ -1541,7 +1567,7 @@ namespace simplex::collide {
                 return vec{px, py};
             }
 
-        private:
+            // ---- member state -------------------------------------------------------------------
             world_config m_cfg;
             detail::bodies_storage m_bodies_storage;
             detail::bullets_storage m_bullets_storage;
