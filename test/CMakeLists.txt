@@ -122,6 +122,7 @@ add_executable(sdlpp_unittest
         simplex/test_world_stepup.cc
         simplex/test_world_footing.cc
         simplex/test_world_multihit.cc
+        simplex/test_world_swept_triggers.cc
 
 
         # General/support tests

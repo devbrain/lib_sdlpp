@@ -876,10 +876,19 @@ and `cast` return only the NEAREST hit; see "Cross-cutting" below.
   *Tested:* `test_world_multihit.cc` — bodies ordered nearest-first, `max_hits` cap, empty miss,
   bodies+tiles merged in `toi` order, ONE_WAY reported from either side (geometric), filter
   exclusion, and `cast_all` swept-shape ordering + cap.
-- **Swept / crossing triggers.** Triggers are an overlap DIFF at frame boundaries, so a fast
-  body can cross a thin pickup / checkpoint / tripwire BETWEEN frames without ever overlapping
-  it at a sampled endpoint. Add sensors tested along the mover's delta (a swept overlap), or a
-  helper built on `cast_all`, so thin/fast crossings still fire.
+- **Swept / crossing triggers. [DONE]** `run()`'s trigger pass is an overlap DIFF at frame
+  boundaries, so a fast body can cross a thin pickup / checkpoint / tripwire BETWEEN frames
+  without ever overlapping it at a sampled endpoint. `world::swept_triggers(mover, delta, filter)`
+  sweeps a transient shape by `delta` and returns every SENSOR it touches along the way —
+  including ones it passes entirely through — ordered nearest-first by `toi` (a sensor already
+  overlapped at the start reads as toi 0). SENSORS only (solids are the movement pass's job); the
+  caller passes the mover's pre-move shape and frame delta. It *complements* the begin/end diff:
+  use `TRIGGER_BEGIN`/`END` for staying inside a zone, `swept_triggers` for a momentary fast
+  crossing. Built on the swept cast — no change to the `run()` diff, so existing trigger semantics
+  are untouched. Per-collider reporting (eid-dedup is the caller's, as with `cast_all`). *Tested:*
+  `test_world_swept_triggers.cc` — a one-frame crossing the boundary diff misses (0 `BEGIN`s) is
+  caught by the swept query, sensor-at-end, overlap-at-start (toi 0), solids excluded, multiple
+  ordered nearest-first, filter exclusion, empty miss.
 - **Entity-level collider grouping.** One entity often has several colliders by role — hurtbox,
   hitbox, graze box, weak points, shield zones. The primitives already express these (several
   bodies sharing an eid + `filter`), but events/queries may need game-side dedup by eid or by

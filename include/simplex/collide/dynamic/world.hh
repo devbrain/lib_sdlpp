@@ -1292,6 +1292,60 @@ namespace simplex::collide {
                 }
                 return hits;
             }
+
+            // Swept / crossing triggers (cross-cutting roadmap): the SENSOR colliders the shape
+            // `mover` would touch while sweeping by `delta` -- INCLUDING ones it passes entirely
+            // through between the endpoints. run()'s trigger pass diffs sensor overlaps at frame
+            // BOUNDARIES, so a fast body can skip a thin pickup / checkpoint / tripwire between two
+            // sampled frames without ever overlapping it at an endpoint; this swept query catches
+            // those crossings. Reports SENSORS only (solids are the movement pass's job), ordered
+            // nearest-first by `toi` (a sensor already overlapped at the start reads as toi 0).
+            //
+            // The shape is transient (not in the world): pass the mover's PRE-move shape and its frame
+            // delta. Complements the begin/end diff -- use TRIGGER_BEGIN/END for staying inside a zone,
+            // this for a momentary fast crossing. A body with several sensor colliders reports once PER
+            // collider (eid-dedup is the caller's job, as with cast_all).
+            [[nodiscard]] std::vector <contact> swept_triggers(const moving_shape_t& mover, vec delta,
+                                                               filter_props filter = {}) const {
+                const units::displacement dd{delta};
+                const aabb envelope = swept_bound(mover, dd);
+                const vec dv = dd.value;
+                std::vector <contact> hits;
+
+                auto consider = [&](const shape_t& target_shape, const filter_props& target_filter,
+                                    const material_props& target_material, const collider_id& id) {
+                    if (target_material.response != response_mode::SENSOR) {
+                        return; // triggers are sensors; solids are resolved by the movement pass
+                    }
+                    if (!should_collide(filter, target_filter)) {
+                        return;
+                    }
+                    std::visit([&](const auto& mv) {
+                        std::visit([&](const auto& tgt) {
+                            const auto hit = swept_intersection(mv, dv, tgt, vec{0, 0}, 1.0f);
+                            if (hit) {
+                                hits.push_back(contact{id, hit->entry_normal, hit->entry_time});
+                            }
+                        }, target_shape);
+                    }, mover);
+                };
+
+                query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
+                    const auto& other = m_bodies_storage[other_idx];
+                    consider(other.shape, other.filter, other.material,
+                             collider_id{other_idx, other.generation, collider_id::BODY});
+                });
+                if (m_static_grid) {
+                    m_static_grid->query(envelope, [&](const detail::tile& t, const aabb& cb) {
+                        consider(t.shape, t.filter, t.material, tile_handle(cb));
+                    });
+                }
+
+                std::sort(hits.begin(), hits.end(),
+                          [](const contact& a, const contact& b) { return a.toi < b.toi; });
+                return hits;
+            }
+
             // First collider the finite segment `s` crosses (nearest along the ray), or nullopt --
             // across BOTH dynamic residents and static tiles (the result's collider_id may be BODY
             // or TILE). Bullets are excluded (not in the tree). Targets may be any shape incl.
