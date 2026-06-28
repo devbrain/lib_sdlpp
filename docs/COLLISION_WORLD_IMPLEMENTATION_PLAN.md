@@ -862,11 +862,20 @@ and `cast` return only the NEAREST hit; see "Cross-cutting" below.
    across a diagonal — see grid-plan §15 #4. Only loop/wall-running remains controller-level.)
 
 ### Cross-cutting roadmap items (both genres)
-- **Multi-hit queries (`raycast_all` / `cast_all`).** Public `raycast`/`cast` return the
-  NEAREST hit. Add all-hits variants, ordered by `toi`, with early-out and an optional
-  max-hit count. Covers beams, piercing bullets, melee/sword arcs, explosion sweeps, and
-  boss multi-hurtbox scans. The grid enumerators already support visit-all callbacks; this is
-  the world-level public surface for it (plus the BVH fan-out, no `t_max` clipping).
+- **Multi-hit queries (`raycast_all` / `cast_all`). [DONE]** Public `raycast`/`cast` return the
+  NEAREST hit; `world::raycast_all(s, filter, max_hits)` / `world::cast_all(mover, delta, filter,
+  max_hits)` return EVERY collider crossed, ordered nearest-first by `toi`, with an optional
+  `max_hits` cap (0 = all) that keeps the nearest N. Across BOTH the BVH residents and the static
+  grid, merged in `toi` order. They are GEOMETRIC queries — every filtered collider is reported
+  regardless of material response (a beam passes through; the caller decides what stops it via
+  `filter`), unlike `move_and_slide` which applies the solid/one-way response. The tree fan-out
+  drops the `t_max` ray-clip (return 1.0 / never early-out of the grid DDA) so farther hits are not
+  pruned; results are collected then sorted. Covers beams, piercing bullets, melee/sword arcs,
+  explosion sweeps, and boss multi-hurtbox scans. *Caveat:* a body with several colliders reports
+  once PER collider — eid-dedup is the caller's job (see entity-level collider grouping below).
+  *Tested:* `test_world_multihit.cc` — bodies ordered nearest-first, `max_hits` cap, empty miss,
+  bodies+tiles merged in `toi` order, ONE_WAY reported from either side (geometric), filter
+  exclusion, and `cast_all` swept-shape ordering + cap.
 - **Swept / crossing triggers.** Triggers are an overlap DIFF at frame boundaries, so a fast
   body can cross a thin pickup / checkpoint / tripwire BETWEEN frames without ever overlapping
   it at a sampled endpoint. Add sensors tested along the mover's delta (a swept overlap), or a

@@ -1241,6 +1241,57 @@ namespace simplex::collide {
                 return cast_core(mover, units::displacement{delta}, filter, &world::accept_any,
                                  collider_id::INVALID);
             }
+
+            // Multi-hit swept shape cast (cross-cutting roadmap): EVERY collider that `mover` swept by
+            // `delta` would touch, ordered nearest-first by toi -- the swept counterpart to
+            // raycast_all, where `cast` returns only the nearest. `max_hits` > 0 keeps just the nearest
+            // N (0 = all). Across residents AND tiles; the transient shape excludes nothing. Reports
+            // ALL filtered colliders regardless of material response (a beam passes through, so the
+            // caller decides what stops it via `filter`); a body with several colliders reports once
+            // PER collider -- dedup by eid is the caller's job (see the entity-grouping roadmap item).
+            [[nodiscard]] std::vector <contact> cast_all(const moving_shape_t& mover, vec delta,
+                                                         filter_props filter = {},
+                                                         std::size_t max_hits = 0) const {
+                const units::displacement d{delta};
+                const aabb envelope = swept_bound(mover, d);
+                const vec dv = d.value;
+                std::vector <contact> hits;
+
+                auto consider = [&](const shape_t& target_shape, const filter_props& target_filter,
+                                    const collider_id& id) {
+                    if (!should_collide(filter, target_filter)) {
+                        return;
+                    }
+                    std::visit([&](const auto& mv) {
+                        std::visit([&](const auto& tgt) {
+                            const auto hit = swept_intersection(mv, dv, tgt, vec{0, 0}, 1.0f);
+                            if (hit) {
+                                hits.push_back(contact{id, hit->entry_normal, hit->entry_time});
+                            }
+                        }, target_shape);
+                    }, mover);
+                };
+
+                // No clipping: query() visits every candidate overlapping the swept envelope -- we
+                // want them all, not the earliest.
+                query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
+                    const auto& other = m_bodies_storage[other_idx];
+                    consider(other.shape, other.filter,
+                             collider_id{other_idx, other.generation, collider_id::BODY});
+                });
+                if (m_static_grid) {
+                    m_static_grid->query(envelope, [&](const detail::tile& t, const aabb& cb) {
+                        consider(t.shape, t.filter, tile_handle(cb));
+                    });
+                }
+
+                std::sort(hits.begin(), hits.end(),
+                          [](const contact& a, const contact& b) { return a.toi < b.toi; });
+                if (max_hits > 0 && hits.size() > max_hits) {
+                    hits.resize(max_hits);
+                }
+                return hits;
+            }
             // First collider the finite segment `s` crosses (nearest along the ray), or nullopt --
             // across BOTH dynamic residents and static tiles (the result's collider_id may be BODY
             // or TILE). Bullets are excluded (not in the tree). Targets may be any shape incl.
@@ -1308,6 +1359,63 @@ namespace simplex::collide {
                                            });
                 }
                 return out;
+            }
+
+            // Multi-hit ray (cross-cutting roadmap): EVERY collider the finite segment `s` crosses,
+            // ordered nearest-first by toi -- not just the nearest like raycast. `max_hits` > 0 keeps
+            // just the nearest N (0 = all). Across residents AND tiles; bullets excluded (not in the
+            // tree). Covers beams, piercing shots, melee/sword arcs, explosion sweeps, boss
+            // multi-hurtbox scans. A body with several colliders reports once PER collider -- dedup by
+            // eid is the caller's job (see the entity-grouping roadmap item).
+            [[nodiscard]] std::vector <contact> raycast_all(const segment& s, filter_props filter = {},
+                                                            std::size_t max_hits = 0) const {
+                std::vector <contact> hits;
+
+                auto consider = [&](const shape_t& target_shape, const filter_props& target_filter,
+                                    const collider_id& id) {
+                    if (!should_collide(filter, target_filter)) {
+                        return;
+                    }
+                    std::visit([&]<typename T1>(const T1& shape) {
+                        using S = std::decay_t <T1>;
+                        const std::optional <line_hit> hit = [&] {
+                            if constexpr (std::is_same_v <S, segment>) {
+                                return intersect_param(s, shape); // ray first (params along the ray)
+                            } else {
+                                return intersect_param(shape, s);
+                            }
+                        }();
+                        if (hit && hit->segment_overlaps()) {
+                            hits.push_back(contact{id, hit->entry_normal, std::max(0.0f, hit->entry_param)});
+                        }
+                    }, target_shape);
+                };
+
+                // No t_max clipping: return 1.0 so the tree visits every box the ray crosses, and the
+                // grid callback returns true so its DDA runs the whole span. We collect ALL hits.
+                collide::raycast(m_space_partition, s,
+                                 [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box,
+                                     [[maybe_unused]] const line_hit& box_hit) -> float {
+                                     const auto& other = m_bodies_storage[other_idx];
+                                     consider(other.shape, other.filter,
+                                              collider_id{other_idx, other.generation, collider_id::BODY});
+                                     return 1.0f; // never clip
+                                 });
+                if (m_static_grid) {
+                    m_static_grid->raycast(s.from, s.to,
+                                           [&](const detail::tile& t, const aabb& cb,
+                                               [[maybe_unused]] float t_entry) -> bool {
+                                               consider(t.shape, t.filter, tile_handle(cb));
+                                               return true; // never stop early
+                                           });
+                }
+
+                std::sort(hits.begin(), hits.end(),
+                          [](const contact& a, const contact& b) { return a.toi < b.toi; });
+                if (max_hits > 0 && hits.size() > max_hits) {
+                    hits.resize(max_hits);
+                }
+                return hits;
             }
 
             // Is `to` visible from `from` -- i.e. nothing in `blockers` lies strictly between?
