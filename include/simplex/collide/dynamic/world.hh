@@ -1346,6 +1346,40 @@ namespace simplex::collide {
                 return hits;
             }
 
+            // Entity-level collider grouping (cross-cutting roadmap): collapse multi-hit results to
+            // one contact PER ENTITY (eid), keeping the NEAREST (smallest toi) collider of each. One
+            // entity often owns several colliders by role -- hurtbox, hitbox, weak points, shield
+            // zones -- all sharing its eid; without this a beam reports the same enemy once per
+            // collider. Operates on the output of raycast_all / cast_all / swept_triggers; the result
+            // stays ordered nearest-first. Keys purely on eid, so colliders sharing an eid (INCLUDING
+            // the default 0 on un-keyed colliders) merge -- assign eids per logical entity. Handles
+            // must still be live (call on fresh query results, same frame).
+            [[nodiscard]] std::vector <contact> dedup_by_entity(std::vector <contact> hits) const {
+                std::vector <contact> out;
+                out.reserve(hits.size());
+                std::vector <entity_id_t> kept; // eid parallel to `out`, so the nearest per entity wins
+                for (const auto& h : hits) {
+                    const entity_id_t e = get_eid(h.who);
+                    bool merged = false;
+                    for (std::size_t k = 0; k < kept.size(); ++k) {
+                        if (kept[k] == e) {
+                            merged = true;
+                            if (h.toi < out[k].toi) {
+                                out[k] = h; // a nearer collider of the same entity supersedes
+                            }
+                            break;
+                        }
+                    }
+                    if (!merged) {
+                        out.push_back(h);
+                        kept.push_back(e);
+                    }
+                }
+                std::sort(out.begin(), out.end(),
+                          [](const contact& a, const contact& b) { return a.toi < b.toi; });
+                return out;
+            }
+
             // First collider the finite segment `s` crosses (nearest along the ray), or nullopt --
             // across BOTH dynamic residents and static tiles (the result's collider_id may be BODY
             // or TILE). Bullets are excluded (not in the tree). Targets may be any shape incl.

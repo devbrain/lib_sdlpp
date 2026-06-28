@@ -889,11 +889,17 @@ and `cast` return only the NEAREST hit; see "Cross-cutting" below.
   `test_world_swept_triggers.cc` — a one-frame crossing the boundary diff misses (0 `BEGIN`s) is
   caught by the swept query, sensor-at-end, overlap-at-start (toi 0), solids excluded, multiple
   ordered nearest-first, filter exclusion, empty miss.
-- **Entity-level collider grouping.** One entity often has several colliders by role — hurtbox,
-  hitbox, graze box, weak points, shield zones. The primitives already express these (several
-  bodies sharing an eid + `filter`), but events/queries may need game-side dedup by eid or by
-  collider role — especially with multi-hit queries (one beam should not report the same enemy
-  five times). Worth a small convention (a role tag on the handle, or eid-dedup in the helper).
+- **Entity-level collider grouping. [DONE]** One entity often has several colliders by role —
+  hurtbox, hitbox, graze box, weak points, shield zones — all sharing its eid, so a multi-hit
+  query reports it once per collider (one beam → the same enemy five times).
+  `world::dedup_by_entity(hits)` collapses the output of `raycast_all` / `cast_all` /
+  `swept_triggers` to one contact PER ENTITY (eid), keeping the NEAREST collider of each and
+  preserving nearest-first order. It keys purely on eid, so colliders sharing an eid (including the
+  default 0 on un-keyed colliders) merge — assign an eid per logical entity. Chosen over a
+  role-tag-on-the-handle convention: a post-process helper composes with all three multi-hit
+  producers and needs no change to the collider_id/storage layout. *Tested:*
+  `test_world_entity_dedup.cc` — shared-eid colliders collapse to the nearest, distinct eids pass
+  through, and it works on `raycast_all` / `cast_all` / `swept_triggers` output (plus empty).
 
 ### Genre-specific niceties (optional)
 - **Conveyor / surface velocity** — a tile/material that imparts a tangential velocity to
