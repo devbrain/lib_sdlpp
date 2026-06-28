@@ -385,6 +385,25 @@ namespace simplex::collide {
         float toi; // time of impact, normalized [0,1] along delta
     };
 
+    // The result of world::ground_support (§19 #4): the solid ground found under each of three
+    // footprint probes -- left edge, centre, right edge (Sonic's twin floor sensors are the
+    // left/right pair). Each is the probe's contact, or nullopt when that foot hangs over nothing
+    // solid within reach. A STATE the game reads to drive teeter/balance, edge-stop, coyote-time
+    // and ledge-grab -- not a solver behaviour.
+    struct footing {
+        std::optional <contact> left;
+        std::optional <contact> centre;
+        std::optional <contact> right;
+
+        [[nodiscard]] bool grounded() const noexcept { return left || centre || right; }
+        [[nodiscard]] bool fully_supported() const noexcept { return left && centre && right; }
+        // At a ledge: standing on something, but part of the footprint hangs off (the teeter cue).
+        [[nodiscard]] bool at_ledge() const noexcept { return grounded() && !fully_supported(); }
+        // The drop is off the unsupported side: true iff the left foot hangs (mirror for right).
+        [[nodiscard]] bool ledge_left() const noexcept { return !left && (centre || right); }
+        [[nodiscard]] bool ledge_right() const noexcept { return !right && (centre || left); }
+    };
+
     enum class event_kind {
         COLLISION,
         BULLET_HIT,
@@ -1419,6 +1438,52 @@ namespace simplex::collide {
                 translate(self, -m_cfg.up * drop);
                 refit_proxy(self);
                 return tread;
+            }
+
+            // §19 #4 -- footing / edge sensors. Reports the solid ground under three points of the
+            // actor's footprint -- left edge, centre, right edge -- by probing straight down (-up) by
+            // `max_drop` from each. A STATE the game reads to drive teeter/balance, edge-stop,
+            // coyote-time and ledge-grab; the library's job is the query, not the response (a teetering
+            // character does not fall -- that is animation, not dynamics). The left/right pair is
+            // exactly Sonic's twin floor sensors (A/B). `footing` exposes the raw per-foot contacts
+            // plus grounded()/fully_supported()/at_ledge()/ledge_left()/ledge_right() convenience.
+            //
+            // Each probe is a self-excluding, SOLID-only point cast (a sensor/ignore body underfoot is
+            // not support, matching move_and_slide/snap_to_ground); a ONE_WAY platform counts only from
+            // above. `max_drop` is the reach below the feet that still counts as support -- small for a
+            // touching "am I at the edge" check, larger to also catch a step within stride. Pure query
+            // (const): it never moves the actor. Built on the existing swept cast -- no new primitive.
+            [[nodiscard]] footing ground_support(collider_id cid, float max_drop) const {
+                ENFORCE(is_valid(cid) && cid.type_id == collider_id::BODY);
+                ENFORCE(max_drop >= 0.0f)("ground_support: max_drop must be non-negative");
+                const auto& self = m_bodies_storage[cid.value];
+
+                // Footprint = the actor's enclosing box; "down" is -up, "tangent" the perpendicular
+                // (={1,0} for the default up={0,1}). The bottom-face centre and half-width follow from
+                // the box's support along each axis, so this is correct for any axis-aligned up.
+                const aabb fp = std::visit([](const auto& s) { return enclose(s); }, self.shape);
+                const vec up = m_cfg.up;
+                const vec down = -up;
+                const vec tangent{up.y(), -up.x()};
+                const vec half = (fp.max - fp.min) * 0.5f;
+                const vec mid = (fp.min + fp.max) * 0.5f;
+                const float half_w = std::abs(tangent.x()) * half.x() + std::abs(tangent.y()) * half.y();
+                const float half_d = std::abs(down.x()) * half.x() + std::abs(down.y()) * half.y();
+                const vec foot = mid + down * half_d; // bottom-face centre
+
+                const units::displacement reach{down * max_drop};
+                auto probe = [&](const vec& p) -> std::optional <contact> {
+                    // a zero-size aabb point swept down: self-excluded + solid-gated, like a raycast
+                    // that respects materials (a plain raycast would report sensors and the actor itself).
+                    return cast_core(moving_shape_t{aabb{p, p}}, reach, self.filter,
+                                     solid_acceptor(), cid.value);
+                };
+
+                footing f;
+                f.left = probe(foot - tangent * half_w);
+                f.centre = probe(foot);
+                f.right = probe(foot + tangent * half_w);
+                return f;
             }
 
         private:

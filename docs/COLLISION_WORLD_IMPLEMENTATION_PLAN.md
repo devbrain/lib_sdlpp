@@ -813,16 +813,23 @@ and `cast` return only the NEAREST hit; see "Cross-cutting" below.
    taller than `max_step` stays a wall, no obstruction → no-op, insufficient headroom → no step,
    non-walkable (steep) tread → undo, ledge-with-no-tread → full undo. (Distinct from the
    tile-seam item below — this is intended geometry, not a seam artifact.)
-4. **Footing / edge sensors — `ground_support(footprint, max_drop)`.** Detecting that a body
+4. **Footing / edge sensors — `ground_support(cid, max_drop)`. [DONE]** Detecting that a body
    stands at a ledge (most of its footprint off the edge) drives the **balance/teeter** animation
    (Jazz Jackrabbit, Sonic), **edge-stop** ("don't auto-walk off"), **coyote-time**, and
    **ledge-grab**. This is a STATE the game detects and animates, not a solver behaviour — the
    library's job is the query, not the response (Jazz teeters but does not fall; a true
-   tip-over-on-center-of-mass would be dynamics, out of scope). Doable today with a few short
-   downward `raycast` probes at footprint offsets (left foot / centre / right foot): supported on
-   one side only ⇒ at a ledge. The roadmap helper reports which side(s) are supported and where
-   the ledge falls — which is also exactly **Sonic's twin floor sensors (A/B)**. Same small
-   raycast-helper family as #2 (ground-snap) and #3 (step-up); no new physics primitive.
+   tip-over-on-center-of-mass would be dynamics, out of scope). `world::ground_support` probes
+   straight down (`-up`) by `max_drop` at three footprint points — left edge / centre / right edge
+   — and returns a `footing` carrying the per-foot `contact`s plus `grounded()` /
+   `fully_supported()` / `at_ledge()` / `ledge_left()` / `ledge_right()`. The left/right pair is
+   exactly **Sonic's twin floor sensors (A/B)**. Each probe is a self-excluding, **solid-only**
+   point cast (a sensor/ignore body underfoot is not support, matching `move_and_slide` /
+   `snap_to_ground`; a ONE_WAY platform counts only from above), and the helper is a pure `const`
+   query — it never moves the actor. Same small cast-helper family as #2 (ground-snap) and #3
+   (step-up); no new physics primitive. *Tested:* `test_world_footing.cc` — firmly on a wide floor
+   (all three feet), right-hand ledge (right foot hangs → `ledge_right`), left-hand ledge mirror,
+   narrow pillar (centre-only, both sides hang), airborne (no support, not grounded), sensor
+   underfoot (not support), ONE_WAY from above (supported).
 5. **Tile-seam snagging → merged-run boundary compile. [DONE]** A flat run of per-cell aabb
    tiles has shared INTERNAL vertical edges a fast mover can catch on. Fixed by a **one-shot**
    build step on the first `run()` (the bake is destructive -- it clears the source cells and
@@ -950,13 +957,14 @@ void step(world& w, float dt) {
     //    floor has zeroed your fall). Drives animation and is the base for next frame's intent.
     for (auto& e : entities) { e.shape = w.get_shape(e.handle); e.vel = w.get_velocity(e.handle); }
 
-    // 5. CONTROLLER queries (game-level helpers built on raycast / line_of_sight, §19):
-    update_grounded_and_coyote(w, player);   // footing / edge sensors -> teeter, edge-stop
+    // 5. CONTROLLER queries (§19 helpers + line_of_sight). The footing/snap/step family are
+    //    library calls now; the game still owns the RESPONSE (animate teeter, hold at an edge):
+    auto foot = w.ground_support(player, FOOT_REACH); // footing/edge sensors -> teeter, edge-stop, coyote
+    if (foot.grounded()) w.snap_to_ground(player, SNAP_DROP); // hug slopes/stairs walking down
+    w.step_up(player, player.intent_dx, STEP_HEIGHT);         // ride over small lips
     for (auto& en : enemies) en.sees_player = w.line_of_sight(en.pos, player.pos, sight_filter);
 
-    // 6. MOVING-PLATFORM CARRYING (game-level until §19 #1): a rider grounded on a platform
-    //    inherits the platform's delta this frame.
-    carry_riders(w, platforms, dt);
+    // 6. (Moving-platform carrying is in run() now -- §19 #1 carrier_body. Nothing to do here.)
 
     // 7. SPAWN / DESPAWN -- fire weapons (add bullet), reap dead (w.remove), level changes.
     flush_spawns(w); reap_dead(w);
@@ -973,9 +981,11 @@ void step(world& w, float dt) {
   the pre-collision guess, or motion goes sticky/jittery.
 - **The event buffer is reused** each `run()` — consume or copy it that frame; never stash the
   reference across frames.
-- **Game-level today (until the §19 roadmap folds them in):** gravity, moving-platform carrying
-  (#1), and footing/coyote/edge-stop/teeter sensors (#4) — all built on `set_velocity` +
-  `raycast`/`line_of_sight`. When those land, steps 5–6 shrink.
+- **Now folded into the library (§19):** moving-platform carry/push/crush (#1, in `run()`),
+  ground-snap (#2), step-up (#3) and footing/edge sensors (#4). The game still owns the
+  *response* — gravity, jump curves, and *animating* teeter/edge-stop/coyote from the `footing`
+  query — but the geometry queries are library calls (`ground_support` / `snap_to_ground` /
+  `step_up`), not hand-rolled `raycast` each.
 - **Fixed `dt`** keeps the swept math and deterministic iteration honest; interpolate in render.
 
 Net integration surface: three calls per entity (`set_velocity` → `run` → `get_shape`/
