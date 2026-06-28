@@ -385,11 +385,11 @@ namespace simplex::collide {
         float toi; // time of impact, normalized [0,1] along delta
     };
 
-    // The result of world::ground_support (§19 #4): the solid ground found under each of three
+    // The result of world::ground_support (§19 #4): the WALKABLE ground found under each of three
     // footprint probes -- left edge, centre, right edge (Sonic's twin floor sensors are the
     // left/right pair). Each is the probe's contact, or nullopt when that foot hangs over nothing
-    // solid within reach. A STATE the game reads to drive teeter/balance, edge-stop, coyote-time
-    // and ledge-grab -- not a solver behaviour.
+    // walkable within reach (a void, a sensor, or a too-steep face). A STATE the game reads to drive
+    // teeter/balance, edge-stop, coyote-time and ledge-grab -- not a solver behaviour.
     struct footing {
         std::optional <contact> left;
         std::optional <contact> centre;
@@ -1448,9 +1448,11 @@ namespace simplex::collide {
             // exactly Sonic's twin floor sensors (A/B). `footing` exposes the raw per-foot contacts
             // plus grounded()/fully_supported()/at_ledge()/ledge_left()/ledge_right() convenience.
             //
-            // Each probe is a self-excluding, SOLID-only point cast (a sensor/ignore body underfoot is
-            // not support, matching move_and_slide/snap_to_ground); a ONE_WAY platform counts only from
-            // above. `max_drop` is the reach below the feet that still counts as support -- small for a
+            // Each probe is a self-excluding point cast gated to WALKABLE SOLID ground -- a sensor/ignore
+            // body is not support, and neither is a steep slope / side / vertical face (normal.up must
+            // exceed GROUND_THRESHOLD), so footing agrees with move_and_slide/snap_to_ground/step_up on
+            // what "ground" is; a ONE_WAY platform counts only from above. `max_drop` is the reach below
+            // the feet that still counts as support -- small for a
             // touching "am I at the edge" check, larger to also catch a step within stride. Pure query
             // (const): it never moves the actor. Built on the existing swept cast -- no new primitive.
             [[nodiscard]] footing ground_support(collider_id cid, float max_drop) const {
@@ -1472,11 +1474,21 @@ namespace simplex::collide {
                 const vec foot = mid + down * half_d; // bottom-face centre
 
                 const units::displacement reach{down * max_drop};
+                // "Support" means WALKABLE ground, not merely a solid: a steep slope / side face /
+                // vertical segment underfoot is not something you stand on, and the rest of the system
+                // (move_and_slide's grounded, snap_to_ground, step_up) only counts normal.up >
+                // GROUND_THRESHOLD as ground. Gate the probe the same way so footing agrees. A near
+                // steep face does not mask a walkable surface farther down: cast_core skips rejected
+                // candidates, so a flat floor below a steep lip (within max_drop) is still found.
+                auto walkable_solid = [up](const material_props& m, const vec& n) {
+                    return solid_pred{}(m, n) && euler::dot(n, up) > GROUND_THRESHOLD;
+                };
                 auto probe = [&](const vec& p) -> std::optional <contact> {
-                    // a zero-size aabb point swept down: self-excluded + solid-gated, like a raycast
-                    // that respects materials (a plain raycast would report sensors and the actor itself).
+                    // a zero-size aabb point swept down: self-excluded + walkable-solid gated, like a
+                    // raycast that respects material AND slope (a plain raycast would report sensors,
+                    // steep walls, and the actor itself).
                     return cast_core(moving_shape_t{aabb{p, p}}, reach, self.filter,
-                                     solid_acceptor(), cid.value);
+                                     walkable_solid, cid.value);
                 };
 
                 footing f;

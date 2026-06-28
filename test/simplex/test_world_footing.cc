@@ -34,6 +34,10 @@ namespace {
         return w.add(eid, static_body{shape_t{box}, m, {}});
     }
 
+    collider_id add_slope(world& w, entity_id_t eid, const segment& s) {
+        return w.add(eid, static_body{shape_t{s}, {}, {}});
+    }
+
     // a footprint of the given x-extent whose bottom rests skin-short above `top` (the post-solver state)
     collider_id add_actor(world& w, entity_id_t eid, float x0, float x1, float top) {
         const float b = top + 0.01f;
@@ -128,6 +132,25 @@ TEST_SUITE("world: ground_support / footing (§19 #4)") {
 
         const footing f = w.ground_support(a, 1.0f);
         CHECK_FALSE(f.grounded()); // a sensor is detected by triggers, not stood upon
+    }
+
+    TEST_CASE("a steep slope underfoot is not support (matches grounded/snap/step semantics)") {
+        world w = foot_world();
+        add_slope(w, 1, segment{vec{2, 0}, vec{6, 8}}); // ~63 deg, spans under the whole footprint
+        const collider_id a = add_actor_at(w, 2, 4.0f, 5.0f, 7.0f); // feet above the steep face
+
+        const footing f = w.ground_support(a, 4.0f); // probes reach the slope, but it is too steep
+        CHECK_FALSE(f.grounded()); // a steep face is not standable ground
+        CHECK_FALSE(f.at_ledge());
+    }
+
+    TEST_CASE("a gentle (walkable) slope underfoot IS support") {
+        world w = foot_world();
+        add_slope(w, 1, segment{vec{0, 0}, vec{8, 4}}); // slope 0.5 (~27 deg), walkable
+        const collider_id a = add_actor_at(w, 2, 3.0f, 4.0f, 3.0f); // feet above the gentle slope
+
+        const footing f = w.ground_support(a, 2.0f);
+        CHECK(f.grounded()); // a gentle slope is standable, unlike the steep one above
     }
 
     TEST_CASE("a ONE_WAY platform supports from above") {

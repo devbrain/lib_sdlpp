@@ -822,14 +822,18 @@ and `cast` return only the NEAREST hit; see "Cross-cutting" below.
    straight down (`-up`) by `max_drop` at three footprint points — left edge / centre / right edge
    — and returns a `footing` carrying the per-foot `contact`s plus `grounded()` /
    `fully_supported()` / `at_ledge()` / `ledge_left()` / `ledge_right()`. The left/right pair is
-   exactly **Sonic's twin floor sensors (A/B)**. Each probe is a self-excluding, **solid-only**
-   point cast (a sensor/ignore body underfoot is not support, matching `move_and_slide` /
-   `snap_to_ground`; a ONE_WAY platform counts only from above), and the helper is a pure `const`
-   query — it never moves the actor. Same small cast-helper family as #2 (ground-snap) and #3
-   (step-up); no new physics primitive. *Tested:* `test_world_footing.cc` — firmly on a wide floor
-   (all three feet), right-hand ledge (right foot hangs → `ledge_right`), left-hand ledge mirror,
-   narrow pillar (centre-only, both sides hang), airborne (no support, not grounded), sensor
-   underfoot (not support), ONE_WAY from above (supported).
+   exactly **Sonic's twin floor sensors (A/B)**. Each probe is a self-excluding point cast gated to
+   **walkable solid** ground — `normal·up > GROUND_THRESHOLD`, the *same* gate as
+   `move_and_slide`'s grounded / `snap_to_ground` / `step_up` — so footing agrees with the rest of
+   the system on what "ground" is: a sensor/ignore body, a void, or a too-steep slope/side/vertical
+   face is **not** support (a ONE_WAY platform counts only from above). A near steep face does not
+   mask a walkable surface farther down (`cast_core` skips rejected candidates). The helper is a
+   pure `const` query — it never moves the actor. Same small cast-helper family as #2 (ground-snap)
+   and #3 (step-up); no new physics primitive. *Tested:* `test_world_footing.cc` — firmly on a wide
+   floor (all three feet), right-hand ledge (right foot hangs → `ledge_right`), left-hand ledge
+   mirror, narrow pillar (centre-only, both sides hang), airborne (no support, not grounded), sensor
+   underfoot (not support), steep slope underfoot (not support) vs gentle slope (supported), ONE_WAY
+   from above (supported).
 5. **Tile-seam snagging → merged-run boundary compile. [DONE]** A flat run of per-cell aabb
    tiles has shared INTERNAL vertical edges a fast mover can catch on. Fixed by a **one-shot**
    build step on the first `run()` (the bake is destructive -- it clears the source cells and
