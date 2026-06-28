@@ -381,11 +381,7 @@ namespace simplex::collide {
                                 || (body_delta.y() < -e && abox0.min.y() >= sbox.max.y() - e)) {
                                 return;
                             }
-                            const auto swept = std::visit([&](const auto& mv) {
-                                return std::visit([&](const auto& tgt) {
-                                    return swept_intersection(mv, body_delta, tgt, vec{0, 0}, 1.0f);
-                                }, act.shape);
-                            }, cstart);
+                            const auto swept = swept_vs_shape(cstart, body_delta, act.shape);
                             if (!swept) {
                                 return; // the carrier's sweep doesn't reach the actor
                             }
@@ -662,6 +658,92 @@ namespace simplex::collide {
                 return {cell, m_static_grid->cell_generation(cell), collider_id::TILE};
             }
 
+            // ---- query plumbing: narrow-phase wrappers + candidate fan-out -----------------------
+            // These collapse the six near-identical "fan out over residents + tiles, narrow-phase each
+            // candidate, accumulate" copies into one primitive per traversal kind. Each public query
+            // is then a thin visitor: the fan-out owns exclusion / tile_handle / ray-clipping (one
+            // place to get right), the visitor owns filtering + narrow-phase + accumulation.
+
+            // Swept narrow-phase: the mover (aabb|circle) swept by `dv` against any target shape.
+            // Hides the nested std::visit double-dispatch. entry_time is the [0,1] toi; time=1 is the
+            // anti-tunnel window (delta is the mover's velocity over a unit step).
+            [[nodiscard]] static std::optional <swept_hit> swept_vs_shape(const moving_shape_t& mover,
+                                                                         const vec& dv, const shape_t& target) {
+                return std::visit([&](const auto& mv) {
+                    return std::visit([&](const auto& tgt) -> std::optional <swept_hit> {
+                        return swept_intersection(mv, dv, tgt, vec{0, 0}, 1.0f);
+                    }, target);
+                }, mover);
+            }
+
+            // Ray narrow-phase: the finite segment `s` against any target shape, restricted to the
+            // segment span. Hides the segment-first/aabb-first intersect_param dispatch (params run
+            // along the ray either way). Returns the crossing's line_hit, or nullopt if it does not
+            // cross within the segment; the caller clamps entry_param >= 0 (origin-inside -> 0).
+            [[nodiscard]] static std::optional <line_hit> ray_vs_shape(const segment& s, const shape_t& target) {
+                return std::visit([&]<typename T>(const T& shape) -> std::optional <line_hit> {
+                    const std::optional <line_hit> hit = [&] {
+                        if constexpr (std::is_same_v <std::decay_t <T>, segment>) {
+                            return intersect_param(s, shape); // ray first
+                        } else {
+                            return intersect_param(shape, s); // aabb/circle first
+                        }
+                    }();
+                    if (hit && hit->segment_overlaps()) {
+                        return hit;
+                    }
+                    return std::nullopt;
+                }, target);
+            }
+
+            // Visit every candidate (resident +, when `query_tiles`, tile) overlapping `env`, skipping
+            // the two excluded body slots (INVALID = none). `visit(shape, filter, material, id)`. The
+            // broadphase query visits ALL candidates (no clipping), so the visitor/accumulator decides
+            // what to keep -- nearest-hit, all-hits, and sensor variants all share this fan-out.
+            template<class Visit>
+            void for_each_in_envelope(const aabb& env, uint32_t exclude_idx, uint32_t exclude_idx2,
+                                      bool query_tiles, Visit&& visit) const {
+                query(m_space_partition, env, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
+                    if (other_idx == exclude_idx || other_idx == exclude_idx2) {
+                        return;
+                    }
+                    const auto& other = m_bodies_storage[other_idx];
+                    visit(other.shape, other.filter, other.material,
+                          collider_id{other_idx, other.generation, collider_id::BODY});
+                });
+                if (query_tiles && m_static_grid) {
+                    m_static_grid->query(env, [&](const detail::tile& t, const aabb& cb) {
+                        visit(t.shape, t.filter, t.material, tile_handle(cb));
+                    });
+                }
+            }
+
+            // Visit every candidate the segment `s` crosses (resident + tile). `visit(shape, filter,
+            // id)` narrow-phases and accumulates; `clip()` returns the current ray-clip toi -- the
+            // nearest-hit best so far, or a constant 1.0 for an all-hits query that never prunes. The
+            // tree clips farther boxes to clip(); the grid DDA stops once a cell's entry exceeds it.
+            template<class Clip, class Visit>
+            void for_each_along_ray(const segment& s, Clip&& clip, Visit&& visit) const {
+                collide::raycast(m_space_partition, s, // qualified: member `raycast` would otherwise hide it
+                                 [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box,
+                                     [[maybe_unused]] const line_hit& box_hit) -> float {
+                                     const auto& other = m_bodies_storage[other_idx];
+                                     visit(other.shape, other.filter,
+                                           collider_id{other_idx, other.generation, collider_id::BODY});
+                                     return clip();
+                                 });
+                if (m_static_grid) {
+                    m_static_grid->raycast(s.from, s.to,
+                                           [&](const detail::tile& t, const aabb& cb, float t_entry) -> bool {
+                                               if (t_entry > clip()) {
+                                                   return false; // beyond the current best -> stop
+                                               }
+                                               visit(t.shape, t.filter, tile_handle(cb));
+                                               return true;
+                                           });
+                }
+            }
+
             // Report every collider whose shape overlaps `self_shape` (passing `self_filter`),
             // across the BVH residents and -- when `query_tiles` -- the static grid. `exclude_body`
             // skips one body slot (the querying body itself; INVALID = none). Source-agnostic so it
@@ -670,37 +752,22 @@ namespace simplex::collide {
             template<class Fn>
             void overlap_core(const shape_t& self_shape, const filter_props& self_filter,
                               uint32_t exclude_body, bool query_tiles, Fn&& on_hit) const {
-                const aabb envelope = detail::tight_box(self_shape);
-
-                auto consider = [&](const shape_t& target_shape, const filter_props& target_filter,
-                                    const collider_id& id) {
-                    if (!should_collide(self_filter, target_filter)) {
-                        return;
-                    }
-                    const bool rc = std::visit([&](const auto& my_shape) {
-                        return std::visit([&](const auto& other_shape) {
-                            return collide::intersects(my_shape, other_shape);
-                        }, target_shape);
-                    }, self_shape);
-                    if (rc) {
-                        on_hit(id);
-                    }
-                };
-
-                query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
-                    if (other_idx == exclude_body) {
-                        return;
-                    }
-                    const auto& other = m_bodies_storage[other_idx];
-                    consider(other.shape, other.filter,
-                             collider_id{other_idx, other.generation, collider_id::BODY});
-                });
-
-                if (query_tiles && m_static_grid) {
-                    m_static_grid->query(envelope, [&](const detail::tile& t, const aabb& cb) {
-                        consider(t.shape, t.filter, tile_handle(cb));
+                for_each_in_envelope(
+                    detail::tight_box(self_shape), exclude_body, collider_id::INVALID, query_tiles,
+                    [&](const shape_t& target_shape, const filter_props& target_filter,
+                        const material_props&, const collider_id& id) {
+                        if (!should_collide(self_filter, target_filter)) {
+                            return;
+                        }
+                        const bool rc = std::visit([&](const auto& my_shape) {
+                            return std::visit([&](const auto& other_shape) {
+                                return collide::intersects(my_shape, other_shape);
+                            }, target_shape);
+                        }, self_shape);
+                        if (rc) {
+                            on_hit(id);
+                        }
                     });
-                }
             }
 
             // A body's overlaps (the body senses bodies AND tiles).
@@ -725,55 +792,27 @@ namespace simplex::collide {
                                                             filter_props self_filter, Accept&& accept,
                                                             uint32_t exclude_idx,
                                                             uint32_t exclude_idx2 = collider_id::INVALID) const {
-                const aabb envelope = swept_bound(mover, delta);
                 const vec dv = delta.value;
-
                 std::optional <contact> out;
-
-                // Source-agnostic per-candidate sweep: filter, swept narrow-phase, post-hit accept,
-                // keep the earliest. Identical for residents and grid tiles -- only the candidate's
-                // (shape, filter, material, identity) differ. Reused by the grid fan-out.
-                auto consider = [&](const shape_t& target_shape, const filter_props& target_filter,
-                                    const material_props& target_material, const collider_id& id) {
-                    if (!should_collide(self_filter, target_filter)) {
-                        return;
-                    }
-                    std::visit([&](const auto& mv) {
-                        std::visit([&](const auto& tgt) {
-                            // unit-time normalization: entry_time is the [0,1] toi, and the
-                            // time=1 window is the anti-tunneling bound. (delta fed as the
-                            // mover's velocity over a unit window.)
-                            const auto hit = swept_intersection(mv, dv, tgt, vec{0, 0}, 1.0f);
-                            if (!hit) {
-                                return;
-                            }
-                            if (!accept(target_material, hit->entry_normal)) {
-                                return; // caller-rejected on the actual contact (e.g. one-way side)
-                            }
-                            if (!out || hit->entry_time < out->toi) {
-                                out = contact{id, hit->entry_normal, hit->entry_time};
-                            }
-                        }, target_shape);
-                    }, mover);
-                };
-
-                query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
-                    if (other_idx == exclude_idx || other_idx == exclude_idx2) {
-                        return; // self, and (for a carried rider) the carrier it is locked to
-                    }
-                    const auto& other = m_bodies_storage[other_idx];
-                    consider(other.shape, other.filter, other.material,
-                             collider_id{other_idx, other.generation, collider_id::BODY});
-                });
-
-                // Static tiles overlapping the swept band (envelope == the swept bound). Each is
-                // swept narrow-phased in consider(); the earliest TOI across bodies AND tiles wins,
-                // so move_and_slide resolves against tile floors/walls/slopes for free.
-                if (m_static_grid) {
-                    m_static_grid->query(envelope, [&](const detail::tile& t, const aabb& cb) {
-                        consider(t.shape, t.filter, t.material, tile_handle(cb));
+                // Keep the earliest accepted hit across residents AND tiles (so move_and_slide resolves
+                // tile floors/walls/slopes for free). accept() sees the real contact normal, so it can
+                // reject per-candidate on the actual face (one-way side) -- and the fan-out visits all,
+                // so a farther accepted target behind a rejected near one is still found.
+                for_each_in_envelope(
+                    swept_bound(mover, delta), exclude_idx, exclude_idx2, /*query_tiles=*/true,
+                    [&](const shape_t& target_shape, const filter_props& target_filter,
+                        const material_props& target_material, const collider_id& id) {
+                        if (!should_collide(self_filter, target_filter)) {
+                            return;
+                        }
+                        const auto hit = swept_vs_shape(mover, dv, target_shape);
+                        if (!hit || !accept(target_material, hit->entry_normal)) {
+                            return;
+                        }
+                        if (!out || hit->entry_time < out->toi) {
+                            out = contact{id, hit->entry_normal, hit->entry_time};
+                        }
                     });
-                }
                 return out;
             }
 
@@ -822,38 +861,19 @@ namespace simplex::collide {
                                                          filter_props filter = {},
                                                          std::size_t max_hits = 0) const {
                 const units::displacement d{delta};
-                const aabb envelope = swept_bound(mover, d);
                 const vec dv = d.value;
                 std::vector <contact> hits;
-
-                auto consider = [&](const shape_t& target_shape, const filter_props& target_filter,
-                                    const collider_id& id) {
-                    if (!should_collide(filter, target_filter)) {
-                        return;
-                    }
-                    std::visit([&](const auto& mv) {
-                        std::visit([&](const auto& tgt) {
-                            const auto hit = swept_intersection(mv, dv, tgt, vec{0, 0}, 1.0f);
-                            if (hit) {
-                                hits.push_back(contact{id, hit->entry_normal, hit->entry_time});
-                            }
-                        }, target_shape);
-                    }, mover);
-                };
-
-                // No clipping: query() visits every candidate overlapping the swept envelope -- we
-                // want them all, not the earliest.
-                query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
-                    const auto& other = m_bodies_storage[other_idx];
-                    consider(other.shape, other.filter,
-                             collider_id{other_idx, other.generation, collider_id::BODY});
-                });
-                if (m_static_grid) {
-                    m_static_grid->query(envelope, [&](const detail::tile& t, const aabb& cb) {
-                        consider(t.shape, t.filter, tile_handle(cb));
+                for_each_in_envelope(
+                    swept_bound(mover, d), collider_id::INVALID, collider_id::INVALID, /*query_tiles=*/true,
+                    [&](const shape_t& ts, const filter_props& tf,
+                        const material_props&, const collider_id& id) {
+                        if (!should_collide(filter, tf)) {
+                            return;
+                        }
+                        if (const auto hit = swept_vs_shape(mover, dv, ts)) {
+                            hits.push_back(contact{id, hit->entry_normal, hit->entry_time});
+                        }
                     });
-                }
-
                 return nearest_first(std::move(hits), max_hits);
             }
 
@@ -872,39 +892,22 @@ namespace simplex::collide {
             [[nodiscard]] std::vector <contact> swept_triggers(const moving_shape_t& mover, vec delta,
                                                                filter_props filter = {}) const {
                 const units::displacement dd{delta};
-                const aabb envelope = swept_bound(mover, dd);
                 const vec dv = dd.value;
                 std::vector <contact> hits;
-
-                auto consider = [&](const shape_t& target_shape, const filter_props& target_filter,
-                                    const material_props& target_material, const collider_id& id) {
-                    if (target_material.response != response_mode::SENSOR) {
-                        return; // triggers are sensors; solids are resolved by the movement pass
-                    }
-                    if (!should_collide(filter, target_filter)) {
-                        return;
-                    }
-                    std::visit([&](const auto& mv) {
-                        std::visit([&](const auto& tgt) {
-                            const auto hit = swept_intersection(mv, dv, tgt, vec{0, 0}, 1.0f);
-                            if (hit) {
-                                hits.push_back(contact{id, hit->entry_normal, hit->entry_time});
-                            }
-                        }, target_shape);
-                    }, mover);
-                };
-
-                query(m_space_partition, envelope, [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box) {
-                    const auto& other = m_bodies_storage[other_idx];
-                    consider(other.shape, other.filter, other.material,
-                             collider_id{other_idx, other.generation, collider_id::BODY});
-                });
-                if (m_static_grid) {
-                    m_static_grid->query(envelope, [&](const detail::tile& t, const aabb& cb) {
-                        consider(t.shape, t.filter, t.material, tile_handle(cb));
+                for_each_in_envelope(
+                    swept_bound(mover, dd), collider_id::INVALID, collider_id::INVALID, /*query_tiles=*/true,
+                    [&](const shape_t& ts, const filter_props& tf,
+                        const material_props& tm, const collider_id& id) {
+                        if (tm.response != response_mode::SENSOR) {
+                            return; // triggers are sensors; solids are resolved by the movement pass
+                        }
+                        if (!should_collide(filter, tf)) {
+                            return;
+                        }
+                        if (const auto hit = swept_vs_shape(mover, dv, ts)) {
+                            hits.push_back(contact{id, hit->entry_normal, hit->entry_time});
+                        }
                     });
-                }
-
                 return nearest_first(std::move(hits));
             }
 
@@ -947,65 +950,21 @@ namespace simplex::collide {
             // to >= 0 (an origin already inside a shape reads as 0).
             [[nodiscard]] std::optional <contact> raycast(const segment& s, filter_props filter = {}) const {
                 std::optional <contact> out;
-
-                // Source-agnostic per-candidate ray test: filter, intersect the ray with the target
-                // shape, keep the nearest. Reused by the grid fan-out.
-                auto consider = [&](const shape_t& target_shape, const filter_props& target_filter,
-                                    const collider_id& id) {
-                    if (!should_collide(filter, target_filter)) {
-                        return;
-                    }
-                    std::visit([&]<typename T1>(const T1& shape) {
-                        using S = std::decay_t <T1>;
-                        // intersect_param reports the parameter along its SEGMENT argument: ray is the
-                        // 2nd arg for aabb/circle targets, but the 1st arg for a segment target (params
-                        // are along `a`). Put the ray where the parameter lands so toi is "fraction
-                        // along ray".
-                        const std::optional <line_hit> hit = [&] {
-                            if constexpr (std::is_same_v <S, segment>) {
-                                return intersect_param(s, shape); // ray first
-                            } else {
-                                return intersect_param(shape, s); // aabb/circle first
-                            }
-                        }();
-                        // segment_overlaps() restricts the infinite-line crossing to the finite ray;
-                        // entry_param is otherwise unclamped.
-                        if (hit && hit->segment_overlaps()) {
+                // Keep the nearest crossing; clip the ray to the best hit so far so the tree prunes
+                // farther boxes and the grid DDA stops once a cell's entry exceeds it.
+                for_each_along_ray(
+                    s, [&] { return out ? out->toi : 1.0f; },
+                    [&](const shape_t& ts, const filter_props& tf, const collider_id& id) {
+                        if (!should_collide(filter, tf)) {
+                            return;
+                        }
+                        if (const auto hit = ray_vs_shape(s, ts)) {
                             const float toi = std::max(0.0f, hit->entry_param); // origin-inside -> 0
                             if (!out || toi < out->toi) {
                                 out = contact{id, hit->entry_normal, toi};
                             }
                         }
-                    }, target_shape);
-                };
-
-                // Tree raycast: visits only the boxes the ray crosses and clips farther boxes to
-                // the nearest confirmed hit. The float-returning callback feeds back the best toi
-                // so far as the new ray-clip fraction (the tree does t_max = min(t_max, ret)).
-                collide::raycast(m_space_partition, s, // qualified: the member `raycast` would otherwise hide it
-                                 [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box,
-                                     [[maybe_unused]] const line_hit& box_hit) -> float {
-                                     const auto& other = m_bodies_storage[other_idx];
-                                     consider(other.shape, other.filter,
-                                              collider_id{other_idx, other.generation, collider_id::BODY});
-                                     // Clip the ray to the nearest confirmed hit so farther boxes prune;
-                                     // 1.0 (no clip) until we have one.
-                                     return out ? out->toi : 1.0f;
-                                 });
-
-                // Static tiles along the ray. The grid DDA is near-to-far and reports the cell-entry
-                // parameter t_entry; the precise narrow-phase toi is >= t_entry, so once t_entry
-                // exceeds the best hit so far, no farther tile can beat it -> stop (bool early-out).
-                if (m_static_grid) {
-                    m_static_grid->raycast(s.from, s.to,
-                                           [&](const detail::tile& t, const aabb& cb, float t_entry) -> bool {
-                                               if (out && t_entry > out->toi) {
-                                                   return false; // farther than the best hit -> done
-                                               }
-                                               consider(t.shape, t.filter, tile_handle(cb));
-                                               return true;
-                                           });
-                }
+                    });
                 return out;
             }
 
@@ -1018,46 +977,17 @@ namespace simplex::collide {
             [[nodiscard]] std::vector <contact> raycast_all(const segment& s, filter_props filter = {},
                                                             std::size_t max_hits = 0) const {
                 std::vector <contact> hits;
-
-                auto consider = [&](const shape_t& target_shape, const filter_props& target_filter,
-                                    const collider_id& id) {
-                    if (!should_collide(filter, target_filter)) {
-                        return;
-                    }
-                    std::visit([&]<typename T1>(const T1& shape) {
-                        using S = std::decay_t <T1>;
-                        const std::optional <line_hit> hit = [&] {
-                            if constexpr (std::is_same_v <S, segment>) {
-                                return intersect_param(s, shape); // ray first (params along the ray)
-                            } else {
-                                return intersect_param(shape, s);
-                            }
-                        }();
-                        if (hit && hit->segment_overlaps()) {
+                // Constant clip 1.0 -> never prune: collect every crossing (toi in [0,1]).
+                for_each_along_ray(
+                    s, [] { return 1.0f; },
+                    [&](const shape_t& ts, const filter_props& tf, const collider_id& id) {
+                        if (!should_collide(filter, tf)) {
+                            return;
+                        }
+                        if (const auto hit = ray_vs_shape(s, ts)) {
                             hits.push_back(contact{id, hit->entry_normal, std::max(0.0f, hit->entry_param)});
                         }
-                    }, target_shape);
-                };
-
-                // No t_max clipping: return 1.0 so the tree visits every box the ray crosses, and the
-                // grid callback returns true so its DDA runs the whole span. We collect ALL hits.
-                collide::raycast(m_space_partition, s,
-                                 [&](entity_id_t other_idx, [[maybe_unused]] const aabb& box,
-                                     [[maybe_unused]] const line_hit& box_hit) -> float {
-                                     const auto& other = m_bodies_storage[other_idx];
-                                     consider(other.shape, other.filter,
-                                              collider_id{other_idx, other.generation, collider_id::BODY});
-                                     return 1.0f; // never clip
-                                 });
-                if (m_static_grid) {
-                    m_static_grid->raycast(s.from, s.to,
-                                           [&](const detail::tile& t, const aabb& cb,
-                                               [[maybe_unused]] float t_entry) -> bool {
-                                               consider(t.shape, t.filter, tile_handle(cb));
-                                               return true; // never stop early
-                                           });
-                }
-
+                    });
                 return nearest_first(std::move(hits), max_hits);
             }
 
