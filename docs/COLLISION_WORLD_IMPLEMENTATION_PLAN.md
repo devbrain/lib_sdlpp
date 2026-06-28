@@ -789,11 +789,23 @@ and `cast` return only the NEAREST hit; see "Cross-cutting" below.
    skin-short, up normal), cliff-deeper-than-`max_drop` no-snap, flush-within-skin no-move,
    nothing-below nullopt (self excluded), gentle-slope snap, steep->45° not-walkable no-snap,
    ONE_WAY-from-above snap, step-down re-grounds onto the lower floor.
-3. **Step-up / ledge forgiveness.** Distinct from snap-down: a mover walking into a small lip
-   (a 1–4 px ledge, the top of a short step) should ride up over it instead of stopping dead,
-   when a small upward probe clears. Built from a short up-probe + re-cast, but not provided;
-   without it characters catch on tiny tile lips. (Distinct from the tile-seam item below —
-   this is intended geometry, not a seam artifact.)
+3. **Step-up / ledge forgiveness. [DONE]** Distinct from snap-down: a mover walking into a
+   small lip (a 1–4 px ledge, the top of a short step) should ride up over it instead of
+   stopping dead. `world::step_up(cid, step, max_step)` is the *upward mirror* of
+   `snap_to_ground`: when a horizontal move is blocked it lifts the actor up to `max_step`
+   (capped by headroom), re-casts the horizontal `step` from the raised position, and — if the
+   path is now clear AND there is a tread to land on — carries it forward over the lip and
+   settles it onto that tread (the classic up→forward→down move). A riser taller than
+   `max_step`, no headroom to lift, or a *ledge* with no tread beyond the lip leaves the actor
+   untouched (`nullopt`) — the last case undoes the whole move so the actor is never launched
+   out over a drop. `max_step` is the gate that separates a *step* from a wall (mirroring
+   `max_drop`'s step-vs-cliff). Built on the self-excluding swept `cast` + `translate` — no new
+   physics primitive. Relies on the SKIN-SHORT post-solver state (a flush actor reads its own
+   support as a toi-0 hit that masks the obstruction). *Tested:* `test_world_stepup.cc` —
+   climbs a short lip and settles on the tread, riser taller than `max_step` stays a wall, no
+   obstruction → no-op, insufficient headroom (low ceiling) → no step, ledge-with-no-tread →
+   full undo. (Distinct from the tile-seam item below — this is intended geometry, not a seam
+   artifact.)
 4. **Footing / edge sensors — `ground_support(footprint, max_drop)`.** Detecting that a body
    stands at a ledge (most of its footprint off the edge) drives the **balance/teeter** animation
    (Jazz Jackrabbit, Sonic), **edge-stop** ("don't auto-walk off"), **coyote-time**, and

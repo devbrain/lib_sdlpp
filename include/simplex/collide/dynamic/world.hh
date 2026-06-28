@@ -1335,17 +1335,85 @@ namespace simplex::collide {
                 // Land `skin` short of the surface (the same anti-jitter cushion move_and_slide keeps).
                 const float dist = std::max(0.0f, hit->toi * max_drop - m_cfg.skin);
                 translate(self, -m_cfg.up * dist);
-
-                // Re-fit the proxy only when the moved tight box escaped its stored fat box (same
-                // containment short-circuit as move_and_slide's tail).
-                const aabb tight = std::visit([](const auto& s) { return enclose(s); }, self.shape);
-                if (!detail::contains(m_space_partition[self.proxy].box, tight)) {
-                    update_leaf(m_space_partition, self.proxy, fatten(self));
-                }
+                refit_proxy(self);
                 return hit;
             }
 
+            // §19 #3 -- step-up / ledge forgiveness. A mover walking into a small lip (a low step
+            // riser, a curb, a tile edge) should ride up over it rather than jam against it. Call
+            // step_up(cid, step, max_step) when a horizontal move was blocked: it lifts the actor up
+            // to `max_step` (capped by headroom), re-casts the horizontal `step` from the raised
+            // position, and -- if the path is now clear AND there is a tread to land on -- carries it
+            // forward over the lip and settles it down onto that tread. A riser taller than
+            // `max_step`, no headroom to lift, or only a ledge beyond the lip leaves the actor
+            // untouched and returns nullopt.
+            //
+            // `step` is the horizontal displacement to carry the actor over the lip (typically the
+            // same velocity*dt used for the move); its component along `up` is ignored. Returns the
+            // tread contact it settled on, or nullopt when nothing was stepped over (path already
+            // clear, a true wall, no headroom, or a ledge with no tread). POLICY is the caller's:
+            // enable it for characters that should climb steps, not for crates/projectiles. Built on
+            // the self-excluding swept cast + translate -- no new physics primitive.
+            //
+            // Call it on a body resting at the SKIN-SHORT gap the solver leaves (the post-run state):
+            // a body flush against its support reads every cast as a toi-0 contact (the support masks
+            // the obstruction), so a flush actor must be nudged off-surface first.
+            [[nodiscard]] std::optional <contact> step_up(collider_id cid, vec step, float max_step) {
+                ENFORCE(is_valid(cid) && cid.type_id == collider_id::BODY);
+                auto& self = m_bodies_storage[cid.value];
+                ENFORCE(self.kind == detail::body_kind::KINEMATIC)("step_up: actor must be kinematic");
+                ENFORCE(max_step >= 0.0f)("step_up: max_step must be non-negative");
+
+                // Only the horizontal part carries the actor over a lip (vertical intent is gravity/jump).
+                const vec horiz = step - euler::dot(step, m_cfg.up) * m_cfg.up;
+                if (near_zero(horiz)) {
+                    return std::nullopt;
+                }
+                const units::displacement fwd{horiz};
+
+                // Nothing in the way: not a step-up situation -- leave the move to the normal solver.
+                if (!cast(cid.value, collider_id::BODY, fwd, solid_acceptor())) {
+                    return std::nullopt;
+                }
+
+                // Probe straight up for headroom, then lift by as much of max_step as actually clears.
+                const auto head = cast(cid.value, collider_id::BODY,
+                                       units::displacement{m_cfg.up * max_step}, solid_acceptor());
+                const float lift = head ? std::max(0.0f, head->toi * max_step - m_cfg.skin) : max_step;
+                if (lift <= constants::POINT_EPS) {
+                    return std::nullopt; // pinned below a ceiling -- no room to step up
+                }
+                translate(self, m_cfg.up * lift);
+
+                // From the raised position, must the horizontal step now clear the lip entirely; a
+                // remaining hit means the obstruction is taller than we lifted -> a true wall.
+                if (cast(cid.value, collider_id::BODY, fwd, solid_acceptor())) {
+                    translate(self, -m_cfg.up * lift); // undo the lift
+                    refit_proxy(self);
+                    return std::nullopt;
+                }
+                translate(self, horiz); // carry forward over the lip
+
+                // Settle down onto the tread. We climbed `lift`, so we fall at most that far (never
+                // past the original floor); no walkable gate, since we have committed to the step we
+                // just cleared. No tread within reach means we stepped onto a ledge, not a step --
+                // undo the whole move so the actor is not launched out over a drop.
+                const auto tread = cast(cid.value, collider_id::BODY,
+                                        units::displacement{-m_cfg.up * lift}, solid_acceptor());
+                if (!tread) {
+                    translate(self, -horiz);
+                    translate(self, -m_cfg.up * lift);
+                    refit_proxy(self);
+                    return std::nullopt;
+                }
+                const float drop = std::max(0.0f, tread->toi * lift - m_cfg.skin);
+                translate(self, -m_cfg.up * drop);
+                refit_proxy(self);
+                return tread;
+            }
+
         private:
+
             struct slide_result {
                 vec velocity; // post-slide velocity (also written back to the body)
                 bool grounded = false;
