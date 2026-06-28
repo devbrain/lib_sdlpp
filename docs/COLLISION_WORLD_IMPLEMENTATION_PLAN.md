@@ -775,11 +775,20 @@ and `cast` return only the NEAREST hit; see "Cross-cutting" below.
 
    **§19 #1 (moving platforms) is complete: carry + conveyor (MP1), push (MP2, anti-tunnel +
    material/face-aware), and crush (MP3).**
-2. **Ground snapping ("stick to the floor" on slopes/stairs).** Walking down a slope/stairs
-   should not go airborne each step (and Sonic must hug the ground at speed). Composable
-   today (probe down with `raycast`, re-snap after the move using the contact normal +
-   `grounded`), but there is no built-in `snap_to_ground` helper — every slope game will
-   re-write it.
+2. **Ground snapping ("stick to the floor" on slopes/stairs). [DONE]** Walking down a
+   slope/stairs should not go airborne each step (and Sonic must hug the ground at speed).
+   `world::snap_to_ground(cid, max_drop)` sweeps the actor's OWN shape straight down (`-up`)
+   by at most `max_drop` (the cliff gate) and, if it lands on a WALKABLE surface within reach
+   (normal·up > the ~45° ground threshold — the same solids it slides on, ONE_WAY floors
+   included from above), translates the actor down onto it leaving the standard skin gap. It
+   returns the ground `contact` it snapped to (normal usable for slope-aligned velocity), or
+   `nullopt` when there is no walkable ground within reach — a real cliff or a >45° face, so
+   the actor falls. POLICY is the caller's: call AFTER `run()`, only when the actor was
+   grounded last frame and is not rising. Built entirely on the existing self-excluding swept
+   `cast` — no new physics primitive. *Tested:* `test_world_snap.cc` — flat-floor snap (lands
+   skin-short, up normal), cliff-deeper-than-`max_drop` no-snap, flush-within-skin no-move,
+   nothing-below nullopt (self excluded), gentle-slope snap, steep->45° not-walkable no-snap,
+   ONE_WAY-from-above snap, step-down re-grounds onto the lower floor.
 3. **Step-up / ledge forgiveness.** Distinct from snap-down: a mover walking into a small lip
    (a 1–4 px ledge, the top of a short step) should ride up over it instead of stopping dead,
    when a small upward probe clears. Built from a short up-probe + re-cast, but not provided;

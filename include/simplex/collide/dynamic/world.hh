@@ -1299,6 +1299,52 @@ namespace simplex::collide {
                 return !hit || hit->toi >= 1.0f;
             }
 
+            // §19 #2 -- ground snapping. Keep a grounded actor glued to a floor that receded beneath
+            // it this frame, so it hugs a downhill slope / staircase instead of launching off each
+            // lip. Sweeps the actor's OWN shape straight down (-up) by at most `max_drop`; if it
+            // lands on a WALKABLE surface within reach (the same solids it slides on -- ONE_WAY
+            // floors included, from above), it translates the actor down onto that surface, leaving
+            // the standard skin gap so the next frame's cast does not re-hit at toi 0.
+            //
+            // Returns the ground contact it snapped to (normal usable for slope-aligned velocity),
+            // or nullopt when there is no walkable ground within `max_drop` -- the actor is over a
+            // real ledge/cliff (or a >45 deg face) and should fall. A flush floor (toi 0) returns the
+            // contact with no move.
+            //
+            // POLICY is the caller's: call AFTER run(), only when the actor was grounded last frame
+            // and is not rising. Size `max_drop` to the tallest one-frame step down (a few px +
+            // slope*speed*dt), small enough that a true cliff (drop > max_drop) still lets it fall.
+            [[nodiscard]] std::optional <contact> snap_to_ground(collider_id cid, float max_drop) {
+                ENFORCE(is_valid(cid) && cid.type_id == collider_id::BODY);
+                auto& self = m_bodies_storage[cid.value];
+                ENFORCE(self.kind == detail::body_kind::KINEMATIC)("snap_to_ground: actor must be kinematic");
+                ENFORCE(max_drop >= 0.0f)("snap_to_ground: max_drop must be non-negative");
+
+                // Sweep the actor's shape straight down; cast(idx, BODY, ...) excludes self and uses
+                // the actor's own filter, so we snap onto exactly the solids it would slide on.
+                const units::displacement probe{-m_cfg.up * max_drop};
+                const auto hit = cast(cid.value, collider_id::BODY, probe, solid_acceptor());
+                if (!hit) {
+                    return std::nullopt; // nothing below within reach -> fall
+                }
+                // Only a WALKABLE surface counts, keeping snapped <=> grounded coherent: a >45 deg
+                // face below reads as a cliff/wall, not a floor.
+                if (euler::dot(hit->normal, m_cfg.up) <= GROUND_THRESHOLD) {
+                    return std::nullopt;
+                }
+                // Land `skin` short of the surface (the same anti-jitter cushion move_and_slide keeps).
+                const float dist = std::max(0.0f, hit->toi * max_drop - m_cfg.skin);
+                translate(self, -m_cfg.up * dist);
+
+                // Re-fit the proxy only when the moved tight box escaped its stored fat box (same
+                // containment short-circuit as move_and_slide's tail).
+                const aabb tight = std::visit([](const auto& s) { return enclose(s); }, self.shape);
+                if (!detail::contains(m_space_partition[self.proxy].box, tight)) {
+                    update_leaf(m_space_partition, self.proxy, fatten(self));
+                }
+                return hit;
+            }
+
         private:
             struct slide_result {
                 vec velocity; // post-slide velocity (also written back to the body)

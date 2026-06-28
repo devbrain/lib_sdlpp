@@ -118,6 +118,7 @@ add_executable(sdlpp_unittest
         simplex/test_world_slide.cc
         simplex/test_world_grid.cc
         simplex/test_world_carriers.cc
+        simplex/test_world_snap.cc
 
 
         # General/support tests
