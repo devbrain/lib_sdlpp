@@ -1585,17 +1585,5 @@ namespace simplex::collide {
     };
 }
 
-// Lets collider_id be a key in std::unordered_map / unordered_set. Mixes all three identity
-// fields so handles to different slots/generations/types hash apart.
-template <>
-struct std::hash<simplex::collide::collider_id> {
-    [[nodiscard]] std::size_t operator()(const simplex::collide::collider_id& id) const noexcept {
-        const std::size_t h1 = std::hash<std::uint32_t>{}(id.value);
-        const std::size_t h2 = std::hash<std::uint32_t>{}(id.generation);
-        const std::size_t h3 = std::hash<std::uint32_t>{}(static_cast<std::uint32_t>(id.type_id));
-        std::size_t h = h1;
-        h ^= h2 + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
-        h ^= h3 + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
-        return h;
-    }
-};
+// std::hash<collider_id> lives in world_types.hh, beside collider_id (so consumers of that header
+// alone can key unordered containers on handles). It is available here transitively.
