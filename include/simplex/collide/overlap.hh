@@ -1,10 +1,28 @@
 #pragma once
 
-// =============================================================================
-// Static overlap predicates (do two stationary shapes overlap right now?).
-// The segment/segment boolean lives in <simplex/collide/sweep.hh> next to its
-// parametric implementation.
-// =============================================================================
+/**
+ * @file overlap.hh
+ * @brief Static overlap predicates and penetration (MTV) queries between two stationary
+ *        2D shapes -- the boolean/penetration narrow-phase of @ref simplex::collide.
+ *
+ * Provides three families of @c constexpr / @c inline queries over the shape vocabulary
+ * defined in @ref types.hh (@ref simplex::collide::aabb, @ref simplex::collide::circle,
+ * @ref simplex::collide::segment):
+ *   - @ref simplex::collide::contains -- does a shape contain a point?
+ *   - @ref simplex::collide::intersects -- do two stationary shapes overlap or touch
+ *     (a pure boolean test)?
+ *   - @ref simplex::collide::overlap -- the minimum translation vector
+ *     (@ref simplex::collide::penetration) that separates two strictly overlapping area
+ *     shapes, or @c std::nullopt when they do not overlap.
+ *
+ * All predicates count touching (boundary contact) as overlap, whereas @ref
+ * simplex::collide::overlap treats touching as NO overlap (a zero MTV is not reported).
+ *
+ * @note The segment/segment boolean lives in <simplex/collide/sweep.hh> next to its
+ *       parametric implementation. Segments are 1-D and have no well-defined static MTV,
+ *       so @ref simplex::collide::overlap is defined only for the area shapes (aabb,
+ *       circle); use the swept/parametric contact normal for segments instead.
+ */
 
 #include <cmath>
 #include <optional>
@@ -95,6 +113,10 @@ namespace simplex::collide {
      *
      * True when the shortest distance from the circle centre to the segment is within
      * the circle radius.
+     *
+     * @param s The line segment.
+     * @param c The circle shape.
+     * @return true if the shapes overlap or touch, false otherwise.
      */
     [[nodiscard]] constexpr bool intersects(const segment& s, const circle& c) noexcept {
         return squared_distance(c.center, s) <= c.radius * c.radius;
@@ -116,6 +138,8 @@ namespace simplex::collide {
 
     /**
      * @brief Minimum translation vector separating two overlapping AABBs (axis of least overlap).
+     * @param a The first bounding box (the one the returned normal pushes out of @p b).
+     * @param b The second bounding box.
      * @return A @ref penetration (normal points the way to move `a` out of `b`), or
      *         std::nullopt if the boxes do not strictly overlap (touching counts as no overlap).
      */
@@ -144,6 +168,8 @@ namespace simplex::collide {
 
     /**
      * @brief Minimum translation vector separating two overlapping circles.
+     * @param a The first circle (the one the returned normal pushes out of @p b).
+     * @param b The second circle.
      * @return A @ref penetration (normal points from `b` toward `a`), or std::nullopt
      *         if the circles do not strictly overlap. Concentric circles get an arbitrary axis.
      */
@@ -163,6 +189,8 @@ namespace simplex::collide {
 
     /**
      * @brief Minimum translation vector separating an overlapping circle and AABB.
+     * @param c The circle (the one the returned normal pushes out of @p b).
+     * @param b The axis-aligned bounding box.
      * @return A @ref penetration (normal points the way to move the circle `c` out of `b`),
      *         or std::nullopt if they do not strictly overlap. When the centre is inside the
      *         box the circle is pushed out through the nearest face.

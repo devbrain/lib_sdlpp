@@ -1,8 +1,24 @@
+/**
+ * @file distance.hh
+ * @brief Distance and closest-point queries between the collision shapes -- point-vs-shape
+ *        projections plus the shape-to-shape squared-distance table.
+ *
+ * Two layers live here:
+ *   - Point queries: @ref simplex::collide::closest_parameter / @ref
+ *     simplex::collide::closest_point (project a point onto a segment / AABB / circle) and the
+ *     @ref simplex::collide::squared_distance point-vs-shape overloads.
+ *   - Shape-to-shape distance: @ref simplex::collide::squared_distance between two FILLED regions
+ *     -- 0 when the shapes overlap or touch, otherwise the squared shortest gap. A filled circle
+ *     is its centre inflated by its radius, so every circle pair reduces to a core
+ *     point/segment/aabb distance minus the radii, clamped at 0.
+ *
+ * @note All distances are returned SQUARED (no @c sqrt) to keep the queries branch-cheap and
+ *       comparable without a root; take @c std::sqrt at the call site only if a true distance is
+ *       needed.
+ * @note The segment/segment and segment/aabb pairs (which need an "intersecting => 0" test) live
+ *       in @c <simplex/collide/sweep.hh>, not here.
+ */
 #pragma once
-
-// =============================================================================
-// Distance / closest-point queries (point vs segment / aabb / circle).
-// =============================================================================
 
 #include <cmath>
 #include <algorithm>

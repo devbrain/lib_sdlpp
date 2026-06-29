@@ -2,6 +2,19 @@
 // Created by igor on 25/06/2026.
 //
 
+/**
+ * @file clip.hh
+ * @brief Clip a directed line segment to the interior of an axis-aligned box
+ *        (@ref simplex::collide::clip).
+ *
+ * Computes the portion of a @ref simplex::collide::segment that lies inside a
+ * @ref simplex::collide::aabb, returning the trimmed sub-segment (or nothing when the segment
+ * misses the box entirely). This is the classic Liang-Barsky line-clipping operation, layered on
+ * top of the parametric slab test @ref simplex::collide::intersect_param.
+ *
+ * @see sweep.hh for the underlying @ref simplex::collide::intersect_param primitive.
+ */
+
 #pragma once
 
 #include <optional>
@@ -9,6 +22,24 @@
 #include <simplex/collide/sweep.hh>
 
 namespace simplex::collide {
+    /**
+     * @brief Clip a directed segment to the interior of an AABB (Liang-Barsky).
+     *
+     * Intersects the segment's line with @p box via @ref intersect_param, then clamps the
+     * resulting entry/exit line parameters to the finite segment range @c [0,1] and
+     * reconstructs the in-box sub-segment via @ref segment::point_in_time. The returned
+     * sub-segment preserves the original orientation (its @c from precedes its @c to along
+     * @p s).
+     *
+     * @param box The axis-aligned clipping box. Assumed to satisfy the @ref aabb min<=max
+     *            invariant.
+     * @param s   The segment to clip.
+     * @return The portion of @p s inside @p box, or @c std::nullopt when @p s does not
+     *         overlap @p box (no intersection, or the overlap lies entirely outside the
+     *         finite @c [0,1] range).
+     * @note A segment that merely grazes a face/corner (tangent) may still be reported as a
+     *       hit, yielding a degenerate zero-length sub-segment.
+     */
     inline std::optional <segment> clip(const aabb& box, const segment& s) {
         // Liang-Barsky
         const auto hit = intersect_param(box, s);

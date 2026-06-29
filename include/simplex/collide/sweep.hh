@@ -1,5 +1,46 @@
 #pragma once
 
+/**
+ * @file sweep.hh
+ * @brief Swept / continuous-collision-detection (CCD) narrow phase: parametric intersection
+ *        of static shapes and time-of-impact intersection of MOVING convex shapes.
+ *
+ * Two complementary families of queries live here, distinguished by their return type and units:
+ *
+ *   - @ref simplex::collide::intersect_param -- the geometric primitive. It intersects the
+ *     infinite line (or finite segment) carrying a swept path against a static shape (AABB,
+ *     circle, segment) and returns a @ref simplex::collide::line_hit: entry/exit parameters
+ *     measured ALONG THE SEGMENT (typically in [0,1], but possibly outside it -- a negative
+ *     entry means the path starts already inside) plus the outward contact normals at those
+ *     two points. These are the per-shape-pair building blocks the swept queries dispatch to.
+ *
+ *   - @ref simplex::collide::swept_intersection -- the CCD entry points. Each takes two moving
+ *     shapes with their velocities and a time window, reduces the pair to a single moving point
+ *     vs. a static Minkowski-sum shape (in the RELATIVE frame, only @c avel-bvel matters), runs
+ *     the relevant @ref intersect_param primitive(s), and returns a @ref simplex::collide::swept_hit:
+ *     entry/exit TIMES in absolute seconds within [0, @c time], plus entry/exit normals.
+ *
+ * The bridge between the two is @ref simplex::collide::to_swept_hit, which clamps the raw
+ * line-parameter interval to a finite [0,1] and scales it by @c time.
+ *
+ * Minkowski reductions used per shape pair:
+ *   - AABB vs AABB     -- inflate one box by the other's half-size; sweep the first's center
+ *                         against the resulting box (slab method).
+ *   - circle vs circle -- inflate one circle by the other's radius; sweep a point (line vs circle).
+ *   - circle vs AABB   -- the sum is a rounded rectangle (stadium): two inflated boxes + four
+ *                         corner circles; sweep a point against the 6-shape union.
+ *   - circle vs segment-- the sum is a capsule: a core box + two endpoint circles in the
+ *                         segment's local frame; sweep a point against that union.
+ *   - AABB vs segment  -- vertex/edge events: each segment endpoint swept vs the box and each
+ *                         box corner swept vs the segment, anchored on actual overlap at the
+ *                         window ends.
+ * Because each Minkowski sum is convex, the swept point's crossing is a single interval whose
+ * entry comes from the earliest-entering sub-shape and exit from the latest-exiting one.
+ *
+ * @note @ref intersect_param returns line PARAMETERS; @ref swept_intersection returns absolute
+ *       TIMES (seconds) within [0, time]. Do not confuse the two unit systems.
+ */
+
 // =============================================================================
 // Parametric intersection (intersect_param) and continuous collision detection
 // (swept_intersection). intersect_param returns line_hit (segment parameters);
@@ -21,6 +62,12 @@ namespace simplex::collide {
      * shape; distinct sub-shape hits for a composite/convex query). Each parameter is clamped
      * to a finite [0, 1] *before* scaling by @p time, so an already-overlapping start
      * (param == -inf) maps to 0 and a zero-duration query yields 0 rather than inf * 0 == NaN.
+     *
+     * @param entry_src Source hit supplying the entry parameter and entry normal.
+     * @param exit_src  Source hit supplying the exit parameter and exit normal.
+     * @param time      Window duration (seconds) the clamped [0,1] parameters are scaled by.
+     * @return A @ref swept_hit with @c entry_time / @c exit_time in [0, @p time] and the
+     *         carried-over entry/exit normals.
      */
     [[nodiscard]] constexpr swept_hit to_swept_hit(const line_hit& entry_src, const line_hit& exit_src,
                                                    float time) noexcept {
@@ -32,9 +79,22 @@ namespace simplex::collide {
         };
     }
 
-    /*
-     * Slab method visual representation (for dx > 0, dy > 0):
+    /**
+     * @brief Computes raw line-parameter intersection and normals for an AABB and a line segment.
      *
+     * This function uses the slab method (Kay and Kajiya) to calculate where the line
+     * containing the segment crosses the axis-aligned bounding box. It projects the
+     * segment onto each axis and determines the entry/exit parameter intervals. The overlap
+     * of the X-interval [t_min_x, t_max_x] and the Y-interval [t_min_y, t_max_y] yields the
+     * entry and exit parameters of the AABB:
+     *   - @c t_entry = max(t_min_x, t_min_y)
+     *   - @c t_exit  = min(t_max_x, t_max_y)
+     * An axis with zero displacement degenerates its slab to either the whole line (the origin
+     * is inside that slab) or an empty interval (it is outside), so axis-aligned paths are
+     * handled without division by zero.
+     *
+     * Slab method visual representation (for dx > 0, dy > 0):
+     * @verbatim
      *                     - - - - - - - - - - - - - - - - - - - * ty_far (t_max_y)
      *                                                           /
      *                                                AABB (a)  /
@@ -58,18 +118,7 @@ namespace simplex::collide {
      *                                       /
      *                                      / segment (b)
      *                                     /
-     *
-     *  The overlap of X-interval [t_min_x, t_max_x] and Y-interval [t_min_y, t_max_y]
-     *  yields the entry and exit parameters for the AABB:
-     *    t_entry = max(t_min_x, t_min_y)
-     *    t_exit  = min(t_max_x, t_max_y)
-     */
-    /**
-     * @brief Computes raw line-parameter intersection and normals for an AABB and a line segment.
-     *
-     * This function uses the slab method (Kay and Kajiya) to calculate where the line
-     * containing the segment crosses the axis-aligned bounding box. It projects the
-     * segment onto each axis and determines the entry/exit parameter intervals.
+     * @endverbatim
      *
      * @note The returned `entry_param`/`exit_param` are parameters along the segment line
      *       and may lie outside [0, 1]:
@@ -420,6 +469,10 @@ namespace simplex::collide {
      * In 2D the closest pair of two non-intersecting segments always includes an
      * endpoint, so the distance reduces to the minimum of the four endpoint/segment
      * distances. (This is the planar simplification of the general clamped solve.)
+     *
+     * @param a The first segment.
+     * @param b The second segment.
+     * @return The squared Euclidean distance between the segments, or 0 if they intersect.
      */
     [[nodiscard]] inline float squared_distance(const segment& a, const segment& b) noexcept {
         if (intersects(a, b)) {
@@ -439,6 +492,10 @@ namespace simplex::collide {
      * When disjoint, the closest pair includes either a segment endpoint or a box corner,
      * so the distance is the minimum over the two endpoints (vs the box) and the four
      * corners (vs the segment).
+     *
+     * @param s The line segment.
+     * @param b The axis-aligned bounding box.
+     * @return The squared Euclidean distance between the segment and the box, or 0 if they overlap.
      */
     [[nodiscard]] constexpr float squared_distance(const segment& s, const aabb& b) noexcept {
         if (intersects(s, b)) {

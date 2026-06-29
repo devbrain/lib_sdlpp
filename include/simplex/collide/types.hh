@@ -1,20 +1,36 @@
 #pragma once
 
-// =============================================================================
-// Collision value types — shared by every simplex::collide query.
-//
-// Pure world-space (float world units), no display/dp/SDL dependency. Holds the
-// shape value types (aabb, circle, segment) and the query result types
-// (line_hit, swept_hit). See <simplex/collide/shapes.hh> for the module overview.
-// =============================================================================
+/**
+ * @file types.hh
+ * @brief Core collision value types plus the shared numeric tolerances -- the vocabulary
+ *        every @ref simplex::collide query is expressed in.
+ *
+ * Pure world-space types (float world units) with no display/dp/SDL dependency. Holds:
+ *   - the @ref simplex::collide::constants tolerances (epsilons) shared across the module;
+ *   - the shape value types -- @ref simplex::collide::aabb, @ref simplex::collide::circle,
+ *     @ref simplex::collide::segment, @ref simplex::collide::triangle;
+ *   - the query result types -- @ref simplex::collide::line_hit,
+ *     @ref simplex::collide::swept_hit, @ref simplex::collide::penetration.
+ *
+ * @see <simplex/collide/shapes.hh> for the module overview.
+ */
 
 #include <limits>
 #include <euler/vector/vector.hh>
 #include <euler/vector/vector_ops.hh>
 
 namespace simplex::collide {
+    /**
+     * @brief Shared numeric tolerances (epsilons) and float sentinels used across the
+     *        collide module's predicates and parametric queries.
+     *
+     * Centralising these keeps the boolean, distance, clip and sweep queries consistent in
+     * how they treat coincident points, parallel directions, tangency and degenerate normals.
+     */
     namespace constants {
+        /// Positive infinity sentinel (e.g. an empty/unbounded interval's upper bound).
         inline constexpr auto INF = std::numeric_limits <float>::infinity();
+        /// Negative infinity sentinel (e.g. an empty/unbounded interval's lower bound).
         inline constexpr auto NEG_INF = -std::numeric_limits <float>::infinity();
 
         /// Length below which a vector/segment is treated as a zero-length point, and the
@@ -55,23 +71,35 @@ namespace simplex::collide {
         vec max{}; ///< Component-wise maximum corner of the box (e.g., top-right in y-up, bottom-right in y-down)
 
         /**
-         * @brief Get the size of the box (width, height)
+         * @brief Get the size of the box (width, height).
+         * @return A vector whose components are the box extents along x and y.
          */
         [[nodiscard]] constexpr vec size() const noexcept {
             return vec{max.x() - min.x(), max.y() - min.y()};
         }
 
         /**
-         * @brief Get the center point of the box
+         * @brief Get the center point of the box.
+         * @return The midpoint of the min and max corners.
          */
         [[nodiscard]] constexpr vec center() const noexcept {
             return vec{(min.x() + max.x()) * 0.5f, (min.y() + max.y()) * 0.5f};
         }
 
+        /**
+         * @brief Area of the box (width * height).
+         * @return The box area; the surface-area-heuristic cost metric used by the BVH broadphase.
+         */
         [[nodiscard]] constexpr float area() const noexcept {
             return (max.x() - min.x()) * (max.y() - min.y());
         }
 
+        /**
+         * @brief The smallest AABB enclosing both @p a and @p b (their component-wise union).
+         * @param a The first box.
+         * @param b The second box.
+         * @return The union box: component-wise min of the mins and max of the maxes.
+         */
         [[nodiscard]] static constexpr aabb combine(const aabb& a, const aabb& b) {
             return {
                 {std::min(a.min.x(), b.min.x()), std::min(a.min.y(), b.min.y())},

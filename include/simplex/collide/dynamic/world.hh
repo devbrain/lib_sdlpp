@@ -52,7 +52,7 @@
 #include <simplex/collide/units.hh>
 #include <simplex/collide/dynamic/grid.hh>
 #include <simplex/collide/dynamic/dynamic_aabb_tree.hh>
-#include <simplex/collide/dynamic/world_types.hh>
+#include <simplex/collide/dynamic/world_internal.hh> // detail:: internals + (transitively) world_types.hh
 
 namespace simplex::collide {
     /**

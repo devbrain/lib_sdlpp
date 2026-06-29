@@ -1,15 +1,28 @@
 //
 // Created by igor on 25/06/2026.
 //
-// Solid-triangle narrow-phase. A triangle is a 2-D region (its interior is solid), so it
-// blocks from every side -- unlike a single `segment`, which only blocks crossing its line.
-// Used for free-standing solid slopes/ramps.
-//
-// Everything here is built by DECOMPOSITION: a triangle is its three edge segments plus a
-// solid interior. So each query reuses the already-tested segment machinery (intersects /
-// intersect_param / swept_intersection vs a segment) over the three edges, and adds the
-// interior ("is this point inside?") cases the edges alone do not cover. No new SAT/CCD math.
-//
+
+/**
+ * @file triangle.hh
+ * @brief Solid-triangle narrow-phase: static overlap, ray/segment parameterisation, and swept
+ *        (continuous) collision for a filled triangle -- used for free-standing solid slopes/ramps.
+ *
+ * A triangle is a 2-D region whose interior is SOLID, so it blocks from every side -- unlike a
+ * single @ref simplex::collide::segment, which only blocks something crossing its line.
+ *
+ * Everything here is built by DECOMPOSITION: a triangle is its three edge segments plus a solid
+ * interior. Each query reuses the already-tested segment machinery (@ref
+ * simplex::collide::intersects / @ref simplex::collide::intersect_param / @ref
+ * simplex::collide::swept_intersection against a segment) over the three edges, and adds the
+ * interior ("is this point inside?") cases the edges alone do not cover. No new SAT/CCD math is
+ * introduced.
+ *
+ * @note The narrow-phase entry points mirror the other shapes': @ref
+ *       simplex::collide::intersects (static overlap), @ref simplex::collide::intersect_param
+ *       (raycast), and @ref simplex::collide::swept_intersection (CCD), plus @ref
+ *       simplex::collide::contains, @ref simplex::collide::enclose and @ref
+ *       simplex::collide::translate.
+ */
 #pragma once
 
 #include <algorithm>
@@ -26,17 +39,38 @@
 
 namespace simplex::collide {
     namespace detail {
-        // The triangle's three directed edges (a->b, b->c, c->a) as segments.
+        /**
+         * @brief The triangle's three directed edges (a->b, b->c, c->a) as segments.
+         * @param t The triangle.
+         * @return The three edge segments, in winding order.
+         */
         [[nodiscard]] inline std::array<segment, 3> tri_edges(const triangle& t) {
             return {segment{t.a, t.b}, segment{t.b, t.c}, segment{t.c, t.a}};
         }
 
+        /**
+         * @brief The centroid (average of the three vertices) of triangle @p t.
+         * @param t The triangle.
+         * @return A point guaranteed to lie strictly inside a non-degenerate triangle -- used as the
+         *         "interior" reference when orienting edge normals.
+         */
         [[nodiscard]] inline vec tri_centroid(const triangle& t) {
             return vec{(t.a.x() + t.b.x() + t.c.x()) / 3.0f, (t.a.y() + t.b.y() + t.c.y()) / 3.0f};
         }
 
-        // Unit outward normal of edge p->q for a triangle whose interior lies toward `inside`
-        // (e.g. the centroid). Perpendicular to the edge, flipped to point AWAY from the interior.
+        /**
+         * @brief Unit OUTWARD normal of edge @p p -> @p q for a triangle whose interior lies toward
+         *        @p inside.
+         *
+         * The raw perpendicular of the edge is flipped, if necessary, to point AWAY from the
+         * interior reference point (typically the centroid; see @ref tri_centroid).
+         *
+         * @param p      Edge start vertex.
+         * @param q      Edge end vertex.
+         * @param inside A point on the interior side of the edge (e.g. the triangle centroid).
+         * @return The unit outward normal, or @c {0,0} if the edge is shorter than
+         *         @c constants::NORMALIZE_EPS (degenerate).
+         */
         [[nodiscard]] inline vec edge_outward_normal(const vec& p, const vec& q, const vec& inside) {
             vec n{-(q.y() - p.y()), q.x() - p.x()};
             const vec mid{(p.x() + q.x()) * 0.5f, (p.y() + q.y()) * 0.5f};
@@ -50,6 +84,12 @@ namespace simplex::collide {
 
     // ---- enclose / translate (defined early: swept_tri uses translate for its end-overlap test) --
 
+    /**
+     * @brief The axis-aligned bounding box that tightly encloses triangle @p t.
+     * @param t The triangle.
+     * @return The AABB spanning the min/max of the three vertices.
+     * @note Defined early because @ref detail::swept_tri uses @ref translate for its end-overlap test.
+     */
     [[nodiscard]] inline aabb enclose(const triangle& t) noexcept {
         return aabb{
             vec{std::min({t.a.x(), t.b.x(), t.c.x()}), std::min({t.a.y(), t.b.y(), t.c.y()})},
@@ -57,16 +97,30 @@ namespace simplex::collide {
         };
     }
 
+    /**
+     * @brief Translate triangle @p t by displacement @p v (each vertex moved by @p v).
+     * @param t The triangle.
+     * @param v The displacement.
+     * @return The translated triangle.
+     */
     [[nodiscard]] constexpr triangle translate(const triangle& t, const vec& v) {
         return {translate(t.a, v), translate(t.b, v), translate(t.c, v)};
     }
 
-    /// @brief Test if a (solid) triangle contains a point (inclusive of the boundary).
-    ///
-    /// The bounding-box guard also gives a DEGENERATE (collinear) triangle the documented
-    /// "behaves like its longest edge" semantics: the same-sign cross test alone is true for the
-    /// whole infinite line when the area is zero, but the bbox of three collinear points is exactly
-    /// the longest edge's extent, so the two together accept only points on that edge.
+    /**
+     * @brief Test if a (solid) triangle contains a point, inclusive of the boundary.
+     *
+     * Combines a bounding-box guard with a same-sign cross-product (half-plane) test: a point is
+     * inside iff it lies on the same side of all three directed edges (zero counts as "on an edge").
+     *
+     * @param t The (solid) triangle.
+     * @param p The query point.
+     * @return @c true iff @p p is inside @p t or on its boundary.
+     * @note The bounding-box guard also gives a DEGENERATE (collinear) triangle the documented
+     *       "behaves like its longest edge" semantics: the same-sign cross test alone is true for the
+     *       whole infinite line when the area is zero, but the bbox of three collinear points is
+     *       exactly the longest edge's extent, so the two together accept only points on that edge.
+     */
     [[nodiscard]] inline bool contains(const triangle& t, const vec& p) noexcept {
         const float min_x = std::min({t.a.x(), t.b.x(), t.c.x()});
         const float max_x = std::max({t.a.x(), t.b.x(), t.c.x()});
@@ -88,6 +142,12 @@ namespace simplex::collide {
 
     // ---- static overlap (intersects) ---------------------------------------------------------
 
+    /**
+     * @brief Static overlap test between a solid triangle and a segment.
+     * @param t The solid triangle.
+     * @param s The segment.
+     * @return @c true iff any triangle edge crosses @p s, or @p s lies entirely inside @p t.
+     */
     [[nodiscard]] inline bool intersects(const triangle& t, const segment& s) noexcept {
         for (const auto& e : detail::tri_edges(t)) {
             if (intersects(e, s)) {
@@ -97,6 +157,12 @@ namespace simplex::collide {
         return contains(t, s.from); // s lies entirely inside the triangle
     }
 
+    /**
+     * @brief Static overlap test between a solid triangle and a circle.
+     * @param t The solid triangle.
+     * @param c The circle.
+     * @return @c true iff any triangle edge intersects @p c, or @p c lies entirely inside @p t.
+     */
     [[nodiscard]] inline bool intersects(const triangle& t, const circle& c) noexcept {
         for (const auto& e : detail::tri_edges(t)) {
             if (intersects(e, c)) {
@@ -106,6 +172,13 @@ namespace simplex::collide {
         return contains(t, c.center); // circle entirely inside the triangle
     }
 
+    /**
+     * @brief Static overlap test between a solid triangle and an AABB.
+     * @param t The solid triangle.
+     * @param b The axis-aligned bounding box.
+     * @return @c true iff any triangle edge crosses or lies inside @p b (which also covers the
+     *         triangle-inside-box case), or @p b is entirely inside @p t (a box corner is inside).
+     */
     [[nodiscard]] inline bool intersects(const triangle& t, const aabb& b) noexcept {
         for (const auto& e : detail::tri_edges(t)) {
             if (intersects(e, b)) {
@@ -117,6 +190,13 @@ namespace simplex::collide {
                || contains(t, vec{b.min.x(), b.max.y()}) || contains(t, b.max);
     }
 
+    /**
+     * @brief Static overlap test between two solid triangles.
+     * @param t The first solid triangle.
+     * @param u The second solid triangle.
+     * @return @c true iff any edge of @p t crosses any edge of @p u, or one triangle is entirely
+     *         inside the other.
+     */
     [[nodiscard]] inline bool intersects(const triangle& t, const triangle& u) noexcept {
         for (const auto& e : detail::tri_edges(t)) {
             for (const auto& f : detail::tri_edges(u)) {
@@ -129,8 +209,12 @@ namespace simplex::collide {
     }
 
     // Argument-order-independent overloads (a triangle may be either operand).
+
+    /// @brief Argument-order-flipped overload of @ref intersects(const triangle&, const segment&).
     [[nodiscard]] inline bool intersects(const segment& s, const triangle& t) noexcept { return intersects(t, s); }
+    /// @brief Argument-order-flipped overload of @ref intersects(const triangle&, const circle&).
     [[nodiscard]] inline bool intersects(const circle& c, const triangle& t) noexcept { return intersects(t, c); }
+    /// @brief Argument-order-flipped overload of @ref intersects(const triangle&, const aabb&).
     [[nodiscard]] inline bool intersects(const aabb& b, const triangle& t) noexcept { return intersects(t, b); }
 
     // ---- ray / segment parameter (for raycast) -----------------------------------------------
@@ -185,9 +269,27 @@ namespace simplex::collide {
     // ---- swept (continuous) collision: a moving aabb / circle vs a static-ish triangle --------
 
     namespace detail {
-        // Earliest contact of a swept mover with the triangle's boundary (its three edges), or --
-        // if the mover never touches an edge but already overlaps the triangle at t=0 -- a toi-0
-        // contact with the nearest edge's outward normal (the push-out direction).
+        /**
+         * @brief Earliest contact of a swept mover with a (static-ish) triangle.
+         *
+         * Computes the time-of-impact interval against the triangle's boundary (its three edges) via
+         * the per-edge segment sweeps. Because a convex mover vs a convex triangle overlaps over ONE
+         * contiguous interval, the first/last boundary touches bound it. If the mover never touches an
+         * edge but already overlaps the triangle's solid interior at @c t=0 (or still does at
+         * @c t=time), the corresponding interval end is anchored to a toi-0 / toi-time contact with
+         * the nearest edge's outward normal (the push-out direction) -- the edge sweeps only see
+         * boundary CROSSINGS, so a mover that starts or ends deep inside the solid would otherwise be
+         * mis-reported.
+         *
+         * @tparam Mover       The moving shape type (@ref aabb or @ref circle).
+         * @param m            The mover shape at @c t=0.
+         * @param mv           The mover's per-unit-time velocity.
+         * @param t            The (static-ish) triangle.
+         * @param tv           The triangle's per-unit-time velocity (~ @c {0,0} for static tiles).
+         * @param time         The length of the sweep window.
+         * @param mover_centre The mover's centre at @c t=0 (used to pick the push-out edge normal).
+         * @return The @ref swept_hit interval, or @c std::nullopt if the mover never meets the triangle.
+         */
         template<class Mover>
         [[nodiscard]] std::optional<swept_hit> swept_tri(const Mover& m, const vec& mv,
                                                          const triangle& t, const vec& tv, float time,
@@ -255,12 +357,32 @@ namespace simplex::collide {
         }
     }
 
+    /**
+     * @brief Swept (continuous) collision of a moving AABB against a (static-ish) triangle.
+     * @param m    The moving AABB at @c t=0.
+     * @param mv   The AABB's per-unit-time velocity.
+     * @param t    The triangle.
+     * @param tv   The triangle's per-unit-time velocity (~ @c {0,0} for static tiles).
+     * @param time The length of the sweep window.
+     * @return The @ref swept_hit interval, or @c std::nullopt if no contact occurs. See @ref
+     *         detail::swept_tri.
+     */
     [[nodiscard]] inline std::optional<swept_hit> swept_intersection(const aabb& m, const vec& mv,
                                                                      const triangle& t, const vec& tv,
                                                                      float time) {
         return detail::swept_tri(m, mv, t, tv, time, m.center());
     }
 
+    /**
+     * @brief Swept (continuous) collision of a moving circle against a (static-ish) triangle.
+     * @param m    The moving circle at @c t=0.
+     * @param mv   The circle's per-unit-time velocity.
+     * @param t    The triangle.
+     * @param tv   The triangle's per-unit-time velocity (~ @c {0,0} for static tiles).
+     * @param time The length of the sweep window.
+     * @return The @ref swept_hit interval, or @c std::nullopt if no contact occurs. See @ref
+     *         detail::swept_tri.
+     */
     [[nodiscard]] inline std::optional<swept_hit> swept_intersection(const circle& m, const vec& mv,
                                                                      const triangle& t, const vec& tv,
                                                                      float time) {
