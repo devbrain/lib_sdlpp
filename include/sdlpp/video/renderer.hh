@@ -98,6 +98,23 @@ namespace sdlpp {
     };
 
     /**
+     * @brief Logical presentation mode for @ref renderer::set_logical_presentation
+     *
+     * Controls how a fixed logical resolution is mapped onto the renderer output when the window
+     * size differs -- the SDL-native way to run a fixed-resolution render (e.g. a retro 320x200
+     * game) at any window size with automatic scaling and letterboxing. Once a logical
+     * presentation is set, all draw AND input coordinates are expressed in the logical resolution;
+     * SDL applies the transform to physical pixels.
+     */
+    enum class logical_presentation : int {
+        disabled = SDL_LOGICAL_PRESENTATION_DISABLED,           ///< No logical sizing; render in output pixels.
+        stretch = SDL_LOGICAL_PRESENTATION_STRETCH,             ///< Fill the output, aspect ratio NOT preserved.
+        letterbox = SDL_LOGICAL_PRESENTATION_LETTERBOX,         ///< Preserve aspect, add bars; nothing cropped.
+        overscan = SDL_LOGICAL_PRESENTATION_OVERSCAN,           ///< Preserve aspect, fill output; edges cropped.
+        integer_scale = SDL_LOGICAL_PRESENTATION_INTEGER_SCALE  ///< Integer multiples only (crispest pixel art), centered.
+    };
+
+    /**
      * @brief RAII wrapper for SDL_Renderer
      *
      * This class provides a safe, RAII-managed interface to SDL's hardware-accelerated
@@ -839,6 +856,138 @@ namespace sdlpp {
                 }
 
                 return P{static_cast<typename P::value_type>(scale_x), static_cast<typename P::value_type>(scale_y)};
+            }
+
+            /**
+             * @brief Set a logical resolution that SDL scales to the output
+             *        (SDL_SetRenderLogicalPresentation)
+             *
+             * Establishes a fixed logical render size; subsequent draw and input coordinates are
+             * interpreted in this logical space, and SDL maps it to the actual output according to
+             * @p mode (stretch / letterbox / overscan / integer-scale). This is the idiomatic way to
+             * run a fixed-resolution game (e.g. 320x200) on an arbitrary window with automatic
+             * scaling -- SDL recomputes the transform on window resize, so it survives maximize /
+             * fullscreen without per-frame bookkeeping.
+             *
+             * @param width Logical width in pixels (ignored when @p mode is @c disabled)
+             * @param height Logical height in pixels (ignored when @p mode is @c disabled)
+             * @param mode How the logical size is mapped onto the output
+             * @return Expected<void> - empty on success, error message on failure
+             *
+             * @note For crisp pixel art prefer @ref logical_presentation::integer_scale and set the
+             *       source texture's scale mode to nearest (@ref texture::set_scale_mode).
+             */
+            expected <void, std::string> set_logical_presentation(int width, int height,
+                                                                  logical_presentation mode) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+
+                if (!SDL_SetRenderLogicalPresentation(ptr.get(), width, height,
+                                                      static_cast<SDL_RendererLogicalPresentation>(mode))) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Set logical presentation from a size-like value
+             * @tparam S Size type (must satisfy size_like)
+             * @param size Logical size in pixels
+             * @param mode How the logical size is mapped onto the output
+             * @return Expected<void> - empty on success, error message on failure
+             * @see set_logical_presentation(int, int, logical_presentation)
+             */
+            template<size_like S>
+            expected <void, std::string> set_logical_presentation(const S& size,
+                                                                  logical_presentation mode) {
+                return set_logical_presentation(static_cast<int>(size.width),
+                                                static_cast<int>(size.height), mode);
+            }
+
+            /**
+             * @brief Disable logical presentation (render directly in output pixels)
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> disable_logical_presentation() {
+                return set_logical_presentation(0, 0, logical_presentation::disabled);
+            }
+
+            /**
+             * @brief Get the current logical presentation mode
+             * @return Expected containing the mode, or error message
+             */
+            [[nodiscard]] expected <logical_presentation, std::string> get_logical_presentation_mode() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+
+                [[maybe_unused]] int w, h;
+                SDL_RendererLogicalPresentation mode;
+                if (!SDL_GetRenderLogicalPresentation(ptr.get(), &w, &h, &mode)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return static_cast<logical_presentation>(mode);
+            }
+
+            /**
+             * @brief Get the current logical presentation size
+             * @tparam S Size type to return (defaults to built-in size if available)
+             * @return Expected containing the logical size, or error message
+             */
+            template<size_like S =
+#ifdef SDLPP_HAS_BUILTIN_GEOMETRY
+                size_i
+#else
+                void
+#endif
+            >
+            expected <S, std::string> get_logical_presentation_size() const
+                requires (!std::is_void_v<S>) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+
+                int w, h;
+                [[maybe_unused]] SDL_RendererLogicalPresentation mode;
+                if (!SDL_GetRenderLogicalPresentation(ptr.get(), &w, &h, &mode)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return S{w, h};
+            }
+
+            /**
+             * @brief Get the final on-screen rectangle the logical content is drawn into
+             *
+             * The actual output area (in pixels) after scaling/letterboxing -- use it to map window
+             * or mouse coordinates onto the letterboxed content (or just call
+             * @c SDL_RenderCoordinatesFromWindow on raw input, which respects the same transform).
+             *
+             * @tparam R Rectangle type to return (defaults to built-in frect if available)
+             * @return Expected containing the presentation rect, or error message
+             */
+            template<rect_like R =
+#ifdef SDLPP_HAS_BUILTIN_GEOMETRY
+                rect_f
+#else
+                void
+#endif
+            >
+            expected <R, std::string> get_logical_presentation_rect() const
+                requires (!std::is_void_v<R>) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+
+                SDL_FRect rect;
+                if (!SDL_GetRenderLogicalPresentationRect(ptr.get(), &rect)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return R{rect.x, rect.y, rect.w, rect.h};
             }
 
             /**
