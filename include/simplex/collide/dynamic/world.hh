@@ -2,14 +2,45 @@
 // Created by igor on 21/06/2026.
 //
 
+/**
+ * @file world.hh
+ * @brief The 2D collision @ref simplex::collide::world -- the central runtime that owns every
+ *        collider, advances them one frame at a time, and answers spatial queries.
+ *
+ * The @ref simplex::collide::world is an "actors-and-solids" collision world for a 2D action/
+ * platformer game. It stores four flavours of collider, each added through @ref
+ * simplex::collide::world::add :
+ *   - **static bodies** -- immovable free-form geometry (any shape), held in a dynamic AABB tree
+ *     (the broadphase BVH).
+ *   - **kinematic bodies** ("actors") -- player/enemy movers (aabb|circle) resolved by
+ *     move-and-slide each frame.
+ *   - **carrier bodies** ("solids") -- kinematic platforms/elevators/crushers/conveyors that move
+ *     rigidly on a scripted path and carry, push, and crush the actors they touch.
+ *   - **bullets** -- swept point/small movers that are NOT in the tree (one-way CCD against it).
+ *   - **tiles** -- axis-aligned static cells in an optional uniform @ref simplex::collide::grid,
+ *     the level's tilemap; mergeable runs are baked into big residents on the first frame.
+ *
+ * Every collider is addressed by an opaque, generation-checked @ref simplex::collide::collider_id
+ * handle (so a stale handle to a recycled slot reads as invalid rather than aliasing a new body).
+ *
+ * A frame is driven by @ref simplex::collide::world::run , which executes four ordered passes
+ * (carriers -> movement -> bullets -> triggers) and returns the @ref simplex::collide::world_event
+ * list produced this step. Outside the step the world answers const spatial queries
+ * (@ref simplex::collide::world::cast , @ref simplex::collide::world::raycast and their multi-hit
+ * variants) and offers a small set of character-controller helpers
+ * (@ref simplex::collide::world::snap_to_ground , @ref simplex::collide::world::step_up ,
+ * @ref simplex::collide::world::ground_support ).
+ *
+ * @note The supporting value types (collider_id, contact, footing, world_event, world_config, the
+ *       body DTOs) live in @ref world_types.hh .
+ */
+
 #pragma once
 
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <compare>
 #include <cstddef>
-#include <cstdint>
 #include <functional>
 #include <iterator>
 #include <type_traits>
@@ -24,237 +55,147 @@
 #include <simplex/collide/dynamic/world_types.hh>
 
 namespace simplex::collide {
-
+    /**
+     * @brief An actors-and-solids 2D collision world: owns every collider, steps them a frame at a
+     *        time, and answers spatial queries.
+     *
+     * See the @ref world.hh file overview for the collider taxonomy and the per-frame pass order.
+     * Construct with a @ref world_config (extent, skin, up-axis, optional tile grid), populate via
+     * the @ref add overloads, advance with @ref run, and read results back through the @ref get_shape
+     * / @ref get_velocity getters or the const query API.
+     *
+     * @note Not copyable in spirit (it owns broadphase nodes and slot-map storage); pass by
+     *       reference. Handles returned by @ref add stay valid until the collider is removed,
+     *       overwritten, or @ref clear is called -- a generation counter makes stale handles read
+     *       as invalid rather than aliasing a recycled slot.
+     */
     class world {
         public:
             // ====================================================================================
             // Construction & lifecycle: ctor, add/remove/clear, set_* intent, get_* read-back, run().
             // ====================================================================================
+
+            /// @brief Construct an empty, unconfigured world (no bounds, no grid, default skin/up).
             world() = default;
 
-            explicit world(const world_config& cfg)
-                : m_cfg(cfg) {
-                if (m_cfg.grid) {
-                    // The grid shares the world's extent (one coordinate frame). Require bounds and
-                    // an exact tiling -- a non-dividing extent is a config error, caught here loudly
-                    // rather than silently clamping tiles to a mismatched box.
-                    ENFORCE(m_cfg.bounds)("world_config.grid requires world_config.bounds (the shared extent)");
-                    const aabb& b = *m_cfg.bounds;
-                    const vec ts = m_cfg.grid->tile_size;
-                    ENFORCE(ts.x() > 0.0f && ts.y() > 0.0f)("grid tile_size must be positive");
-                    const float fcols = (b.max.x() - b.min.x()) / ts.x();
-                    const float frows = (b.max.y() - b.min.y()) / ts.y();
-                    const auto cols = static_cast <uint32_t>(std::lround(fcols));
-                    const auto rows = static_cast <uint32_t>(std::lround(frows));
-                    ENFORCE(cols > 0 && rows > 0)("grid extent (bounds / tile_size) must be at least one cell");
-                    ENFORCE(std::abs(fcols - static_cast <float>(cols)) < 1e-3f
-                            && std::abs(frows - static_cast <float>(rows)) < 1e-3f)
-                            ("world_config.bounds must be an integer multiple of grid tile_size");
-                    m_static_grid.emplace(grid <detail::tile>::from_tile_size(b.min, ts, cols, rows));
-                }
-            }
+            /**
+             * @brief Construct a world from a configuration.
+             * @param cfg Extent (@c bounds), collision skin, up-axis, slide-iteration cap, and an
+             *            optional static tile @c grid.
+             * @note When @c cfg.grid is set, @c cfg.bounds MUST also be set and be an exact integer
+             *       multiple of the grid's @c tile_size (the grid shares the world's coordinate
+             *       frame); both are enforced here and abort loudly on violation.
+             */
+            explicit world(const world_config& cfg);
 
+            /// @brief Grants the test harness access to the private query helpers (see @ref world_types.hh).
             friend struct world_test_access;
 
-            collider_id add(entity_id_t eid, const static_body& body) {
-                auto idx = m_bodies_storage.allocate();
-                auto& stored = m_bodies_storage[idx];
+            /**
+             * @brief Add an immovable, free-form static body to the broadphase.
+             * @param eid  Game entity id carried as payload (echoed back by @ref get_eid and in events).
+             * @param body Shape (any @ref shape_t), material, and collision filter.
+             * @return A live @c BODY handle.
+             */
+            collider_id add(entity_id_t eid, const static_body& body);
 
-                stored.shape = body.shape;
-                stored.kind = detail::body_kind::STATIC;
-                stored.filter = body.filter;
-                stored.material = body.material;
-                stored.eid = eid;
+            /**
+             * @brief Add a kinematic body (an "actor": player/enemy mover) resolved by move-and-slide.
+             * @param eid  Game entity id carried as payload.
+             * @param body Mover shape (aabb|circle), material, filter, and initial velocity.
+             * @return A live @c BODY handle.
+             */
+            collider_id add(entity_id_t eid, const kinematic_body& body);
 
-                auto box = fatten(stored);
-                stored.proxy = insert_leaf(m_space_partition, idx, box);
-                return {idx, m_bodies_storage.generation(idx), collider_id::BODY};
-            }
+            /**
+             * @brief Add a carrier body (a "solid": moving platform / elevator / crusher / conveyor).
+             * @param eid  Game entity id carried as payload.
+             * @param body Mover shape (aabb|circle), material, filter, rigid @c velocity, and the
+             *             conveyor @c surface_velocity imparted to riders.
+             * @return A live @c BODY handle. Carriers are stepped before actors so actors see them at
+             *         their resolved positions.
+             */
+            collider_id add(entity_id_t eid, const carrier_body& body);
 
-            collider_id add(entity_id_t eid, const kinematic_body& body) {
-                auto idx = m_bodies_storage.allocate();
-                auto& stored = m_bodies_storage[idx];
+            /**
+             * @brief Add a bullet -- a swept projectile resolved by one-way CCD against the world.
+             * @param eid  Game entity id carried as payload.
+             * @param body Mover shape (aabb|circle), material, filter, and velocity.
+             * @return A live @c BULLET handle. Bullets are not inserted into the tree (nothing
+             *         collides against them); they sweep against everything else and emit
+             *         @c BULLET_HIT / @c BULLET_EXPIRED events.
+             */
+            collider_id add(entity_id_t eid, const bullet& body);
 
-                stored.shape = detail::widen(body.shape); // moving_shape_t -> shape_t (always valid)
-                stored.kind = detail::body_kind::KINEMATIC;
-                stored.filter = body.filter;
-                stored.material = body.material;
-                stored.velocity = body.velocity;
-                stored.eid = eid;
+            /**
+             * @brief Add a static tile into the grid.
+             *
+             * The tile is bucketed into the single cell containing its shape's centre (so the shape
+             * must fit within one cell, enforced). Overwrites any tile already in that cell
+             * (loader-friendly); the overwrite bumps the cell's generation, so a handle to the
+             * previous tile goes invalid (no silent aliasing).
+             *
+             * @param eid  Game entity id; recovered from the cell payload by @ref get_eid.
+             * @param body Tile shape, material, filter, and the @c mergeable opt-in flag.
+             * @return A @c TILE handle whose @c value is the linear cell index and @c generation is
+             *         the cell's current generation.
+             * @warning Requires a configured grid (@c world_config.grid). A @c mergeable tile must be
+             *          added before the first @ref run (static geometry is baked once); adding one
+             *          afterwards aborts.
+             */
+            collider_id add(entity_id_t eid, const tile_body& body);
 
-                auto box = fatten(stored);
-                stored.proxy = insert_leaf(m_space_partition, idx, box);
-                return {idx, m_bodies_storage.generation(idx), collider_id::BODY};
-            }
+            /**
+             * @brief Remove a collider (body, bullet, or tile) by handle.
+             * @param cid Handle to remove; a stale/invalid handle is a no-op (safe to double-remove).
+             *            The freed slot/cell bumps its generation so @c cid reads invalid afterwards.
+             */
+            void remove(collider_id cid);
 
-            collider_id add(entity_id_t eid, const carrier_body& body) {
-                auto idx = m_bodies_storage.allocate();
-                auto& stored = m_bodies_storage[idx];
+            /**
+             * @brief Empty the world for a level reload.
+             *
+             * Drops every body, bullet and tile, the broadphase tree, and the trigger/event buffers,
+             * while keeping the configuration (bounds, grid, skin, ...) intact and retaining capacity
+             * for reuse. The one-shot tile bake is reset so a fresh level may bake again.
+             *
+             * @note All storages keep their generation counters monotonic, so any handle held across
+             *       @ref clear reads as invalid afterwards rather than aliasing a reused slot/cell.
+             */
+            void clear();
 
-                stored.shape = detail::widen(body.shape);
-                stored.kind = detail::body_kind::CARRIER;
-                stored.filter = body.filter;
-                stored.material = body.material;
-                stored.velocity = body.velocity;
-                stored.surface_velocity = body.surface_velocity;
-                stored.eid = eid;
+            /**
+             * @brief Resize or teleport a collider in place (replace its shape).
+             * @param cid   Handle to a live body, bullet, or tile.
+             * @param shape New shape as the wide @ref shape_t.
+             * @note A moving body/bullet must stay an aabb|circle (a segment/triangle would later
+             *       trip the swept narrow-phase); a tile's new shape must still fit its current cell;
+             *       a mergeable tile cannot be reshaped after the first @ref run. Violations abort.
+             */
+            void set_shape(collider_id cid, const shape_t& shape);
 
-                auto box = fatten(stored);
-                stored.proxy = insert_leaf(m_space_partition, idx, box);
-                return {idx, m_bodies_storage.generation(idx), collider_id::BODY};
-            }
+            /**
+             * @brief Set a mover's velocity -- the kinematic intent applied on the next @ref run.
+             * @param cid Handle to a kinematic actor, carrier, or bullet (NOT a static body or tile).
+             * @param v   New velocity (world units / second).
+             */
+            void set_velocity(collider_id cid, const vec& v);
 
-            collider_id add(entity_id_t eid, const bullet& body) {
-                auto idx = m_bullets_storage.allocate();
-                auto& stored = m_bullets_storage[idx];
+            /**
+             * @brief Set a carrier's conveyor belt speed -- the tangential drag imparted to riders.
+             * @param cid Handle to a @c CARRIER body (carrier-only; aborts otherwise).
+             * @param v   Belt velocity added to a rider's motion; @c {0,0} switches the belt off.
+             *            The carrier's own rigid motion is set separately via @ref set_velocity.
+             */
+            void set_surface_velocity(collider_id cid, const vec& v);
 
-                stored.shape = body.shape;
-                stored.filter = body.filter;
-                stored.material = body.material;
-                stored.velocity = body.velocity;
-                stored.eid = eid;
-                return {idx, m_bullets_storage.generation(idx), collider_id::BULLET};
-            }
-
-            // Add a static tile into the grid. The tile is bucketed into the single cell containing
-            // its shape's centre (so the shape must fit within one cell, enforced below). Overwrites
-            // any tile already in that cell (loader-friendly); the overwrite bumps the cell's
-            // generation, so a handle to the previous tile goes invalid (no silent aliasing). The
-            // returned handle's `value` is the linear cell index, `generation` is the cell's; `eid`
-            // is recovered from the payload.
-            collider_id add(entity_id_t eid, const tile_body& body) {
-                ENFORCE(m_static_grid)("add(tile_body) requires a grid (world_config.grid)");
-                const aabb bound = detail::tight_box(body.shape);
-                const vec centre = bound.center();
-                const uint32_t cell = m_static_grid->to_cell(centre);
-                ENFORCE(cell != grid<detail::tile>::INVALID_CELL)("tile centre is outside the grid bounds");
-                // A tile is only stored in (and only found via) its centre's cell, so it must fit
-                // within that cell -- otherwise queries through the overhang would silently miss it.
-                ENFORCE(detail::contains(m_static_grid->cell_box_at(cell), bound))
-                        ("tile shape must fit within a single grid cell");
-                // Mergeable (static) geometry is baked once on the first run(); it cannot be added
-                // afterwards (the bake is destructive and not re-run). Non-mergeable tiles are free.
-                ENFORCE(!(body.mergeable && m_compiled))
-                        ("mergeable tiles must be added before the first run() (static geometry is baked once)");
-                m_static_grid->set(centre,
-                                   detail::tile{body.shape, body.material, body.filter, eid, body.mergeable});
-                // Stamp the post-set generation: a later overwrite/clear of this cell bumps it,
-                // so this handle then reads as invalid instead of silently aliasing the new tile.
-                const collider_id id{cell, m_static_grid->cell_generation(cell), collider_id::TILE};
-                // Track sensor tiles so the trigger pass can scan them (bodies-only loop can't).
-                // Stale entries (cell overwritten/cleared) are pruned lazily in the trigger pass.
-                if (body.material.response == response_mode::SENSOR) {
-                    m_sensor_tiles.push_back(id);
-                }
-                return id;
-            }
-
-            void remove(collider_id cid) {
-                if (!is_valid(cid)) {
-                    return;
-                }
-                if (cid.type_id == collider_id::BODY) {
-                    auto& stored = m_bodies_storage[cid.value];
-                    remove_leaf(m_space_partition, stored.proxy);
-                    m_bodies_storage.deallocate(cid.value);
-                } else if (cid.type_id == collider_id::BULLET) {
-                    m_bullets_storage.deallocate(cid.value);
-                } else { // TILE
-                    m_static_grid->clear_at(cid.value);
-                }
-            }
-
-            // Empty the world for a level reload: drops every body, bullet and tile, the broadphase
-            // tree, and the trigger/event buffers, keeping the configuration (bounds, grid, skin,
-            // ...) intact. All storages keep their generation counters monotonic, so any handle held
-            // across clear() reads as invalid afterwards rather than aliasing a reused slot/cell.
-            // Capacity is retained for reuse.
-            void clear() {
-                m_bodies_storage.clear();
-                m_bullets_storage.clear();
-                m_space_partition.reset();
-                if (m_static_grid) {
-                    m_static_grid->reset();
-                }
-                m_events.clear();
-                m_triggers_curr.clear();
-                m_triggers_prev.clear();
-                m_sensor_tiles.clear();
-                m_compiled = false; // a fresh level may bake again
-            }
-
-            // resize/teleport. Takes the wide shape_t; a moving body cannot become a segment,
-            // which (unlike construction) can only be enforced at runtime here since `cid`'s
-            // kind is not known at compile time.
-            void set_shape(collider_id cid, const shape_t& shape) {
-                ENFORCE(is_valid(cid));
-                if (cid.type_id == collider_id::BODY) {
-                    auto& stored = m_bodies_storage[cid.value];
-                    if (stored.kind != detail::body_kind::STATIC) {
-                        // any mover (KINEMATIC actor or CARRIER) must stay an aabb | circle -- a
-                        // segment/triangle would later trip detail::narrow() in the move/carrier pass.
-                        ENFORCE(std::holds_alternative<aabb>(shape) || std::holds_alternative<circle>(shape));
-                    }
-                    stored.shape = shape;
-                    auto box = fatten(stored);
-                    update_leaf(m_space_partition, stored.proxy, box);
-                } else if (cid.type_id == collider_id::BULLET) {
-                    auto& stored = m_bullets_storage[cid.value];
-                    stored.shape = detail::narrow(shape); // ENFORCE non-segment + shape_t -> moving_shape_t
-                } else { // TILE: reshape in place. The new shape must still fit the same cell
-                         // (no re-bucketing) -- else it could overhang into a cell that won't find it.
-                    const aabb nb = detail::tight_box(shape);
-                    ENFORCE(detail::contains(m_static_grid->cell_box_at(cid.value), nb))
-                            ("set_shape: a tile's new shape must fit within its cell");
-                    // A mergeable tile is frozen after the one-shot bake -- otherwise a mergeable
-                    // tile that survived the bake (e.g. a slope, not an aabb) could be reshaped into a
-                    // cell-filling BLOCK aabb and smuggle un-baked static geometry past add()'s guard.
-                    ENFORCE(!(m_compiled && m_static_grid->at(cid.value)->mergeable))
-                            ("a mergeable tile cannot be reshaped after the first run() (static geometry is baked once)");
-                    m_static_grid->at(cid.value)->shape = shape;
-                }
-            }
-
-            // kinematic intent for next run()
-            void set_velocity(collider_id cid, const vec& v) {
-                ENFORCE(is_valid(cid));
-                // Tiles are static -- no velocity. (A moving tile is a kinematic body, not a tile.)
-                ENFORCE(cid.type_id != collider_id::TILE)("a tile has no velocity");
-                if (cid.type_id == collider_id::BODY) {
-                    auto& stored = m_bodies_storage[cid.value];
-                    // A static body has no velocity; kinematic actors AND carriers (scripted paths) do.
-                    ENFORCE(stored.kind != detail::body_kind::STATIC)("a static body has no velocity");
-                    stored.velocity = v;
-                } else {
-                    auto& stored = m_bullets_storage[cid.value];
-                    stored.velocity = v;
-                }
-            }
-
-            // Carrier-only: the tangential drag imparted to riders (a conveyor's belt speed; set to
-            // {0,0} to switch the belt off). The carrier's own motion is set via set_velocity.
-            void set_surface_velocity(collider_id cid, const vec& v) {
-                ENFORCE(is_valid(cid) && cid.type_id == collider_id::BODY);
-                auto& stored = m_bodies_storage[cid.value];
-                ENFORCE(stored.kind == detail::body_kind::CARRIER)("surface_velocity is carrier-only");
-                stored.surface_velocity = v;
-            }
-
-            [[nodiscard]] bool is_valid(collider_id cid) const {
-                if (cid.type_id == collider_id::BODY) {
-                    return m_bodies_storage.is_alive(cid.value)
-                           && m_bodies_storage.generation(cid.value) == cid.generation;
-                }
-                if (cid.type_id == collider_id::BULLET) {
-                    return m_bullets_storage.is_alive(cid.value)
-                           && m_bullets_storage.generation(cid.value) == cid.generation;
-                }
-                // TILE: live iff the grid exists, the cell is occupied, AND the cell has not been
-                // mutated (overwritten/cleared) since this handle was made -- the generation check
-                // closes the stale-handle alias.
-                return m_static_grid && m_static_grid->at(cid.value) != nullptr
-                       && m_static_grid->cell_generation(cid.value) == cid.generation;
-            }
+            /**
+             * @brief Is this handle still live -- alive AND matching the current generation?
+             * @param cid Handle to test (the null sentinel @c collider_id{} reads false).
+             * @return @c true iff the referenced body/bullet/tile exists and has not been
+             *         removed/overwritten/cleared since @c cid was issued.
+             */
+            [[nodiscard]] bool is_valid(collider_id cid) const;
 
             // ---- read-back getters (state after run()/move) -------------------------
             // A character controller reads these each frame: the resolved shape/position and the
@@ -262,49 +203,43 @@ namespace simplex::collide {
             // record may be recycled later. Shapes come back as the wide shape_t (a bullet's
             // moving_shape_t is widened) so the caller has one type to visit.
 
-            [[nodiscard]] shape_t get_shape(collider_id cid) const {
-                ENFORCE(is_valid(cid));
-                if (cid.type_id == collider_id::BODY) {
-                    return m_bodies_storage[cid.value].shape;
-                }
-                if (cid.type_id == collider_id::BULLET) {
-                    return detail::widen(m_bullets_storage[cid.value].shape);
-                }
-                return m_static_grid->at(cid.value)->shape; // TILE: stored verbatim
-            }
+            /**
+             * @brief The collider's current (post-@ref run) shape, by value.
+             * @param cid Handle to a live collider (aborts if invalid).
+             * @return The shape as the wide @ref shape_t (a bullet's moving shape is widened) so the
+             *         caller has one type to @c std::visit.
+             */
+            [[nodiscard]] shape_t get_shape(collider_id cid) const;
 
-            [[nodiscard]] vec get_velocity(collider_id cid) const {
-                ENFORCE(is_valid(cid));
-                if (cid.type_id == collider_id::BODY) {
-                    return m_bodies_storage[cid.value].velocity;
-                }
-                if (cid.type_id == collider_id::BULLET) {
-                    return m_bullets_storage[cid.value].velocity;
-                }
-                return vec{0, 0}; // TILE: static
-            }
+            /**
+             * @brief The collider's current velocity (post-slide for actors).
+             * @param cid Handle to a live collider (aborts if invalid).
+             * @return The stored velocity; @c {0,0} for a static body or tile.
+             */
+            [[nodiscard]] vec get_velocity(collider_id cid) const;
 
-            // The game's entity id carried as payload (the reverse of add()'s eid argument).
-            [[nodiscard]] entity_id_t get_eid(collider_id cid) const {
-                ENFORCE(is_valid(cid));
-                if (cid.type_id == collider_id::BODY) {
-                    return m_bodies_storage[cid.value].eid;
-                }
-                if (cid.type_id == collider_id::BULLET) {
-                    return m_bullets_storage[cid.value].eid;
-                }
-                return m_static_grid->at(cid.value)->eid; // TILE: from the cell payload
-            }
+            /**
+             * @brief The game entity id carried as payload (the reverse of @ref add 's @c eid argument).
+             * @param cid Handle to a live collider (aborts if invalid).
+             * @return The @c entity_id_t supplied when the collider was added.
+             */
+            [[nodiscard]] entity_id_t get_eid(collider_id cid) const;
 
-            [[nodiscard]] const std::vector <world_event>& run(const aabb& active_region, float dt) {
-                m_events.clear();
-                compile_static_grid(); // one-shot tile boundary-bake, before anything queries
-                carrier_pass(active_region, dt);  // §19 #1: carry (MP1) + push (MP2) + crush (MP3)
-                movement_pass(active_region, dt); // kinematic move-and-slide -> COLLISION events
-                bullet_pass(active_region, dt);   // bullets -> BULLET_HIT / BULLET_EXPIRED
-                trigger_pass();                   // sensor overlap diff -> TRIGGER_BEGIN / END
-                return m_events;
-            }
+            /**
+             * @brief Advance the world by one frame and return the events produced this step.
+             *
+             * Runs four ordered passes: carriers (carry/push/crush) -> kinematic movement
+             * (move-and-slide) -> bullets -> sensor triggers. On the first call it also bakes the
+             * mergeable static tiles once.
+             *
+             * @param active_region The camera/simulation window; movers and bullets whose swept bound
+             *                       does not touch it are left dormant (sensors are never region-culled).
+             * @param dt            Frame duration in seconds.
+             * @return A reference to the world's internal event buffer, valid until the next @ref run
+             *         or @ref clear. Contains @c COLLISION, @c BULLET_HIT, @c BULLET_EXPIRED,
+             *         @c TRIGGER_BEGIN / @c TRIGGER_END, and @c CRUSH events.
+             */
+            [[nodiscard]] const std::vector <world_event>& run(const aabb& active_region, float dt);
 
         private:
             // ====================================================================================
@@ -314,6 +249,13 @@ namespace simplex::collide {
             // ====================================================================================
             // ---- run() passes (each owns one phase of a step; orchestrated by run() above) -------
 
+            /**
+             * @brief Frame pass 1 -- carriers: move each carrier rigidly on its scripted path and
+             *        carry (MP1), push (MP2), and crush (MP3) the actors it touches.
+             * @param active_region Off-region carriers stay dormant (like off-region movers).
+             * @param dt            Frame duration. Runs BEFORE the movement pass so actors then see
+             *                      carriers at their resolved positions.
+             */
             void carrier_pass(const aabb& active_region, float dt) {
                 // Carrier pass (actors-and-solids): each carrier moves RIGIDLY on its scripted path
                 // and transports the actors riding it. Runs BEFORE the actor movement pass, so actors
@@ -327,8 +269,10 @@ namespace simplex::collide {
                         continue;
                     }
                     const vec body_delta{it->velocity.x() * dt, it->velocity.y() * dt};
-                    const vec rider_delta{(it->velocity.x() + it->surface_velocity.x()) * dt,
-                                          (it->velocity.y() + it->surface_velocity.y()) * dt};
+                    const vec rider_delta{
+                        (it->velocity.x() + it->surface_velocity.x()) * dt,
+                        (it->velocity.y() + it->surface_velocity.y()) * dt
+                    };
                     if (near_zero(body_delta) && near_zero(rider_delta)) {
                         continue; // a stationary carrier with no belt: nothing to do
                     }
@@ -426,6 +370,13 @@ namespace simplex::collide {
                 }
             }
 
+            /**
+             * @brief Frame pass 2 -- movement: resolve each kinematic actor via move-and-slide and
+             *        record its contacts as @c COLLISION events.
+             * @param active_region Off-region movers are culled (left dormant off-screen).
+             * @param dt            Frame duration. Runs BEFORE the bullet pass so bullets sweep
+             *                      against movers at their resolved positions.
+             */
             void movement_pass(const aabb& active_region, float dt) {
                 // Movement pass: resolve each kinematic mover via move-and-slide against the
                 // solid residents, in fixed slot order (deterministic). Off-region movers are
@@ -456,6 +407,13 @@ namespace simplex::collide {
                 }
             }
 
+            /**
+             * @brief Frame pass 3 -- bullets: integrate every live bullet, cast it against the solids,
+             *        and emit @c BULLET_HIT / @c BULLET_EXPIRED events.
+             * @param active_region Off-region bullets keep flying (so they can re-enter) but skip the
+             *                      expensive tree query.
+             * @param dt            Frame duration. A bullet leaving @c world_config.bounds expires.
+             */
             void bullet_pass(const aabb& active_region, float dt) {
                 // Bullet pass: integrate every live bullet, but only pay for the cast when its
                 // swept bound touches the active region (off-region bullets keep flying so they
@@ -491,6 +449,14 @@ namespace simplex::collide {
                 }
             }
 
+            /**
+             * @brief Frame pass 4 -- triggers: detect SENSOR overlaps and diff against last frame to
+             *        emit only the @c TRIGGER_BEGIN / @c TRIGGER_END edges.
+             * @note Scans both sensor bodies and the side-list of sensor tiles. Sensors are NOT
+             *       region-culled (culling would spuriously fire end/begin as zones scroll). There is
+             *       no per-frame "still touching" event -- continuous effects are the game's job
+             *       between edges.
+             */
             void trigger_pass() {
                 // Trigger pass: detect SENSOR overlaps and diff against last frame to emit only
                 // the begin/end EDGES. (response_mode is the classifier: solids were handled by
@@ -558,6 +524,13 @@ namespace simplex::collide {
                 std::swap(m_triggers_curr, m_triggers_prev); // this frame becomes "previous"
             }
 
+            /**
+             * @brief The fattened broadphase box for a resident: its tight box expanded by
+             *        @c fatten_margin, biased along the velocity so a moving body's proxy needs
+             *        re-grafting less often.
+             * @param body The resident whose stored shape/velocity/kind drive the margin.
+             * @return The tight box for a STATIC body; otherwise a velocity-biased fat box.
+             */
             [[nodiscard]] aabb fatten(const detail::resident_body& body) const {
                 auto box = std::visit([](const auto& shape) {
                     return enclose(shape);
@@ -598,12 +571,22 @@ namespace simplex::collide {
                 return {{min_x, min_y}, {max_x, max_y}};
             }
 
+            /**
+             * @brief Category/mask layer test -- do two filters mutually agree to interact?
+             * @param a,b The two collision filters.
+             * @return @c true iff each side's category is in the other's mask.
+             */
             static bool should_collide(const filter_props& a, const filter_props& b) {
                 return ((a.category & b.mask) && (b.category & a.mask));
             }
 
-            // AABB enclosing a mover's shape over the whole sweep (start box ∪ end box). Used as
-            // the broadphase envelope for cast() and as the active-region cull test.
+            /**
+             * @brief AABB enclosing a mover's shape over the whole sweep (start box ∪ end box).
+             * @param shape The mover (aabb|circle).
+             * @param delta The frame displacement.
+             * @return The swept envelope, used as the broadphase query box for @ref cast and as the
+             *         active-region cull test.
+             */
             static aabb swept_bound(const moving_shape_t& shape, units::displacement delta) {
                 const vec d = delta.value;
                 return std::visit([&d](const auto& s) {
@@ -635,6 +618,15 @@ namespace simplex::collide {
             // Functor (concrete type, not a lambda) so it is usable in run() above its definition.
             // Acceptors take the target's MATERIAL (not the whole resident_body) so they apply
             // uniformly to a resident or a grid tile -- both carry material_props.
+            /**
+             * @brief Cast acceptor predicate: "is this surface solid for the mover, given it was hit
+             *        on @c hit_normal?"
+             *
+             * @c BLOCK is always solid; @c ONE_WAY is solid only when the contact normal aligns with
+             * the surface's @c block_normal (the mover crossed the blocked face); @c SENSOR / @c IGNORE
+             * are never solid. Evaluated per candidate AFTER the swept contact is known, so a
+             * direction-dependent rule decides on the face actually crossed.
+             */
             struct solid_pred {
                 bool operator()(const material_props& m, const vec& hit_normal) const {
                     switch (m.response) {
@@ -650,13 +642,18 @@ namespace simplex::collide {
                 }
             };
 
+            /// @brief Factory for the @ref solid_pred acceptor (solids only: BLOCK / one-way blocked face).
             static solid_pred solid_acceptor() { return solid_pred{}; }
 
-            // Accept-all (used by unrestricted casts). Two-arg to match the post-hit acceptor shape.
+            /// @brief Accept-all acceptor for unrestricted casts (two-arg to match the post-hit shape).
             static bool accept_any(const material_props&, const vec&) { return true; }
 
-            // Target material by handle -- dispatches BODY / BULLET / TILE. Lets move_and_slide's
-            // velocity response read the surface material uniformly, tile or resident.
+            /**
+             * @brief The target material behind a handle -- dispatches BODY / BULLET / TILE.
+             * @param id Handle to a live collider.
+             * @return Its @ref material_props, so move-and-slide's velocity response reads a tile
+             *         surface exactly like a resident.
+             */
             [[nodiscard]] const material_props& material_of(const collider_id& id) const {
                 if (id.type_id == collider_id::BODY) {
                     return m_bodies_storage[id.value].material;
@@ -667,10 +664,16 @@ namespace simplex::collide {
                 return m_static_grid->at(id.value)->material; // TILE
             }
 
-            // The TILE handle for a grid candidate. The enumerators hand back the cell_box (geometry)
-            // but hide the cell index (identity); recover it from the box centre, which maps back to
-            // the same cell. value = linear cell index, generation = the cell's current generation
-            // (so the handle stays valid until that cell is next mutated). Decodes via material_of/at.
+            /**
+             * @brief Recover the @c TILE handle for a grid candidate from its cell box.
+             *
+             * The grid enumerators hand back the cell box (geometry) but hide the cell index
+             * (identity); it is recovered from the box centre, which maps back to the same cell.
+             *
+             * @param cell_box The candidate cell's box.
+             * @return A @c TILE handle (@c value = linear cell index, @c generation = the cell's
+             *         current generation, valid until that cell is next mutated).
+             */
             [[nodiscard]] collider_id tile_handle(const aabb& cell_box) const {
                 const uint32_t cell = m_static_grid->to_cell(cell_box.center());
                 return {cell, m_static_grid->cell_generation(cell), collider_id::TILE};
@@ -682,11 +685,19 @@ namespace simplex::collide {
             // is then a thin visitor: the fan-out owns exclusion / tile_handle / ray-clipping (one
             // place to get right), the visitor owns filtering + narrow-phase + accumulation.
 
-            // Swept narrow-phase: the mover (aabb|circle) swept by `dv` against any target shape.
-            // Hides the nested std::visit double-dispatch. entry_time is the [0,1] toi; time=1 is the
-            // anti-tunnel window (delta is the mover's velocity over a unit step).
+            /**
+             * @brief Swept narrow-phase: the mover (aabb|circle) swept by @c dv against any target shape.
+             *
+             * Hides the nested @c std::visit double-dispatch.
+             *
+             * @param mover  The swept shape (aabb|circle).
+             * @param dv     The sweep displacement (the mover's velocity over a unit step).
+             * @param target Any target @ref shape_t.
+             * @return The earliest @ref swept_hit (@c entry_time is the [0,1] toi; time 1 is the
+             *         anti-tunnel window), or @c std::nullopt if they never touch.
+             */
             [[nodiscard]] static std::optional <swept_hit> swept_vs_shape(const moving_shape_t& mover,
-                                                                         const vec& dv, const shape_t& target) {
+                                                                          const vec& dv, const shape_t& target) {
                 return std::visit([&](const auto& mv) {
                     return std::visit([&](const auto& tgt) -> std::optional <swept_hit> {
                         return swept_intersection(mv, dv, tgt, vec{0, 0}, 1.0f);
@@ -694,10 +705,18 @@ namespace simplex::collide {
                 }, mover);
             }
 
-            // Ray narrow-phase: the finite segment `s` against any target shape, restricted to the
-            // segment span. Hides the segment-first/aabb-first intersect_param dispatch (params run
-            // along the ray either way). Returns the crossing's line_hit, or nullopt if it does not
-            // cross within the segment; the caller clamps entry_param >= 0 (origin-inside -> 0).
+            /**
+             * @brief Ray narrow-phase: the finite segment @c s against any target shape, restricted
+             *        to the segment span.
+             *
+             * Hides the segment-first / aabb-first @c intersect_param dispatch (params run along the
+             * ray either way).
+             *
+             * @param s      The finite query segment.
+             * @param target Any target @ref shape_t (incl. segment walls/slopes).
+             * @return The crossing's @ref line_hit, or @c std::nullopt if it does not cross within the
+             *         segment. The caller clamps @c entry_param >= 0 (origin-inside reads as 0).
+             */
             [[nodiscard]] static std::optional <line_hit> ray_vs_shape(const segment& s, const shape_t& target) {
                 return std::visit([&]<typename T>(const T& shape) -> std::optional <line_hit> {
                     const std::optional <line_hit> hit = [&] {
@@ -714,10 +733,18 @@ namespace simplex::collide {
                 }, target);
             }
 
-            // Visit every candidate (resident +, when `query_tiles`, tile) overlapping `env`, skipping
-            // the two excluded body slots (INVALID = none). `visit(shape, filter, material, id)`. The
-            // broadphase query visits ALL candidates (no clipping), so the visitor/accumulator decides
-            // what to keep -- nearest-hit, all-hits, and sensor variants all share this fan-out.
+            /**
+             * @brief Broadphase fan-out: visit every candidate overlapping @c env (BVH residents and,
+             *        when @c query_tiles, static-grid tiles), skipping up to two excluded body slots.
+             * @tparam Visit Callable @c visit(shape, filter, material, id).
+             * @param env          The broadphase query box.
+             * @param exclude_idx  A body slot to skip (e.g. the querying body); @c INVALID = none.
+             * @param exclude_idx2 A second body slot to skip; @c INVALID = none.
+             * @param query_tiles  Whether to also visit static-grid tiles.
+             * @param visit        Per-candidate visitor.
+             * @note Visits ALL candidates with no clipping -- the visitor/accumulator decides what to
+             *       keep, so nearest-hit, all-hits, and sensor variants share this one fan-out.
+             */
             template<class Visit>
             void for_each_in_envelope(const aabb& env, uint32_t exclude_idx, uint32_t exclude_idx2,
                                       bool query_tiles, Visit&& visit) const {
@@ -736,10 +763,17 @@ namespace simplex::collide {
                 }
             }
 
-            // Visit every candidate the segment `s` crosses (resident + tile). `visit(shape, filter,
-            // id)` narrow-phases and accumulates; `clip()` returns the current ray-clip toi -- the
-            // nearest-hit best so far, or a constant 1.0 for an all-hits query that never prunes. The
-            // tree clips farther boxes to clip(); the grid DDA stops once a cell's entry exceeds it.
+            /**
+             * @brief Ray fan-out: visit every candidate the segment @c s crosses (BVH residents and
+             *        static-grid tiles), with progressive ray-clipping.
+             * @tparam Clip  Callable @c clip() returning the current clip toi.
+             * @tparam Visit Callable @c visit(shape, filter, id) that narrow-phases and accumulates.
+             * @param s     The finite query segment.
+             * @param clip  Returns the current ray-clip toi -- the nearest-hit best-so-far (so the
+             *              tree prunes farther boxes and the grid DDA stops once a cell's entry
+             *              exceeds it), or a constant @c 1.0 for an all-hits query that never prunes.
+             * @param visit Per-candidate visitor.
+             */
             template<class Clip, class Visit>
             void for_each_along_ray(const segment& s, Clip&& clip, Visit&& visit) const {
                 collide::raycast(m_space_partition, s, // qualified: member `raycast` would otherwise hide it
@@ -762,11 +796,18 @@ namespace simplex::collide {
                 }
             }
 
-            // Report every collider whose shape overlaps `self_shape` (passing `self_filter`),
-            // across the BVH residents and -- when `query_tiles` -- the static grid. `exclude_body`
-            // skips one body slot (the querying body itself; INVALID = none). Source-agnostic so it
-            // serves both a body sensor (query_tiles = true, exclude self) and a tile sensor
-            // (query_tiles = false -- tiles do not sense other tiles, and there is no body self).
+            /**
+             * @brief Overlap-query core: report every collider whose shape overlaps @c self_shape
+             *        and passes @c self_filter.
+             * @tparam Fn Callable @c on_hit(collider_id) invoked once per overlapping candidate.
+             * @param self_shape  The querying shape.
+             * @param self_filter The querying filter.
+             * @param exclude_body A body slot to skip (the querying body); @c INVALID = none.
+             * @param query_tiles  Whether to also test static-grid tiles.
+             * @param on_hit       Per-overlap callback.
+             * @note Source-agnostic: serves both a body sensor (@c query_tiles = true, exclude self)
+             *       and a tile sensor (@c query_tiles = false -- tiles do not sense other tiles).
+             */
             template<class Fn>
             void overlap_core(const shape_t& self_shape, const filter_props& self_filter,
                               uint32_t exclude_body, bool query_tiles, Fn&& on_hit) const {
@@ -788,22 +829,35 @@ namespace simplex::collide {
                     });
             }
 
-            // A body's overlaps (the body senses bodies AND tiles).
+            /**
+             * @brief A resident body's overlaps -- it senses bodies AND tiles, excluding itself.
+             * @tparam Fn Callable @c on_hit(collider_id).
+             * @param idx    The querying body's slot index.
+             * @param on_hit Per-overlap callback.
+             */
             template<class Fn>
             void overlap(uint32_t idx, Fn&& on_hit) const {
                 const auto& self = m_bodies_storage[idx];
-                overlap_core(self.shape, self.filter, idx, /*query_tiles=*/true, std::forward<Fn>(on_hit));
+                overlap_core(self.shape, self.filter, idx, /*query_tiles=*/true, std::forward <Fn>(on_hit));
             }
 
-            // Swept-query core: sweep `mover` by `delta` and return the earliest accepted resident
-            // hit (normalized toi in [0,1]), or nullopt. `mover` is a moving_shape_t (aabb|circle)
-            // so the swept dispatch covers every target with no guard. `exclude_idx` skips one
-            // body slot (the mover itself, when it lives in the tree; collider_id::INVALID = none).
-            // `accept(const resident_body&, const vec& hit_normal)` runs INSIDE the candidate loop,
-            // AFTER the swept contact is computed, so a direction rule (ONE_WAY) sees the real
-            // contact normal; it must be per-candidate (cast keeps only the earliest hit, so a
-            // post-filter could not recover a farther accepted target behind a rejected near one).
-            // Residents are treated as stationary (per-mover CCD, §8c).
+            /**
+             * @brief Swept-query core: sweep @c mover by @c delta and return the earliest accepted
+             *        hit across residents AND tiles, or @c std::nullopt.
+             * @tparam Accept Callable @c accept(material, hit_normal) -> bool, run per candidate
+             *                AFTER its swept contact is computed (so @c ONE_WAY sees the real contact
+             *                normal). Per-candidate by necessity: a cast keeps only the earliest hit,
+             *                so a post-filter could not recover a farther accepted target behind a
+             *                rejected near one.
+             * @param mover         The swept shape (aabb|circle) -- covers every target with no guard.
+             * @param delta         The sweep displacement.
+             * @param self_filter   The mover's collision filter.
+             * @param accept        The per-candidate acceptor.
+             * @param exclude_idx   A body slot to skip (the mover itself, when in the tree); @c INVALID = none.
+             * @param exclude_idx2  A second body slot to skip; defaults to @c INVALID.
+             * @return The nearest accepted @ref contact (normalized toi in [0,1]), or @c std::nullopt.
+             *         Residents are treated as stationary (per-mover CCD, §8c).
+             */
             template<class Accept>
             [[nodiscard]] std::optional <contact> cast_core(const moving_shape_t& mover,
                                                             units::displacement delta,
@@ -834,22 +888,36 @@ namespace simplex::collide {
                 return out;
             }
 
-            // Internal: cast a *stored* mover (kinematic resident or bullet) by `delta`. A BODY
-            // mover excludes itself; a BULLET is not in the tree, so nothing to exclude.
+            /**
+             * @brief Internal: cast a @e stored mover (kinematic resident or bullet) by @c delta.
+             * @tparam Accept Per-candidate acceptor (see @ref cast_core).
+             * @param idx     The mover's slot index.
+             * @param type_id @c BODY (excludes itself) or @c BULLET (not in the tree, excludes nothing).
+             * @param delta   The sweep displacement.
+             * @param accept  The acceptor.
+             * @return The nearest accepted @ref contact, or @c std::nullopt.
+             */
             template<class Accept>
             [[nodiscard]] std::optional <contact> cast(uint32_t idx, collider_id::type type_id,
                                                        units::displacement delta, Accept&& accept) const {
                 if (type_id == collider_id::BODY) {
                     const auto& self = m_bodies_storage[idx];
                     return cast_core(detail::narrow(self.shape), delta, self.filter,
-                                     std::forward<Accept>(accept), idx);
+                                     std::forward <Accept>(accept), idx);
                 }
                 const auto& self = m_bullets_storage[idx];
                 return cast_core(self.shape, delta, self.filter,
-                                 std::forward<Accept>(accept), collider_id::INVALID);
+                                 std::forward <Accept>(accept), collider_id::INVALID);
             }
 
-            // Convenience: cast against every filtered candidate (no acceptor restriction).
+            /**
+             * @brief Internal convenience: cast a stored mover against every filtered candidate (no
+             *        acceptor restriction).
+             * @param idx     The mover's slot index.
+             * @param type_id @c BODY or @c BULLET.
+             * @param delta   The sweep displacement.
+             * @return The nearest @ref contact, or @c std::nullopt.
+             */
             [[nodiscard]] std::optional <contact> cast(uint32_t idx, collider_id::type type_id,
                                                        units::displacement delta) const {
                 return cast(idx, type_id, delta, &world::accept_any);
@@ -861,25 +929,42 @@ namespace simplex::collide {
             // swept_triggers / dedup_by_entity / line_of_sight / snap_to_ground / step_up /
             // ground_support. All const except the snap/step helpers, which move the actor.
             // ====================================================================================
-            // Game-facing aiming cast: sweep an arbitrary `mover` shape by `delta` and return the
-            // earliest hit passing `filter`, or nullopt -- across BOTH dynamic residents and static
-            // tiles (the result's collider_id may be BODY or TILE). The shape is transient (not in
-            // the world), so nothing is excluded. Use for aim previews, lobbed-shot prediction,
-            // "is this move clear" probes -- the swept counterpart to raycast. (Public API takes a
-            // plain vec delta; it is wrapped as a displacement for the internal swept math.)
+            /**
+             * @brief Game-facing aiming cast: sweep a transient @c mover shape by @c delta and return
+             *        the earliest hit passing @c filter, or @c std::nullopt.
+             *
+             * Across BOTH dynamic residents and static tiles (the result's @c collider_id may be
+             * @c BODY or @c TILE). The shape is transient (not in the world), so nothing is excluded.
+             * The swept counterpart to @ref raycast -- use it for aim previews, lobbed-shot
+             * prediction, and "is this move clear?" probes.
+             *
+             * @param mover  The shape to sweep (aabb|circle).
+             * @param delta  The sweep displacement.
+             * @param filter The query's collision filter.
+             * @return The nearest @ref contact, or @c std::nullopt.
+             */
             [[nodiscard]] std::optional <contact> cast(const moving_shape_t& mover, vec delta,
                                                        filter_props filter = {}) const {
                 return cast_core(mover, units::displacement{delta}, filter, &world::accept_any,
                                  collider_id::INVALID);
             }
 
-            // Multi-hit swept shape cast (cross-cutting roadmap): EVERY collider that `mover` swept by
-            // `delta` would touch, ordered nearest-first by toi -- the swept counterpart to
-            // raycast_all, where `cast` returns only the nearest. `max_hits` > 0 keeps just the nearest
-            // N (0 = all). Across residents AND tiles; the transient shape excludes nothing. Reports
-            // ALL filtered colliders regardless of material response (a beam passes through, so the
-            // caller decides what stops it via `filter`); a body with several colliders reports once
-            // PER collider -- dedup by eid is the caller's job (see the entity-grouping roadmap item).
+            /**
+             * @brief Multi-hit swept shape cast: EVERY collider that @c mover swept by @c delta would
+             *        touch, ordered nearest-first by toi -- the swept counterpart to @ref raycast_all.
+             *
+             * Across residents AND tiles; the transient shape excludes nothing. Reports ALL filtered
+             * colliders regardless of material response (a beam passes through, so the caller decides
+             * what stops it via @c filter).
+             *
+             * @param mover    The shape to sweep (aabb|circle).
+             * @param delta    The sweep displacement.
+             * @param filter   The query's collision filter.
+             * @param max_hits Keep only the nearest N hits; @c 0 = all.
+             * @return Contacts nearest-first.
+             * @note A body with several colliders reports once PER collider -- dedup by eid is the
+             *       caller's job via @ref dedup_by_entity.
+             */
             [[nodiscard]] std::vector <contact> cast_all(const moving_shape_t& mover, vec delta,
                                                          filter_props filter = {},
                                                          std::size_t max_hits = 0) const {
@@ -900,18 +985,25 @@ namespace simplex::collide {
                 return nearest_first(std::move(hits), max_hits);
             }
 
-            // Swept / crossing triggers (cross-cutting roadmap): the SENSOR colliders the shape
-            // `mover` would touch while sweeping by `delta` -- INCLUDING ones it passes entirely
-            // through between the endpoints. run()'s trigger pass diffs sensor overlaps at frame
-            // BOUNDARIES, so a fast body can skip a thin pickup / checkpoint / tripwire between two
-            // sampled frames without ever overlapping it at an endpoint; this swept query catches
-            // those crossings. Reports SENSORS only (solids are the movement pass's job), ordered
-            // nearest-first by `toi` (a sensor already overlapped at the start reads as toi 0).
-            //
-            // The shape is transient (not in the world): pass the mover's PRE-move shape and its frame
-            // delta. Complements the begin/end diff -- use TRIGGER_BEGIN/END for staying inside a zone,
-            // this for a momentary fast crossing. A body with several sensor colliders reports once PER
-            // collider (eid-dedup is the caller's job, as with cast_all).
+            /**
+             * @brief Swept / crossing triggers: the SENSOR colliders the shape @c mover would touch
+             *        while sweeping by @c delta -- INCLUDING ones it passes entirely through between
+             *        the endpoints.
+             *
+             * @ref run 's trigger pass diffs sensor overlaps at frame BOUNDARIES, so a fast body can
+             * skip a thin pickup / checkpoint / tripwire between two sampled frames without ever
+             * overlapping it at an endpoint; this swept query catches those crossings. Complements the
+             * begin/end diff -- use @c TRIGGER_BEGIN / @c TRIGGER_END for staying inside a zone, this
+             * for a momentary fast crossing.
+             *
+             * @param mover  The mover's PRE-move shape (transient, not in the world).
+             * @param delta  The frame displacement.
+             * @param filter The query's collision filter.
+             * @return SENSOR contacts only (solids are the movement pass's job), nearest-first by toi
+             *         (a sensor already overlapped at the start reads as toi 0).
+             * @note A body with several sensor colliders reports once PER collider -- eid-dedup is the
+             *       caller's job via @ref dedup_by_entity.
+             */
             [[nodiscard]] std::vector <contact> swept_triggers(const moving_shape_t& mover, vec delta,
                                                                filter_props filter = {}) const {
                 const units::displacement dd{delta};
@@ -934,14 +1026,21 @@ namespace simplex::collide {
                 return nearest_first(std::move(hits));
             }
 
-            // Entity-level collider grouping (cross-cutting roadmap): collapse multi-hit results to
-            // one contact PER ENTITY (eid), keeping the NEAREST (smallest toi) collider of each. One
-            // entity often owns several colliders by role -- hurtbox, hitbox, weak points, shield
-            // zones -- all sharing its eid; without this a beam reports the same enemy once per
-            // collider. Operates on the output of raycast_all / cast_all / swept_triggers; the result
-            // stays ordered nearest-first. Keys purely on eid, so colliders sharing an eid (INCLUDING
-            // the default 0 on un-keyed colliders) merge -- assign eids per logical entity. Handles
-            // must still be live (call on fresh query results, same frame).
+            /**
+             * @brief Collapse a multi-hit result to one contact PER ENTITY (eid), keeping the nearest
+             *        (smallest toi) collider of each.
+             *
+             * One entity often owns several colliders by role -- hurtbox, hitbox, weak points, shield
+             * zones -- all sharing its eid; without this a beam reports the same enemy once per
+             * collider. Operates on the output of @ref raycast_all / @ref cast_all /
+             * @ref swept_triggers.
+             *
+             * @param hits A multi-hit result (handles must still be live -- call on fresh query
+             *             results, same frame).
+             * @return One contact per entity, still ordered nearest-first.
+             * @note Keys purely on eid, so colliders sharing an eid (INCLUDING the default 0 on
+             *       un-keyed colliders) merge -- assign eids per logical entity.
+             */
             [[nodiscard]] std::vector <contact> dedup_by_entity(std::vector <contact> hits) const {
                 std::vector <contact> out;
                 out.reserve(hits.size());
@@ -966,11 +1065,19 @@ namespace simplex::collide {
                 return nearest_first(std::move(out));
             }
 
-            // First collider the finite segment `s` crosses (nearest along the ray), or nullopt --
-            // across BOTH dynamic residents and static tiles (the result's collider_id may be BODY
-            // or TILE). Bullets are excluded (not in the tree). Targets may be any shape incl.
-            // segments (walls/slopes), visited as the full shape_t -- never narrowed. toi is clamped
-            // to >= 0 (an origin already inside a shape reads as 0).
+            /**
+             * @brief First collider the finite segment @c s crosses (nearest along the ray), or
+             *        @c std::nullopt.
+             *
+             * Across BOTH dynamic residents and static tiles (the result's @c collider_id may be
+             * @c BODY or @c TILE). Bullets are excluded (not in the tree). Targets may be any shape
+             * incl. segments (walls/slopes), visited as the full @ref shape_t -- never narrowed.
+             *
+             * @param s      The finite query segment.
+             * @param filter The query's collision filter.
+             * @return The nearest crossing's @ref contact (toi clamped to >= 0; an origin already
+             *         inside a shape reads as 0), or @c std::nullopt.
+             */
             [[nodiscard]] std::optional <contact> raycast(const segment& s, filter_props filter = {}) const {
                 std::optional <contact> out;
                 // Keep the nearest crossing; clip the ray to the best hit so far so the tree prunes
@@ -991,12 +1098,20 @@ namespace simplex::collide {
                 return out;
             }
 
-            // Multi-hit ray (cross-cutting roadmap): EVERY collider the finite segment `s` crosses,
-            // ordered nearest-first by toi -- not just the nearest like raycast. `max_hits` > 0 keeps
-            // just the nearest N (0 = all). Across residents AND tiles; bullets excluded (not in the
-            // tree). Covers beams, piercing shots, melee/sword arcs, explosion sweeps, boss
-            // multi-hurtbox scans. A body with several colliders reports once PER collider -- dedup by
-            // eid is the caller's job (see the entity-grouping roadmap item).
+            /**
+             * @brief Multi-hit ray: EVERY collider the finite segment @c s crosses, ordered
+             *        nearest-first by toi -- not just the nearest like @ref raycast.
+             *
+             * Across residents AND tiles; bullets excluded (not in the tree). Covers beams, piercing
+             * shots, melee/sword arcs, explosion sweeps, and boss multi-hurtbox scans.
+             *
+             * @param s        The finite query segment.
+             * @param filter   The query's collision filter.
+             * @param max_hits Keep only the nearest N crossings; @c 0 = all.
+             * @return Contacts nearest-first.
+             * @note A body with several colliders reports once PER collider -- dedup by eid is the
+             *       caller's job via @ref dedup_by_entity.
+             */
             [[nodiscard]] std::vector <contact> raycast_all(const segment& s, filter_props filter = {},
                                                             std::size_t max_hits = 0) const {
                 std::vector <contact> hits;
@@ -1014,29 +1129,42 @@ namespace simplex::collide {
                 return nearest_first(std::move(hits), max_hits);
             }
 
-            // Is `to` visible from `from` -- i.e. nothing in `blockers` lies strictly between?
-            // A convenience over raycast: clear when there is no hit, or the first blocker is at
-            // or beyond the target endpoint.
+            /**
+             * @brief Is @c to visible from @c from -- i.e. nothing in @c blockers lies strictly between?
+             *
+             * A convenience over @ref raycast.
+             *
+             * @param from     Ray origin.
+             * @param to       Ray endpoint (the target being checked for visibility).
+             * @param blockers Filter selecting the colliders that occlude.
+             * @return @c true when there is no hit, or the first blocker is at or beyond @c to.
+             */
             [[nodiscard]] bool line_of_sight(vec from, vec to, filter_props blockers = {}) const {
                 const auto hit = raycast(segment{from, to}, blockers);
                 return !hit || hit->toi >= 1.0f;
             }
 
-            // §19 #2 -- ground snapping. Keep a grounded actor glued to a floor that receded beneath
-            // it this frame, so it hugs a downhill slope / staircase instead of launching off each
-            // lip. Sweeps the actor's OWN shape straight down (-up) by at most `max_drop`; if it
-            // lands on a WALKABLE surface within reach (the same solids it slides on -- ONE_WAY
-            // floors included, from above), it translates the actor down onto that surface, leaving
-            // the standard skin gap so the next frame's cast does not re-hit at toi 0.
-            //
-            // Returns the ground contact it snapped to (normal usable for slope-aligned velocity),
-            // or nullopt when there is no walkable ground within `max_drop` -- the actor is over a
-            // real ledge/cliff (or a >45 deg face) and should fall. A flush floor (toi 0) returns the
-            // contact with no move.
-            //
-            // POLICY is the caller's: call AFTER run(), only when the actor was grounded last frame
-            // and is not rising. Size `max_drop` to the tallest one-frame step down (a few px +
-            // slope*speed*dt), small enough that a true cliff (drop > max_drop) still lets it fall.
+            /**
+             * @brief Ground snapping (§19 #2) -- keep a grounded actor glued to a floor that receded
+             *        beneath it this frame, so it hugs a downhill slope / staircase instead of
+             *        launching off each lip.
+             *
+             * Sweeps the actor's OWN shape straight down (-up) by at most @c max_drop; if it lands on
+             * a WALKABLE surface within reach (the same solids it slides on -- @c ONE_WAY floors
+             * included, from above), it translates the actor down onto that surface, leaving the
+             * standard skin gap so the next frame's cast does not re-hit at toi 0.
+             *
+             * @param cid      A live kinematic @c BODY actor (aborts otherwise).
+             * @param max_drop Max reach below the feet (>= 0). Size it to the tallest one-frame step
+             *                 down (a few px + slope*speed*dt), small enough that a true cliff (drop >
+             *                 @c max_drop) still lets the actor fall.
+             * @return The ground @ref contact it snapped to (normal usable for slope-aligned
+             *         velocity), or @c std::nullopt when no walkable ground is within @c max_drop (a
+             *         real ledge/cliff or a >45 deg face -- the actor should fall). A flush floor
+             *         (toi 0) returns the contact with no move.
+             * @note POLICY is the caller's: call AFTER @ref run, only when the actor was grounded last
+             *       frame and is not rising. Mutates the actor (moves it down).
+             */
             [[nodiscard]] std::optional <contact> snap_to_ground(collider_id cid, float max_drop) {
                 ENFORCE(is_valid(cid) && cid.type_id == collider_id::BODY);
                 auto& self = m_bodies_storage[cid.value];
@@ -1062,32 +1190,34 @@ namespace simplex::collide {
                 return hit;
             }
 
-            // §19 #3 -- step-up / ledge forgiveness. A mover walking into a small lip (a low step
-            // riser, a curb, a tile edge) should ride up over it rather than jam against it.
-            // step_up(cid, step, max_step) lifts the actor up to `max_step` (capped by headroom),
-            // re-casts the horizontal `step` from the raised position, and -- if the path is now
-            // clear AND a WALKABLE tread waits below -- carries it forward over the lip and settles it
-            // down onto that tread. A riser taller than `max_step`, no headroom to lift, a ledge with
-            // no tread, or a non-walkable (steep/side) tread leaves the actor untouched (nullopt).
-            //
-            // CONTRACT: step_up performs the WHOLE stepped move from the actor's CURRENT position by
-            // `step` -- it IS the move, not a nudge layered on top of one already taken. So `step` is
-            // the horizontal displacement to apply FROM WHERE THE ACTOR IS NOW (its component along
-            // `up` is ignored), and the caller must not also apply that same displacement elsewhere:
-            //   * as an alternative to a normal slide: call from the pre-move position with the full
-            //     frame delta (velocity*dt); on success the horizontal move is DONE for this frame --
-            //     do not also run the ordinary slide.
-            //   * after a slide that hit a lip: pass the REMAINING delta (intended - already-moved),
-            //     NOT the original frame delta, or the actor is advanced twice (move_and_slide has
-            //     already carried it up to the lip).
-            // Returns the tread contact it settled on (normal usable for slope-aligned velocity), or
-            // nullopt when nothing was stepped over. POLICY is the caller's: enable it for characters
-            // that should climb steps, not for crates/projectiles. Built on the self-excluding swept
-            // cast + translate -- no new physics primitive.
-            //
-            // Call it on a body resting at the SKIN-SHORT gap the solver leaves (the post-run state):
-            // a body flush against its support reads every cast as a toi-0 contact (the support masks
-            // the obstruction), so a flush actor must be nudged off-surface first.
+            /**
+             * @brief Step-up / ledge forgiveness (§19 #3) -- a mover walking into a small lip (a low
+             *        step riser, a curb, a tile edge) rides up over it rather than jamming against it.
+             *
+             * Lifts the actor up to @c max_step (capped by headroom), re-casts the horizontal @c step
+             * from the raised position, and -- if the path is now clear AND a WALKABLE tread waits
+             * below -- carries it forward over the lip and settles it down onto that tread. A riser
+             * taller than @c max_step, no headroom to lift, a ledge with no tread, or a non-walkable
+             * (steep/side) tread leaves the actor untouched.
+             *
+             * @param cid      A live kinematic @c BODY actor (aborts otherwise).
+             * @param step     The horizontal displacement to apply FROM WHERE THE ACTOR IS NOW (its
+             *                 component along @c up is ignored).
+             * @param max_step Max lift height (>= 0).
+             * @return The tread @ref contact it settled on (normal usable for slope-aligned velocity),
+             *         or @c std::nullopt when nothing was stepped over.
+             *
+             * @warning CONTRACT: this performs the WHOLE stepped move -- it IS the move, not a nudge
+             *          layered on one already taken. The caller must not also apply @c step elsewhere:
+             *          as an alternative to a slide, call from the pre-move position with the full
+             *          frame delta and skip the ordinary slide on success; after a slide that hit a
+             *          lip, pass the REMAINING delta (intended - already-moved), or the actor advances
+             *          twice.
+             * @note Call on a body resting at the skin-short gap the solver leaves (the post-@ref run
+             *       state). A body flush against its support reads every cast as a toi-0 contact, so a
+             *       flush actor must be nudged off-surface first. Mutates the actor. POLICY is the
+             *       caller's: enable it for characters that climb steps, not crates/projectiles.
+             */
             [[nodiscard]] std::optional <contact> step_up(collider_id cid, vec step, float max_step) {
                 ENFORCE(is_valid(cid) && cid.type_id == collider_id::BODY);
                 auto& self = m_bodies_storage[cid.value];
@@ -1144,21 +1274,24 @@ namespace simplex::collide {
                 return tread;
             }
 
-            // §19 #4 -- footing / edge sensors. Reports the solid ground under three points of the
-            // actor's footprint -- left edge, centre, right edge -- by probing straight down (-up) by
-            // `max_drop` from each. A STATE the game reads to drive teeter/balance, edge-stop,
-            // coyote-time and ledge-grab; the library's job is the query, not the response (a teetering
-            // character does not fall -- that is animation, not dynamics). The left/right pair is
-            // exactly Sonic's twin floor sensors (A/B). `footing` exposes the raw per-foot contacts
-            // plus grounded()/fully_supported()/at_ledge()/ledge_left()/ledge_right() convenience.
-            //
-            // Each probe is a self-excluding point cast gated to WALKABLE SOLID ground -- a sensor/ignore
-            // body is not support, and neither is a steep slope / side / vertical face (normal.up must
-            // exceed GROUND_THRESHOLD), so footing agrees with move_and_slide/snap_to_ground/step_up on
-            // what "ground" is; a ONE_WAY platform counts only from above. `max_drop` is the reach below
-            // the feet that still counts as support -- small for a
-            // touching "am I at the edge" check, larger to also catch a step within stride. Pure query
-            // (const): it never moves the actor. Built on the existing swept cast -- no new primitive.
+            /**
+             * @brief Footing / edge sensors (§19 #4) -- report the solid ground under three points of
+             *        the actor's footprint (left edge, centre, right edge) by probing straight down.
+             *
+             * A STATE the game reads to drive teeter/balance, edge-stop, coyote-time and ledge-grab;
+             * the library's job is the query, not the response (a teetering character does not fall --
+             * that is animation, not dynamics). The left/right pair is exactly Sonic's twin floor
+             * sensors (A/B). Each probe is a self-excluding point cast gated to WALKABLE SOLID ground,
+             * so footing agrees with move-and-slide / @ref snap_to_ground / @ref step_up on what
+             * "ground" is (a @c ONE_WAY platform counts only from above).
+             *
+             * @param cid      A live @c BODY actor (aborts if invalid).
+             * @param max_drop Reach below the feet that still counts as support (>= 0) -- small for a
+             *                 touching "am I at the edge?" check, larger to also catch a step within stride.
+             * @return A @ref footing with the per-foot contacts plus its
+             *         @c grounded()/fully_supported()/at_ledge()/ledge_left()/ledge_right() helpers.
+             * @note Pure query (const) -- never moves the actor.
+             */
             [[nodiscard]] footing ground_support(collider_id cid, float max_drop) const {
                 ENFORCE(is_valid(cid) && cid.type_id == collider_id::BODY);
                 ENFORCE(max_drop >= 0.0f)("ground_support: max_drop must be non-negative");
@@ -1207,6 +1340,8 @@ namespace simplex::collide {
             // Internals, part 2: the slide solver (move_and_slide), carriers (MP1/2/3 helpers),
             // trigger bookkeeping, grid boundary-bake, shared constants, and the member state.
             // ====================================================================================
+            /// @brief Outcome of @ref move_and_slide: post-slide velocity, grounded flag, and the
+            ///        surfaces hit this move (for @ref run to emit as @c COLLISION events).
             struct slide_result {
                 vec velocity; // post-slide velocity (also written back to the body)
                 bool grounded = false;
@@ -1214,18 +1349,24 @@ namespace simplex::collide {
                 int count = 0;
             };
 
-            // Move kinematic body `idx` by velocity*dt this frame, resolving against the residents
-            // the `acceptor` deems solid (BLOCK, or ONE_WAY from the blocked side). It sweeps,
-            // stops a `skin` short of each contact, slides the leftover along the surface, and
-            // damps the velocity via the surface material -- up to `max_slide_iter` passes (a
-            // floor+wall corner needs 2). The body's stored shape/velocity and its broadphase
-            // proxy are updated in place; the returned slide_result carries the post-slide
-            // velocity, grounded flag, and the contacts hit (for run() to emit as events).
-            //
-            // `acceptor(const resident_body&, const vec& hit_normal) -> bool` selects solid
-            // surfaces, given each candidate's actual contact normal (so ONE_WAY decides on the
-            // face crossed). Sensors/ignored bodies return false so they never block movement
-            // (run() reports them via its separate overlap/trigger passes).
+            /**
+             * @brief Move kinematic body @c idx by velocity*dt this frame, resolving against the
+             *        residents the @c acceptor deems solid.
+             *
+             * Sweeps, stops a @c skin short of each contact, slides the leftover along the surface,
+             * and damps the velocity via the surface material -- up to @c max_slide_iter passes (a
+             * floor+wall corner needs 2). The body's stored shape/velocity and its broadphase proxy
+             * are updated in place.
+             *
+             * @tparam Fn Acceptor @c acceptor(material, hit_normal) -> bool selecting solid surfaces
+             *            given each candidate's actual contact normal (so @c ONE_WAY decides on the
+             *            face crossed). Sensors/ignored bodies return false so they never block
+             *            movement (@ref run reports them via its trigger pass).
+             * @param idx      The kinematic body's slot index.
+             * @param dt       Frame duration.
+             * @param acceptor The solid-surface acceptor.
+             * @return A @ref slide_result with the post-slide velocity, grounded flag, and contacts hit.
+             */
             template<typename Fn>
             slide_result move_and_slide(uint32_t idx, units::duration dt, Fn&& acceptor) {
                 auto& self = m_bodies_storage[idx];
@@ -1288,46 +1429,71 @@ namespace simplex::collide {
                 return res;
             }
 
-            // A persistent sensor-overlap pair. `key` is the diff identity: the two handles in a
-            // canonical order, INCLUDING generation -- so a slot reused by a different body (new
-            // generation) is a distinct pair and the old end / new begin both fire correctly,
-            // rather than the diff silently treating them as "still overlapping". The collider_ids
-            // are kept so an END can name the pair even after a body is removed.
+            /**
+             * @brief A persistent sensor-overlap pair, the unit the trigger diff works on.
+             *
+             * @c key is the diff identity: the two handles in canonical order, INCLUDING generation --
+             * so a slot reused by a different body (new generation) is a distinct pair and the old
+             * end / new begin both fire correctly, rather than the diff silently treating them as
+             * "still overlapping". The @c collider_ids are kept so an END can name the pair even after
+             * a body is removed.
+             */
             struct sensor_pair {
                 // {lo.value, lo.gen, lo.type, hi.value, hi.gen, hi.type}; std::array < is lexicographic.
                 // type_id is part of the key: a BODY and a TILE can share value+generation (a cell
                 // index can equal a body slot), so omitting it would alias their pairs.
-                std::array<uint32_t, 6> key{};
+                std::array <uint32_t, 6> key{};
                 collider_id sensor{};
                 collider_id other{};
             };
 
-            // Canonical, full-identity pair key (order the two handles by the whole collider_id:
-            // value, then generation, then type_id -- via the defaulted operator<=>).
-            static std::array<uint32_t, 6> pair_key(const collider_id& a, const collider_id& b) {
+            /**
+             * @brief Canonical, full-identity pair key for the trigger diff.
+             * @param a,b The two handles, ordered by the whole @ref collider_id (value, generation,
+             *            type_id -- via the defaulted @c operator<=>).
+             * @return @c {lo.value, lo.gen, lo.type, hi.value, hi.gen, hi.type}, lexicographically
+             *         comparable.
+             */
+            static std::array <uint32_t, 6> pair_key(const collider_id& a, const collider_id& b) {
                 const collider_id& lo = (a < b) ? a : b;
                 const collider_id& hi = (a < b) ? b : a;
-                return {lo.value, lo.generation, static_cast<uint32_t>(lo.type_id),
-                        hi.value, hi.generation, static_cast<uint32_t>(hi.type_id)};
+                return {
+                    lo.value, lo.generation, static_cast <uint32_t>(lo.type_id),
+                    hi.value, hi.generation, static_cast <uint32_t>(hi.type_id)
+                };
             }
 
+            /**
+             * @brief Emit a @c TRIGGER_BEGIN / @c TRIGGER_END event for a sensor pair.
+             * @param kind @c TRIGGER_BEGIN or @c TRIGGER_END.
+             * @param p    The sensor pair (its stored ids name the event).
+             */
             void emit_trigger(event_kind kind, const sensor_pair& p) {
                 m_events.emplace_back(kind, p.sensor, p.other, vec{}, -1.0f);
             }
 
-            // A contact counts as "ground" when its normal points up enough to stand on:
-            // dot(n, up) > cos(45 deg) ~ 0.707 (max walkable slope ~45 degrees).
+            /// @brief A contact is "ground" when @c dot(n, up) exceeds this -- @c cos(45 deg) ~ 0.707
+            ///        (max walkable slope ~45 degrees).
             static constexpr float GROUND_THRESHOLD = 0.707f;
 
-            // THE single definition of "is this surface standable ground?" -- used by move_and_slide's
-            // grounded flag, snap_to_ground, step_up's tread, and footing, so they cannot drift apart
-            // (every review of this cluster caught a copy of this check spelled inconsistently).
+            /**
+             * @brief THE single definition of "is this surface standable ground?"
+             * @param contact_normal The contact's outward normal.
+             * @return @c true iff it faces up past @ref GROUND_THRESHOLD.
+             * @note Shared by move-and-slide's grounded flag, @ref snap_to_ground, @ref step_up 's
+             *       tread, and @ref ground_support so they cannot drift apart.
+             */
             [[nodiscard]] bool is_walkable(const vec& contact_normal) const {
                 return euler::dot(contact_normal, m_cfg.up) > GROUND_THRESHOLD;
             }
 
-            // Finalize a multi-hit result: order nearest-first by toi, then (max_hits > 0) keep only
-            // the nearest N. Shared by raycast_all / cast_all / swept_triggers / dedup_by_entity.
+            /**
+             * @brief Finalize a multi-hit result: order nearest-first by toi, then optionally cap to N.
+             * @param hits     The unsorted hits.
+             * @param max_hits Keep only the nearest N; @c 0 = all.
+             * @return The hits sorted nearest-first (and truncated). Shared by @ref raycast_all /
+             *         @ref cast_all / @ref swept_triggers / @ref dedup_by_entity.
+             */
             [[nodiscard]] static std::vector <contact> nearest_first(std::vector <contact> hits,
                                                                      std::size_t max_hits = 0) {
                 std::sort(hits.begin(), hits.end(),
@@ -1338,15 +1504,17 @@ namespace simplex::collide {
                 return hits;
             }
 
-            // A ONE_WAY surface blocks only when the contact normal aligns with its block_normal
-            // (dot above this). 0.5 (~cos 60 deg) blocks a head-on crossing of the blocked face
-            // while letting side/grazing contacts pass.
+            /// @brief A @c ONE_WAY surface blocks only when @c dot(contact_normal, block_normal)
+            ///        exceeds this -- @c 0.5 (~cos 60 deg) blocks a head-on crossing while letting
+            ///        side/grazing contacts pass.
             static constexpr float ONE_WAY_DOT = 0.5f;
 
+            /// @brief Is a vector within @c POINT_EPS of zero length? (squared-length test, no sqrt).
             static constexpr bool near_zero(const vec& v) {
                 return euler::length_squared(v) < constants::POINT_EPS * constants::POINT_EPS;
             }
 
+            /// @brief Translate a resident body's shape in place by @c v.
             static void translate(detail::resident_body& body, const vec& v) {
                 shape_t new_shape{aabb{}};
                 std::visit([&v, &new_shape](const auto& s) {
@@ -1355,6 +1523,7 @@ namespace simplex::collide {
                 body.shape = new_shape;
             }
 
+            /// @brief Translate a bullet (nonresident) body's shape in place by @c v.
             static void translate(detail::nonresident_body& body, const vec& v) {
                 moving_shape_t new_shape{aabb{}};
                 std::visit([&v, &new_shape](const auto& s) {
@@ -1363,13 +1532,19 @@ namespace simplex::collide {
                 body.shape = new_shape;
             }
 
-            // Boundary-compile the static grid (§19 #4): merge adjacent opted-in solid tiles into
-            // bigger AABB residents so a flat/run of tiles has no internal seams to snag fast movers.
-            // ONE-SHOT: runs once, lazily, on the first run(); add all mergeable (static) tiles before
-            // that. The compile is destructive (it clears the source cells and installs untracked
-            // residents), so it is not re-run -- add(tile_body) rejects a mergeable tile afterwards,
-            // and clear() resets the bake for a level reload. Non-mergeable tiles stay editable.
-            // Drives the grid's generic compile_runs with the world's "mergeable group" rule.
+            /**
+             * @brief Boundary-compile the static grid (§19 #4): merge adjacent opted-in solid tiles
+             *        into bigger AABB residents so a run of tiles has no internal seams to snag fast
+             *        movers.
+             *
+             * Drives the grid's generic @c compile_runs with the world's "mergeable group" rule (a
+             * cell-filling solid @c BLOCK aabb sharing material + filter with its neighbour).
+             *
+             * @note ONE-SHOT: runs once, lazily, on the first @ref run -- add all mergeable static
+             *       tiles before that. The compile is destructive (it clears the source cells and
+             *       installs untracked residents), so @ref add rejects a mergeable tile afterwards and
+             *       @ref clear resets the bake for a level reload. Non-mergeable tiles stay editable.
+             */
             void compile_static_grid() {
                 if (!m_static_grid || m_compiled) {
                     return;
@@ -1380,13 +1555,14 @@ namespace simplex::collide {
                 // two such cells share a group iff they have the same material + filter.
                 const auto same_group = [](const detail::tile& seed, const detail::tile& cell, const aabb& cb) {
                     if (!cell.mergeable || cell.material.response != response_mode::BLOCK
-                        || !std::holds_alternative<aabb>(cell.shape)) {
+                        || !std::holds_alternative <aabb>(cell.shape)) {
                         return false;
                     }
-                    const aabb cs = std::get<aabb>(cell.shape);
+                    const aabb cs = std::get <aabb>(cell.shape);
                     const float e = constants::POINT_EPS;
                     const bool fills = std::abs(cs.min.x() - cb.min.x()) < e && std::abs(cs.min.y() - cb.min.y()) < e
-                                       && std::abs(cs.max.x() - cb.max.x()) < e && std::abs(cs.max.y() - cb.max.y()) < e;
+                                       && std::abs(cs.max.x() - cb.max.x()) < e && std::abs(cs.max.y() - cb.max.y()) <
+                                       e;
                     if (!fills) {
                         return false;
                     }
@@ -1415,20 +1591,22 @@ namespace simplex::collide {
 
             // ---- carriers (moving platforms / conveyors / crushers) -----------------------------
 
-            // True if actor `actor_idx` rides carrier `carrier_idx`. Three gates (plus filter +
-            // material), all shape-aware so they hold for aabb/circle riders on ANY `up`:
-            //   (1) VERTICAL: the actor's underside (min extent along `up`) rests at/just above the
-            //       carrier's top, within the skin gap -- excludes a body wedged against a side.
-            //   (2) PERPENDICULAR: the actor and carrier STRICTLY overlap across `up` -- excludes an
-            //       aabb touching only a top edge/corner (zero real support; inclusive contact alone
-            //       would carry it).
-            //   (3) CONTACT (shape-aware): nudging the actor down by the gap makes its REAL shape
-            //       intersect the carrier -- excludes a circle merely near a corner (its enclosing
-            //       box overlaps but the circle does not touch), which the box gates cannot see.
-            // FILTER (layers interact) and MATERIAL (carrier solid from above -- a SENSOR/IGNORE or
-            // wrong-side one-way carrier carries nothing) gate first. An exact zero-gap top contact
-            // rides cleanly (no degenerate swept normal). Extents are exact: a circle's is
-            // center·axis ± r, so a non-cardinal `up` is handled (an enclosing box would overestimate).
+            /**
+             * @brief Does actor @c actor_idx ride carrier @c carrier_idx?
+             *
+             * After the filter (layers interact) and material (carrier solid from above) gates, three
+             * shape-aware gates that hold for aabb/circle riders on ANY @c up:
+             *   1. VERTICAL: the actor's underside rests at/just above the carrier's top, within the
+             *      skin gap (excludes a body wedged against a side).
+             *   2. PERPENDICULAR: the actor and carrier STRICTLY overlap across @c up (excludes a mere
+             *      top edge/corner touch).
+             *   3. CONTACT (shape-aware): nudging the actor down by the gap makes its REAL shape
+             *      intersect the carrier (excludes a circle merely near a corner).
+             *
+             * @param actor_idx   Candidate rider's slot index.
+             * @param carrier_idx Carrier's slot index.
+             * @return @c true iff the actor is supported on top of the carrier.
+             */
             [[nodiscard]] bool is_riding(uint32_t actor_idx, uint32_t carrier_idx) const {
                 const auto& a = m_bodies_storage[actor_idx];
                 const auto& c = m_bodies_storage[carrier_idx];
@@ -1446,11 +1624,13 @@ namespace simplex::collide {
 
                 // [lo, hi] extent of a shape projected onto `axis` -- exact per shape (a circle is
                 // center·axis ± r; others use their enclosing-box corners).
-                struct span { float lo, hi; };
+                struct span {
+                    float lo, hi;
+                };
                 const auto extent = [](const shape_t& s, const vec& axis) -> span {
                     return std::visit([&](const auto& sh) -> span {
-                        using S = std::decay_t<decltype(sh)>;
-                        if constexpr (std::is_same_v<S, circle>) {
+                        using S = std::decay_t <decltype(sh)>;
+                        if constexpr (std::is_same_v <S, circle>) {
                             const float c0 = sh.center.x() * axis.x() + sh.center.y() * axis.y();
                             return span{c0 - sh.radius, c0 + sh.radius};
                         } else {
@@ -1484,8 +1664,11 @@ namespace simplex::collide {
                 }, nudged);
             }
 
-            // Re-fit a resident's broadphase proxy after it moved, only when its tight box escaped the
-            // stored fat box (same containment short-circuit as move_and_slide).
+            /**
+             * @brief Re-fit a resident's broadphase proxy after it moved -- only when its tight box
+             *        escaped the stored fat box (same containment short-circuit as @ref move_and_slide).
+             * @param b The moved resident.
+             */
             void refit_proxy(detail::resident_body& b) {
                 const aabb tight = detail::tight_box(b.shape);
                 if (!detail::contains(m_space_partition[b.proxy].box, tight)) {
@@ -1493,17 +1676,29 @@ namespace simplex::collide {
                 }
             }
 
-            // Move a carrier rigidly by `d` (it is never blocked -- it pushes/carries, §MP2/3).
+            /**
+             * @brief Move a carrier rigidly by @c d (it is never blocked -- it pushes/carries, MP2/3).
+             * @param idx The carrier's slot index.
+             * @param d   The rigid displacement.
+             */
             void move_carrier_rigid(uint32_t idx, const vec& d) {
                 auto& c = m_bodies_storage[idx];
                 translate(c, d);
                 refit_proxy(c);
             }
 
-            // Carry rider `j` (locked to carrier `carrier_idx`) by `d`: a collision-aware move that
-            // hits every solid EXCEPT its carrier, so it rides freely but still stops at walls /
-            // ceilings / other carriers. Stops a skin short of the first hit. (MP1: a blocked rider
-            // simply stops; MP3 will turn "still pinned" into a CRUSH event.)
+            /**
+             * @brief Carry rider @c j (locked to carrier @c carrier_idx) by @c d -- a collision-aware
+             *        move that hits every solid EXCEPT its carrier.
+             *
+             * The rider rides freely but still stops a skin short of walls / ceilings / other
+             * carriers. (MP1: a blocked rider simply stops; @ref emit_crush_if_pinned turns "still
+             * pinned" into a @c CRUSH event.)
+             *
+             * @param j           The rider's slot index.
+             * @param carrier_idx The carrier to exclude from the move's collisions.
+             * @param d           The intended displacement.
+             */
             void carry_translate(uint32_t j, uint32_t carrier_idx, const vec& d) {
                 if (near_zero(d)) {
                     return;
@@ -1524,10 +1719,18 @@ namespace simplex::collide {
                 refit_proxy(a);
             }
 
-            // MP3 -- crush: after a carry/push, if the actor still overlaps the carrier (it could not
-            // move clear -- pinned against other solid geometry), emit a CRUSH event. The skin gaps a
-            // clean carry/push leaves mean an un-pinned actor does not overlap, so this only fires on a
-            // genuine pin. `crush_dir` is the (un-normalized) direction the actor was being moved.
+            /**
+             * @brief MP3 crush: after a carry/push, emit a @c CRUSH event if the actor still overlaps
+             *        the carrier (it could not move clear -- pinned against other solid geometry).
+             *
+             * Uses STRICT penetration, so a clean carry/push (which leaves a skin gap, or at best a
+             * flush touch) does not read as a crush -- only a genuine pin fires.
+             *
+             * @param actor_idx   The carried/pushed actor's slot index.
+             * @param carrier_idx The carrier's slot index.
+             * @param crush_dir   The (un-normalized) direction the actor was being moved; reported as
+             *                    the event normal.
+             */
             void emit_crush_if_pinned(uint32_t actor_idx, uint32_t carrier_idx, const vec& crush_dir) {
                 // STRICT penetration (overlap -> a positive depth), not inclusive intersects: a clean
                 // carry/push leaves the actor at best TOUCHING the carrier (a zero-gap rider rides flush
@@ -1552,38 +1755,297 @@ namespace simplex::collide {
                     n, 0.0f);
             }
 
-            // Displacement that shoves actor box `a` clear of carrier box `c` ALONG the carrier's
-            // motion `d` (only the axes the carrier moves on), leaving a skin gap. Used by MP2 to
-            // push an actor the carrier ran into. Box-level (the actual move is shape-aware).
+            /**
+             * @brief MP2 push displacement: the move that shoves actor box @c a clear of carrier box
+             *        @c c ALONG the carrier's motion @c d, leaving a skin gap.
+             * @param a The actor's tight box.
+             * @param c The carrier's tight box.
+             * @param d The carrier's motion (only its non-zero axes are pushed on).
+             * @return The clearing displacement (box-level; the actual move is shape-aware).
+             */
             [[nodiscard]] vec clear_push(const aabb& a, const aabb& c, const vec& d) const {
                 const float eps = constants::POINT_EPS;
                 const float s = m_cfg.skin;
-                const float px = d.x() > eps ? (c.max.x() - a.min.x() + s)
-                                 : d.x() < -eps ? (c.min.x() - a.max.x() - s)
-                                 : 0.0f;
-                const float py = d.y() > eps ? (c.max.y() - a.min.y() + s)
-                                 : d.y() < -eps ? (c.min.y() - a.max.y() - s)
-                                 : 0.0f;
+                const float px = d.x() > eps
+                                     ? (c.max.x() - a.min.x() + s)
+                                     : d.x() < -eps
+                                           ? (c.min.x() - a.max.x() - s)
+                                           : 0.0f;
+                const float py = d.y() > eps
+                                     ? (c.max.y() - a.min.y() + s)
+                                     : d.y() < -eps
+                                           ? (c.min.y() - a.max.y() - s)
+                                           : 0.0f;
                 return vec{px, py};
             }
 
             // ---- member state -------------------------------------------------------------------
-            world_config m_cfg;
-            detail::bodies_storage m_bodies_storage;
-            detail::bullets_storage m_bullets_storage;
+            world_config m_cfg; ///< Construction-time configuration.
+            detail::bodies_storage m_bodies_storage; ///< Slot-map of resident bodies (static/kinematic/carrier).
+            detail::bullets_storage m_bullets_storage; ///< Slot-map of bullets (not in the tree).
 
-            tree m_space_partition;
-            std::optional <grid <detail::tile>> m_static_grid; // statics (tiles); unset = none
-            bool m_compiled = false; // the one-shot tile boundary-bake has run (reset by clear())
+            dynamic_aabb_tree m_space_partition; ///< Broadphase: the dynamic AABB tree over residents.
+            std::optional <grid <detail::tile>> m_static_grid; ///< Static tiles; unset = no grid.
+            bool m_compiled = false; ///< The one-shot tile boundary-bake has run (reset by clear()).
 
-            std::vector <world_event> m_events;          // reused per-frame event buffer
-            std::vector <uint32_t> m_rider_scratch;      // reused per-carrier rider list (carrier pass)
-            std::vector <uint32_t> m_push_scratch;       // reused per-carrier pushed-actor list (MP2)
-            std::vector <sensor_pair> m_triggers_curr;   // this frame's sensor overlaps
-            std::vector <sensor_pair> m_triggers_prev;   // last frame's (for the begin/end diff)
-            std::vector <collider_id> m_sensor_tiles;    // SENSOR tile handles (lazily pruned)
+            std::vector <world_event> m_events; ///< Reused per-frame event buffer (returned by run()).
+            std::vector <uint32_t> m_rider_scratch; ///< Reused per-carrier rider list (carrier pass).
+            std::vector <uint32_t> m_push_scratch; ///< Reused per-carrier pushed-actor list (MP2).
+            std::vector <sensor_pair> m_triggers_curr; ///< This frame's sensor overlaps.
+            std::vector <sensor_pair> m_triggers_prev; ///< Last frame's overlaps (for the begin/end diff).
+            std::vector <collider_id> m_sensor_tiles; ///< SENSOR tile handles (lazily pruned).
     };
-}
 
-// std::hash<collider_id> lives in world_types.hh, beside collider_id (so consumers of that header
-// alone can key unordered containers on handles). It is available here transitively.
+    // ===========================================================================================================
+    // Implementation
+    // ===========================================================================================================
+    inline world::world(const world_config& cfg)
+        : m_cfg(cfg) {
+        if (m_cfg.grid) {
+            // The grid shares the world's extent (one coordinate frame). Require bounds and
+            // an exact tiling -- a non-dividing extent is a config error, caught here loudly
+            // rather than silently clamping tiles to a mismatched box.
+            ENFORCE(m_cfg.bounds)("world_config.grid requires world_config.bounds (the shared extent)");
+            const aabb& b = *m_cfg.bounds;
+            const vec ts = m_cfg.grid->tile_size;
+            ENFORCE(ts.x() > 0.0f && ts.y() > 0.0f)("grid tile_size must be positive");
+            const float fcols = (b.max.x() - b.min.x()) / ts.x();
+            const float frows = (b.max.y() - b.min.y()) / ts.y();
+            const auto cols = static_cast <uint32_t>(std::lround(fcols));
+            const auto rows = static_cast <uint32_t>(std::lround(frows));
+            ENFORCE(cols > 0 && rows > 0)("grid extent (bounds / tile_size) must be at least one cell");
+            ENFORCE(std::abs(fcols - static_cast <float>(cols)) < 1e-3f
+                && std::abs(frows - static_cast <float>(rows)) < 1e-3f)
+                ("world_config.bounds must be an integer multiple of grid tile_size");
+            m_static_grid.emplace(grid <detail::tile>::from_tile_size(b.min, ts, cols, rows));
+        }
+    }
+
+    inline collider_id world::add(entity_id_t eid, const static_body& body) {
+        auto idx = m_bodies_storage.allocate();
+        auto& stored = m_bodies_storage[idx];
+
+        stored.shape = body.shape;
+        stored.kind = detail::body_kind::STATIC;
+        stored.filter = body.filter;
+        stored.material = body.material;
+        stored.eid = eid;
+
+        auto box = fatten(stored);
+        stored.proxy = insert_leaf(m_space_partition, idx, box);
+        return {idx, m_bodies_storage.generation(idx), collider_id::BODY};
+    }
+
+    inline collider_id world::add(entity_id_t eid, const kinematic_body& body) {
+        auto idx = m_bodies_storage.allocate();
+        auto& stored = m_bodies_storage[idx];
+
+        stored.shape = detail::widen(body.shape); // moving_shape_t -> shape_t (always valid)
+        stored.kind = detail::body_kind::KINEMATIC;
+        stored.filter = body.filter;
+        stored.material = body.material;
+        stored.velocity = body.velocity;
+        stored.eid = eid;
+
+        auto box = fatten(stored);
+        stored.proxy = insert_leaf(m_space_partition, idx, box);
+        return {idx, m_bodies_storage.generation(idx), collider_id::BODY};
+    }
+
+    inline collider_id world::add(entity_id_t eid, const carrier_body& body) {
+        auto idx = m_bodies_storage.allocate();
+        auto& stored = m_bodies_storage[idx];
+
+        stored.shape = detail::widen(body.shape);
+        stored.kind = detail::body_kind::CARRIER;
+        stored.filter = body.filter;
+        stored.material = body.material;
+        stored.velocity = body.velocity;
+        stored.surface_velocity = body.surface_velocity;
+        stored.eid = eid;
+
+        auto box = fatten(stored);
+        stored.proxy = insert_leaf(m_space_partition, idx, box);
+        return {idx, m_bodies_storage.generation(idx), collider_id::BODY};
+    }
+
+    inline collider_id world::add(entity_id_t eid, const bullet& body) {
+        auto idx = m_bullets_storage.allocate();
+        auto& stored = m_bullets_storage[idx];
+
+        stored.shape = body.shape;
+        stored.filter = body.filter;
+        stored.material = body.material;
+        stored.velocity = body.velocity;
+        stored.eid = eid;
+        return {idx, m_bullets_storage.generation(idx), collider_id::BULLET};
+    }
+
+    inline collider_id world::add(entity_id_t eid, const tile_body& body) {
+        ENFORCE(m_static_grid)("add(tile_body) requires a grid (world_config.grid)");
+        const aabb bound = detail::tight_box(body.shape);
+        const vec centre = bound.center();
+        const uint32_t cell = m_static_grid->to_cell(centre);
+        ENFORCE(cell != grid<detail::tile>::INVALID_CELL)("tile centre is outside the grid bounds");
+        // A tile is only stored in (and only found via) its centre's cell, so it must fit
+        // within that cell -- otherwise queries through the overhang would silently miss it.
+        ENFORCE(detail::contains(m_static_grid->cell_box_at(cell), bound))
+            ("tile shape must fit within a single grid cell");
+        // Mergeable (static) geometry is baked once on the first run(); it cannot be added
+        // afterwards (the bake is destructive and not re-run). Non-mergeable tiles are free.
+        ENFORCE(!(body.mergeable && m_compiled))
+            ("mergeable tiles must be added before the first run() (static geometry is baked once)");
+        m_static_grid->set(centre,
+                           detail::tile{body.shape, body.material, body.filter, eid, body.mergeable});
+        // Stamp the post-set generation: a later overwrite/clear of this cell bumps it,
+        // so this handle then reads as invalid instead of silently aliasing the new tile.
+        const collider_id id{cell, m_static_grid->cell_generation(cell), collider_id::TILE};
+        // Track sensor tiles so the trigger pass can scan them (bodies-only loop can't).
+        // Stale entries (cell overwritten/cleared) are pruned lazily in the trigger pass.
+        if (body.material.response == response_mode::SENSOR) {
+            m_sensor_tiles.push_back(id);
+        }
+        return id;
+    }
+
+    inline void world::remove(collider_id cid) {
+        if (!is_valid(cid)) {
+            return;
+        }
+        if (cid.type_id == collider_id::BODY) {
+            auto& stored = m_bodies_storage[cid.value];
+            remove_leaf(m_space_partition, stored.proxy);
+            m_bodies_storage.deallocate(cid.value);
+        } else if (cid.type_id == collider_id::BULLET) {
+            m_bullets_storage.deallocate(cid.value);
+        } else {
+            // TILE
+            m_static_grid->clear_at(cid.value);
+        }
+    }
+
+    inline void world::clear() {
+        m_bodies_storage.clear();
+        m_bullets_storage.clear();
+        m_space_partition.reset();
+        if (m_static_grid) {
+            m_static_grid->reset();
+        }
+        m_events.clear();
+        m_triggers_curr.clear();
+        m_triggers_prev.clear();
+        m_sensor_tiles.clear();
+        m_compiled = false; // a fresh level may bake again
+    }
+
+    inline void world::set_shape(collider_id cid, const shape_t& shape) {
+        ENFORCE(is_valid(cid));
+        if (cid.type_id == collider_id::BODY) {
+            auto& stored = m_bodies_storage[cid.value];
+            if (stored.kind != detail::body_kind::STATIC) {
+                // any mover (KINEMATIC actor or CARRIER) must stay an aabb | circle -- a
+                // segment/triangle would later trip detail::narrow() in the move/carrier pass.
+                ENFORCE(std::holds_alternative<aabb>(shape) || std::holds_alternative<circle>(shape));
+            }
+            stored.shape = shape;
+            auto box = fatten(stored);
+            update_leaf(m_space_partition, stored.proxy, box);
+        } else if (cid.type_id == collider_id::BULLET) {
+            auto& stored = m_bullets_storage[cid.value];
+            stored.shape = detail::narrow(shape); // ENFORCE non-segment + shape_t -> moving_shape_t
+        } else {
+            // TILE: reshape in place. The new shape must still fit the same cell
+            // (no re-bucketing) -- else it could overhang into a cell that won't find it.
+            const aabb nb = detail::tight_box(shape);
+            ENFORCE(detail::contains(m_static_grid->cell_box_at(cid.value), nb))
+                ("set_shape: a tile's new shape must fit within its cell");
+            // A mergeable tile is frozen after the one-shot bake -- otherwise a mergeable
+            // tile that survived the bake (e.g. a slope, not an aabb) could be reshaped into a
+            // cell-filling BLOCK aabb and smuggle un-baked static geometry past add()'s guard.
+            ENFORCE(!(m_compiled && m_static_grid->at(cid.value)->mergeable))
+                ("a mergeable tile cannot be reshaped after the first run() (static geometry is baked once)");
+            m_static_grid->at(cid.value)->shape = shape;
+        }
+    }
+
+    inline void world::set_velocity(collider_id cid, const vec& v) {
+        ENFORCE(is_valid(cid));
+        // Tiles are static -- no velocity. (A moving tile is a kinematic body, not a tile.)
+        ENFORCE(cid.type_id != collider_id::TILE)("a tile has no velocity");
+        if (cid.type_id == collider_id::BODY) {
+            auto& stored = m_bodies_storage[cid.value];
+            // A static body has no velocity; kinematic actors AND carriers (scripted paths) do.
+            ENFORCE(stored.kind != detail::body_kind::STATIC)("a static body has no velocity");
+            stored.velocity = v;
+        } else {
+            auto& stored = m_bullets_storage[cid.value];
+            stored.velocity = v;
+        }
+    }
+
+    inline void world::set_surface_velocity(collider_id cid, const vec& v) {
+        ENFORCE(is_valid(cid) && cid.type_id == collider_id::BODY);
+        auto& stored = m_bodies_storage[cid.value];
+        ENFORCE(stored.kind == detail::body_kind::CARRIER)("surface_velocity is carrier-only");
+        stored.surface_velocity = v;
+    }
+
+    inline bool world::is_valid(collider_id cid) const {
+        if (cid.type_id == collider_id::BODY) {
+            return m_bodies_storage.is_alive(cid.value)
+                   && m_bodies_storage.generation(cid.value) == cid.generation;
+        }
+        if (cid.type_id == collider_id::BULLET) {
+            return m_bullets_storage.is_alive(cid.value)
+                   && m_bullets_storage.generation(cid.value) == cid.generation;
+        }
+        // TILE: live iff the grid exists, the cell is occupied, AND the cell has not been
+        // mutated (overwritten/cleared) since this handle was made -- the generation check
+        // closes the stale-handle alias.
+        return m_static_grid && m_static_grid->at(cid.value) != nullptr
+               && m_static_grid->cell_generation(cid.value) == cid.generation;
+    }
+
+    inline shape_t world::get_shape(collider_id cid) const {
+        ENFORCE(is_valid(cid));
+        if (cid.type_id == collider_id::BODY) {
+            return m_bodies_storage[cid.value].shape;
+        }
+        if (cid.type_id == collider_id::BULLET) {
+            return detail::widen(m_bullets_storage[cid.value].shape);
+        }
+        return m_static_grid->at(cid.value)->shape; // TILE: stored verbatim
+    }
+
+    inline vec world::get_velocity(collider_id cid) const {
+        ENFORCE(is_valid(cid));
+        if (cid.type_id == collider_id::BODY) {
+            return m_bodies_storage[cid.value].velocity;
+        }
+        if (cid.type_id == collider_id::BULLET) {
+            return m_bullets_storage[cid.value].velocity;
+        }
+        return vec{0, 0}; // TILE: static
+    }
+
+    inline entity_id_t world::get_eid(collider_id cid) const {
+        ENFORCE(is_valid(cid));
+        if (cid.type_id == collider_id::BODY) {
+            return m_bodies_storage[cid.value].eid;
+        }
+        if (cid.type_id == collider_id::BULLET) {
+            return m_bullets_storage[cid.value].eid;
+        }
+        return m_static_grid->at(cid.value)->eid; // TILE: from the cell payload
+    }
+
+    inline const std::vector <world_event>& world::run(const aabb& active_region, float dt) {
+        m_events.clear();
+        compile_static_grid(); // one-shot tile boundary-bake, before anything queries
+        carrier_pass(active_region, dt); // §19 #1: carry (MP1) + push (MP2) + crush (MP3)
+        movement_pass(active_region, dt); // kinematic move-and-slide -> COLLISION events
+        bullet_pass(active_region, dt); // bullets -> BULLET_HIT / BULLET_EXPIRED
+        trigger_pass(); // sensor overlap diff -> TRIGGER_BEGIN / END
+        return m_events;
+    }
+}

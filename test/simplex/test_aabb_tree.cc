@@ -65,19 +65,19 @@ namespace {
     }
 
     // Height of a node by index, with the null convention (leaf == 0, absent == -1).
-    int height_of(const tree& t, node_ptr i) {
+    int height_of(const dynamic_aabb_tree& t, node_ptr i) {
         return i ? t[i].height : -1;
     }
 
     // Allocate a leaf in the tree's pool and return its index.
-    node_ptr mk_leaf(tree& t, entity_id_t eid, const aabb& box) {
+    node_ptr mk_leaf(dynamic_aabb_tree& t, entity_id_t eid, const aabb& box) {
         return t.m_storage.allocate(eid, box);
     }
 
     // Allocate an internal node over two existing children, wiring links and height.
     // Careful: aabb::combine is evaluated before allocate() (which may reallocate the
     // pool); afterwards we only touch nodes by index.
-    node_ptr mk_internal(tree& t, node_ptr l, node_ptr r) {
+    node_ptr mk_internal(dynamic_aabb_tree& t, node_ptr l, node_ptr r) {
         const aabb merged = aabb::combine(t[l].box, t[r].box);
         const node_ptr p = t.m_storage.allocate(0, merged);
         t[p].left = l;
@@ -100,9 +100,9 @@ namespace {
     // Validates every structural invariant of the subtree rooted at index `i` and
     // returns the exact bounding box of all leaves beneath it. `expected_parent` is
     // what `t[i].parent` must equal.
-    aabb validate_node(const tree& t, node_ptr i, node_ptr expected_parent, int depth, tree_stats& st) {
+    aabb validate_node(const dynamic_aabb_tree& t, node_ptr i, node_ptr expected_parent, int depth, tree_stats& st) {
         REQUIRE(*i != NIL);
-        const node& n = t[i];
+        const dynamic_aabb_node& n = t[i];
         CHECK_MESSAGE(*n.parent == *expected_parent, "parent link is inconsistent with child link");
 
         if (is_leaf(n)) {
@@ -137,7 +137,7 @@ namespace {
     }
 
     // Whole-tree structural check. `expected` maps entity id -> inserted box.
-    void validate_tree(const tree& t, const std::map<entity_id_t, aabb>& expected) {
+    void validate_tree(const dynamic_aabb_tree& t, const std::map<entity_id_t, aabb>& expected) {
         if (expected.empty()) {
             CHECK(*t.m_root == NIL);
             return;
@@ -154,7 +154,7 @@ namespace {
 
         std::set<entity_id_t> seen;
         for (const node_ptr li : st.leaves) {
-            const node& leaf = t[li];
+            const dynamic_aabb_node& leaf = t[li];
             auto it = expected.find(leaf.entity_id);
             REQUIRE_MESSAGE(it != expected.end(), "leaf has an entity id that was never inserted");
             CHECK_MESSAGE(box_eq(leaf.box, it->second), "leaf box differs from inserted box");
@@ -166,18 +166,18 @@ namespace {
 
     // ---- balance metrics (AVL-strategy specific) ---------------------------
 
-    int max_imbalance(const tree& t, node_ptr i) {
+    int max_imbalance(const dynamic_aabb_tree& t, node_ptr i) {
         if (!i || is_leaf(t[i])) {
             return 0;
         }
-        const node& n = t[i];
+        const dynamic_aabb_node& n = t[i];
         return std::max({std::abs(height_of(t, n.left) - height_of(t, n.right)),
                          max_imbalance(t, n.left), max_imbalance(t, n.right)});
     }
 
     // Locate the leaf carrying `eid` by traversing from the root (insert_leaf returns
     // void, so tests recover a leaf handle this way). Returns a null node_ptr if absent.
-    node_ptr find_leaf(const tree& t, entity_id_t eid) {
+    node_ptr find_leaf(const dynamic_aabb_tree& t, entity_id_t eid) {
         std::vector<node_ptr> stack;
         if (t.m_root) {
             stack.push_back(t.m_root);
@@ -185,7 +185,7 @@ namespace {
         while (!stack.empty()) {
             const node_ptr cur = stack.back();
             stack.pop_back();
-            const node& n = t[cur];
+            const dynamic_aabb_node& n = t[cur];
             if (is_leaf(n)) {
                 if (n.entity_id == eid) {
                     return cur;
@@ -199,7 +199,7 @@ namespace {
     }
 
     // Entity ids reported by query() for a region (collected into a set for comparison).
-    std::set<entity_id_t> query_ids(const tree& t, const aabb& region) {
+    std::set<entity_id_t> query_ids(const dynamic_aabb_tree& t, const aabb& region) {
         std::set<entity_id_t> hits;
         query(t, region, [&hits](entity_id_t id, const aabb&) { hits.insert(id); });
         return hits;
@@ -221,7 +221,7 @@ namespace {
     }
 
     // Entity ids reported by raycast() for a ray (collected for comparison).
-    std::set<entity_id_t> raycast_ids(const tree& t, const segment& ray) {
+    std::set<entity_id_t> raycast_ids(const dynamic_aabb_tree& t, const segment& ray) {
         std::set<entity_id_t> hits;
         raycast(t, ray, [&hits](entity_id_t id, const aabb&, const line_hit&) { hits.insert(id); });
         return hits;
@@ -244,7 +244,7 @@ namespace {
     // invariants, and assert the strict AVL balance invariant (|hL - hR| <= 1 at
     // every node). The recursive rebalance maintains this for any insertion order.
     void build_and_validate(const std::vector<aabb>& boxes) {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> expected;
         for (std::size_t i = 0; i < boxes.size(); ++i) {
             insert_leaf(t, static_cast<entity_id_t>(i), boxes[i]);
@@ -302,17 +302,17 @@ TEST_SUITE("aabb_tree: helpers") {
 
     TEST_CASE("is_leaf") {
         // A node{} default-constructs its child node_ptrs to null, i.e. a leaf.
-        node leaf{};
+        dynamic_aabb_node leaf{};
         CHECK(is_leaf(leaf));
 
-        node internal{};
+        dynamic_aabb_node internal{};
         internal.left = node_ptr{0};
         internal.right = node_ptr{1};
         CHECK_FALSE(is_leaf(internal));
     }
 
     TEST_CASE("get_height: absent is -1, leaf is 0") {
-        tree t;
+        dynamic_aabb_tree t;
         CHECK(detail::get_height(t, node_ptr{}) == -1);
         const node_ptr leaf = mk_leaf(t, 1, box_at(0, 0));
         CHECK(detail::get_height(t, leaf) == 0);
@@ -321,12 +321,12 @@ TEST_SUITE("aabb_tree: helpers") {
 
 TEST_SUITE("aabb_tree: insertion structure") {
     TEST_CASE("empty tree has a null root") {
-        tree t;
+        dynamic_aabb_tree t;
         validate_tree(t, {});
     }
 
     TEST_CASE("reset() empties the tree and leaves it reusable") {
-        tree t;
+        dynamic_aabb_tree t;
         for (int i = 0; i < 8; ++i) {
             insert_leaf(t, static_cast<entity_id_t>(i), box_at(i * 2, 0));
         }
@@ -348,7 +348,7 @@ TEST_SUITE("aabb_tree: insertion structure") {
     }
 
     TEST_CASE("single insert: root is the leaf itself") {
-        tree t;
+        dynamic_aabb_tree t;
         insert_leaf(t, 42, box_at(1, 1, 3, 4));
 
         REQUIRE(*t.m_root != NIL);
@@ -362,7 +362,7 @@ TEST_SUITE("aabb_tree: insertion structure") {
     }
 
     TEST_CASE("two inserts: root becomes an internal node over two leaves") {
-        tree t;
+        dynamic_aabb_tree t;
         insert_leaf(t, 0, box_at(0, 0));
         insert_leaf(t, 1, box_at(10, 0));
 
@@ -379,7 +379,7 @@ TEST_SUITE("aabb_tree: insertion structure") {
     }
 
     TEST_CASE("three inserts keep all invariants") {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> exp;
         for (int i = 0; i < 3; ++i) {
             const aabb b = box_at(static_cast<float>(i) * 5.0f, 0.0f);
@@ -457,7 +457,7 @@ TEST_SUITE("aabb_tree: invariants across insertion patterns") {
 
 TEST_SUITE("aabb_tree: balance quality (AVL strategy)") {
     TEST_CASE("height is logarithmic on adversarial monotonic insertion") {
-        tree t;
+        dynamic_aabb_tree t;
         const int n = 1024;
         std::map<entity_id_t, aabb> exp;
         for (int i = 0; i < n; ++i) {
@@ -494,7 +494,7 @@ TEST_SUITE("aabb_tree: balance quality (AVL strategy)") {
             std::swap(order[i], order[j]);
         }
 
-        tree t;
+        dynamic_aabb_tree t;
         for (int k = 0; k < n; ++k) {
             const int id = order[k];
             insert_leaf(t, id, box_at(static_cast<float>(id), static_cast<float>((id * 37) % 113)));
@@ -514,7 +514,7 @@ TEST_SUITE("aabb_tree: balance quality (AVL strategy)") {
     // graft next to tall internal nodes). The recursive rebalance holds |hL - hR| <= 1
     // and keeps the height within a small constant of optimal.
     TEST_CASE("strict AVL balance |hL - hR| <= 1 at scale") {
-        tree t;
+        dynamic_aabb_tree t;
         const int n = 8000;
         for (int i = 0; i < n; ++i) {
             insert_leaf(t, i, box_at(static_cast<float>(i), static_cast<float>((i * 37) % 113)));
@@ -540,7 +540,7 @@ TEST_SUITE("aabb_tree: rotations") {
      * and push the shorter grandchild (G) down to A (the inner / RL case).
      */
     TEST_CASE("rotate_right_up: inner case is grandchild-aware") {
-        tree t;
+        dynamic_aabb_tree t;
         const node_ptr X = mk_leaf(t, 1, box_at(0, 0));
         const node_ptr i0 = mk_leaf(t, 2, box_at(10, 0));
         const node_ptr i1 = mk_leaf(t, 3, box_at(11, 0));
@@ -584,7 +584,7 @@ TEST_SUITE("aabb_tree: rotations") {
      *   o0    o1
      */
     TEST_CASE("rotate_left_up: outer case keeps the outer grandchild high") {
-        tree t;
+        dynamic_aabb_tree t;
         const node_ptr X = mk_leaf(t, 1, box_at(100, 0));
         const node_ptr o0 = mk_leaf(t, 2, box_at(0, 0));
         const node_ptr o1 = mk_leaf(t, 3, box_at(1, 0));
@@ -617,7 +617,7 @@ TEST_SUITE("aabb_tree: rotations") {
     TEST_CASE("rotation reseats a non-root subtree into its parent") {
         // root.left = A (right-heavy), root.right = sib.
         // After balancing A, root.left must point to the promoted node with correct links.
-        tree t;
+        dynamic_aabb_tree t;
         const node_ptr X = mk_leaf(t, 1, box_at(0, 0));
         const node_ptr g0 = mk_leaf(t, 2, box_at(20, 0));
         const node_ptr g1 = mk_leaf(t, 3, box_at(21, 0));
@@ -646,7 +646,7 @@ TEST_SUITE("aabb_tree: rotations") {
 
     TEST_CASE("balance_tree_at_node is a no-op on a balanced node and on leaves") {
         // balanced internal node
-        tree t;
+        dynamic_aabb_tree t;
         const node_ptr l = mk_leaf(t, 1, box_at(0, 0));
         const node_ptr r = mk_leaf(t, 2, box_at(10, 0));
         const node_ptr p = mk_internal(t, l, r); // height 1, balanced
@@ -655,7 +655,7 @@ TEST_SUITE("aabb_tree: rotations") {
         CHECK(*t.m_root == *p);
 
         // leaf
-        tree t2;
+        dynamic_aabb_tree t2;
         const node_ptr leaf = mk_leaf(t2, 3, box_at(0, 0));
         t2.m_root = leaf;
         CHECK(*balance_tree_at_node(t2, leaf) == *leaf);
@@ -665,7 +665,7 @@ TEST_SUITE("aabb_tree: rotations") {
 TEST_SUITE("aabb_tree: sibling selection") {
     // find_best_sibling must return a node that actually belongs to the tree.
     TEST_CASE("find_best_sibling returns a node reachable from the root") {
-        tree t;
+        dynamic_aabb_tree t;
         for (int i = 0; i < 32; ++i) {
             insert_leaf(t, i, box_at(static_cast<float>(i), static_cast<float>((i * 13) % 20)));
         }
@@ -698,7 +698,7 @@ TEST_SUITE("aabb_tree: sibling selection") {
     TEST_CASE("inserting into a tight cluster makes a nearby leaf the sibling") {
         // Two far-apart clusters; a probe inside cluster A should be paired with a
         // box from cluster A, so the new internal parent stays small.
-        tree t;
+        dynamic_aabb_tree t;
         // cluster A around the origin
         for (int i = 0; i < 8; ++i) {
             insert_leaf(t, i, box_at(static_cast<float>(i) * 0.1f, 0.0f, 0.5f, 0.5f));
@@ -722,7 +722,7 @@ TEST_SUITE("aabb_tree: sibling selection") {
 
 TEST_SUITE("aabb_tree: removal structure") {
     TEST_CASE("remove the only leaf empties the tree and recycles its slot") {
-        tree t;
+        dynamic_aabb_tree t;
         insert_leaf(t, 7, box_at(1, 1));
         const std::size_t cap = t.m_storage.capacity_used();
         remove_leaf(t, t.m_root);
@@ -736,7 +736,7 @@ TEST_SUITE("aabb_tree: removal structure") {
     }
 
     TEST_CASE("remove one of two: the sibling becomes the root leaf") {
-        tree t;
+        dynamic_aabb_tree t;
         insert_leaf(t, 0, box_at(0, 0));
         insert_leaf(t, 1, box_at(10, 0));
         const node_ptr l0 = find_leaf(t, 0);
@@ -753,7 +753,7 @@ TEST_SUITE("aabb_tree: removal structure") {
     }
 
     TEST_CASE("remove(null) and remove from empty are no-ops") {
-        tree t;
+        dynamic_aabb_tree t;
         remove_leaf(t, node_ptr{});      // null on empty tree
         CHECK(*t.m_root == NIL);
 
@@ -776,7 +776,7 @@ TEST_SUITE("aabb_tree: removal structure") {
      *    x0    x1
      */
     TEST_CASE("remove triggers a rebalance and restores strict AVL") {
-        tree t;
+        dynamic_aabb_tree t;
         const node_ptr x0 = mk_leaf(t, 1, box_at(0, 0));
         const node_ptr x1 = mk_leaf(t, 2, box_at(1, 0));
         const node_ptr A0 = mk_internal(t, x0, x1);     // h1
@@ -801,7 +801,7 @@ TEST_SUITE("aabb_tree: removal structure") {
     }
 
     TEST_CASE("remove every leaf one-by-one (scrambled) keeps invariants and empties") {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> live;
         const int n = 64;
         for (int i = 0; i < n; ++i) {
@@ -839,7 +839,7 @@ TEST_SUITE("aabb_tree: insert/remove sequences") {
         std::uint32_t seed = 0x5151u;
         auto next = [&seed]() { seed = seed * 1664525u + 1013904223u; return seed; };
 
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> live;
         entity_id_t next_id = 0;
 
@@ -870,7 +870,7 @@ TEST_SUITE("aabb_tree: insert/remove sequences") {
     // remove+insert many times. capacity_used() should stay at the fill high-water
     // mark (freed slots are recycled), not scale with the number of cycles.
     TEST_CASE("capacity is stable across insert/remove cycles (no slot leak)") {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> live;
         entity_id_t next_id = 0;
 
@@ -910,7 +910,7 @@ TEST_SUITE("aabb_tree: insert/remove sequences") {
 
 TEST_SUITE("aabb_tree: update and handles") {
     TEST_CASE("insert_leaf returns a stable handle to the new leaf") {
-        tree t;
+        dynamic_aabb_tree t;
         const node_ptr h0 = insert_leaf(t, 10, box_at(0, 0));
         const node_ptr h1 = insert_leaf(t, 20, box_at(5, 5));
         REQUIRE(*h0 != NIL);
@@ -926,7 +926,7 @@ TEST_SUITE("aabb_tree: update and handles") {
     }
 
     TEST_CASE("update reinserts when the new box is not enclosed; handle stays valid") {
-        tree t;
+        dynamic_aabb_tree t;
         const node_ptr a = insert_leaf(t, 1, box_at(0, 0));
         insert_leaf(t, 2, box_at(100, 0));
 
@@ -944,7 +944,7 @@ TEST_SUITE("aabb_tree: update and handles") {
     // enlarged box, then update with the object's tight box -- if it's still enclosed,
     // the tree does nothing. (The margin lives here in the test, not in the tree.)
     TEST_CASE("update is a no-op when the new box is already enclosed") {
-        tree t;
+        dynamic_aabb_tree t;
         const node_ptr a = insert_leaf(t, 1, fatten(box_at(0, 0, 1, 1), 1.0f)); // stored [-1,-1]..[2,2]
         insert_leaf(t, 2, box_at(100, 0));
 
@@ -960,7 +960,7 @@ TEST_SUITE("aabb_tree: update and handles") {
     }
 
     TEST_CASE("update re-grafts and keeps the handle when the box escapes") {
-        tree t;
+        dynamic_aabb_tree t;
         const float margin = 0.5f;
         std::map<entity_id_t, aabb> expected;
         std::vector<node_ptr> h;
@@ -985,7 +985,7 @@ TEST_SUITE("aabb_tree: update and handles") {
     }
 
     TEST_CASE("update the only leaf keeps it as the root") {
-        tree t;
+        dynamic_aabb_tree t;
         const node_ptr a = insert_leaf(t, 7, box_at(0, 0));
         const bool moved = update_leaf(t, a, box_at(50, 50));
         CHECK(moved);
@@ -1001,7 +1001,7 @@ TEST_SUITE("aabb_tree: update and handles") {
     // correct, hold the exact live (fat) box set, and stay strictly AVL, and every
     // handle must survive its updates.
     TEST_CASE("interleaved insert/remove/update churn keeps invariants and handles") {
-        tree t;
+        dynamic_aabb_tree t;
         const float margin = 0.5f;
 
         std::uint32_t seed = 0x99u;
@@ -1057,21 +1057,21 @@ TEST_SUITE("aabb_tree: update and handles") {
 
 TEST_SUITE("aabb_tree: query") {
     TEST_CASE("query on an empty tree visits nothing") {
-        tree t;
+        dynamic_aabb_tree t;
         int calls = 0;
         query(t, box_at(0, 0), [&calls](entity_id_t, const aabb&) { ++calls; });
         CHECK(calls == 0);
     }
 
     TEST_CASE("single leaf: hit and miss") {
-        tree t;
+        dynamic_aabb_tree t;
         insert_leaf(t, 5, box_at(0, 0, 2, 2)); // [0,0]..[2,2]
         CHECK(query_ids(t, box_at(1, 1)) == std::set<entity_id_t>{5});       // overlapping
         CHECK(query_ids(t, box_at(10, 10)).empty());                        // disjoint
     }
 
     TEST_CASE("touching boundary counts as a hit (inclusive overlap)") {
-        tree t;
+        dynamic_aabb_tree t;
         insert_leaf(t, 1, box_at(0, 0, 1, 1)); // [0,0]..[1,1]
         // region shares only the edge x == 1 with the leaf
         const aabb edge_region{{1.0f, 0.0f}, {2.0f, 1.0f}};
@@ -1079,7 +1079,7 @@ TEST_SUITE("aabb_tree: query") {
     }
 
     TEST_CASE("callback receives the leaf's stored box") {
-        tree t;
+        dynamic_aabb_tree t;
         const aabb b = box_at(3, 4, 2, 5);
         insert_leaf(t, 9, b);
         aabb got{};
@@ -1092,7 +1092,7 @@ TEST_SUITE("aabb_tree: query") {
     }
 
     TEST_CASE("region query returns exactly the overlapping leaves") {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> live;
         for (int i = 0; i < 100; ++i) { // 10x10 grid of unit boxes at integer coords
             const aabb b = box_at(static_cast<float>(i % 10), static_cast<float>(i / 10));
@@ -1109,7 +1109,7 @@ TEST_SUITE("aabb_tree: query") {
     }
 
     TEST_CASE("query matches brute force over random boxes and regions") {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> live;
         std::uint32_t seed = 0xA11CEu;
         auto next = [&seed]() { seed = seed * 1664525u + 1013904223u; return seed; };
@@ -1133,7 +1133,7 @@ TEST_SUITE("aabb_tree: query") {
     }
 
     TEST_CASE("bool callback stops the traversal early") {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> live;
         // a cluster of boxes that all overlap the query region
         const aabb region = box_at(0, 0, 5, 5);
@@ -1174,7 +1174,7 @@ TEST_SUITE("aabb_tree: query") {
     }
 
     TEST_CASE("type-erased query_callback_t overload works") {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> live;
         for (int i = 0; i < 16; ++i) {
             const aabb b = box_at(static_cast<float>(i), 0.0f);
@@ -1189,7 +1189,7 @@ TEST_SUITE("aabb_tree: query") {
     }
 
     TEST_CASE("query reflects removals and updates") {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> live;
         for (int i = 0; i < 20; ++i) {
             const aabb b = box_at(static_cast<float>(i), 0.0f);
@@ -1216,7 +1216,7 @@ TEST_SUITE("aabb_tree: query") {
     // With fat boxes, query reports candidates that may not truly overlap; the caller is
     // expected to narrow-phase against the tight geometry.
     TEST_CASE("query over-reports with fat boxes (caller narrow-phases)") {
-        tree t;
+        dynamic_aabb_tree t;
         const float margin = 1.0f;
         const aabb tight = box_at(0, 0, 1, 1);          // [0,0]..[1,1]
         insert_leaf(t, 1, fatten(tight, margin));       // stored [-1,-1]..[2,2]
@@ -1229,14 +1229,14 @@ TEST_SUITE("aabb_tree: query") {
 
 TEST_SUITE("aabb_tree: raycast") {
     TEST_CASE("raycast on an empty tree visits nothing") {
-        tree t;
+        dynamic_aabb_tree t;
         int calls = 0;
         raycast(t, seg(0, 0, 10, 10), [&calls](entity_id_t, const aabb&, const line_hit&) { ++calls; });
         CHECK(calls == 0);
     }
 
     TEST_CASE("single box: ray hits and misses") {
-        tree t;
+        dynamic_aabb_tree t;
         insert_leaf(t, 5, box_at(10, -1, 2, 2)); // [10,-1]..[12,1]
         CHECK(raycast_ids(t, seg(0, 0, 20, 0)) == std::set<entity_id_t>{5}); // straight through
         CHECK(raycast_ids(t, seg(0, 5, 20, 5)).empty());                     // parallel, above
@@ -1244,7 +1244,7 @@ TEST_SUITE("aabb_tree: raycast") {
     }
 
     TEST_CASE("entry_param is the fraction along the ray at the box face") {
-        tree t;
+        dynamic_aabb_tree t;
         insert_leaf(t, 1, box_at(10, -1, 2, 2)); // enters at x == 10
         float entry = -1.0f;
         raycast(t, seg(0, 0, 20, 0), [&](entity_id_t, const aabb&, const line_hit& h) {
@@ -1254,7 +1254,7 @@ TEST_SUITE("aabb_tree: raycast") {
     }
 
     TEST_CASE("ray along a row reports exactly the crossed boxes") {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> live;
         for (int i = 0; i < 10; ++i) {
             const aabb b = box_at(static_cast<float>(i), static_cast<float>(i % 2)); // staggered in y
@@ -1268,7 +1268,7 @@ TEST_SUITE("aabb_tree: raycast") {
     }
 
     TEST_CASE("raycast matches brute force over random boxes and rays") {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> live;
         std::uint32_t seed = 0x4A11u;
         auto next = [&seed]() { seed = seed * 1664525u + 1013904223u; return seed; };
@@ -1286,7 +1286,7 @@ TEST_SUITE("aabb_tree: raycast") {
     }
 
     TEST_CASE("closest-hit narrowing finds the nearest box") {
-        tree t;
+        dynamic_aabb_tree t;
         // unit boxes at x = 0..9, all straddling y = 0.5
         for (int i = 0; i < 10; ++i) {
             insert_leaf(t, i, box_at(static_cast<float>(i), 0.0f));
@@ -1306,7 +1306,7 @@ TEST_SUITE("aabb_tree: raycast") {
     }
 
     TEST_CASE("returning 0 stops the raycast after the first candidate") {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> live;
         for (int i = 0; i < 8; ++i) {
             const aabb b = box_at(static_cast<float>(i), 0.0f);
@@ -1325,7 +1325,7 @@ TEST_SUITE("aabb_tree: raycast") {
     }
 
     TEST_CASE("type-erased raycast_callback_t overload works") {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> live;
         for (int i = 0; i < 12; ++i) {
             const aabb b = box_at(static_cast<float>(i), 0.0f);
@@ -1342,7 +1342,7 @@ TEST_SUITE("aabb_tree: raycast") {
     }
 
     TEST_CASE("raycast reflects removals and updates") {
-        tree t;
+        dynamic_aabb_tree t;
         std::map<entity_id_t, aabb> live;
         for (int i = 0; i < 10; ++i) {
             const aabb b = box_at(static_cast<float>(i), 0.0f);
@@ -1370,7 +1370,7 @@ TEST_SUITE("aabb_tree: precondition guards") {
     // because the check runs before any mutation the tree is left intact.
 
     TEST_CASE("remove_leaf rejects a double remove (stale handle)") {
-        tree t;
+        dynamic_aabb_tree t;
         const node_ptr a = insert_leaf(t, 1, box_at(0, 0));
         insert_leaf(t, 2, box_at(10, 0));
 
@@ -1380,7 +1380,7 @@ TEST_SUITE("aabb_tree: precondition guards") {
     }
 
     TEST_CASE("remove_leaf rejects an internal node") {
-        tree t;
+        dynamic_aabb_tree t;
         insert_leaf(t, 1, box_at(0, 0));
         insert_leaf(t, 2, box_at(10, 0)); // root is now an internal node
         REQUIRE_FALSE(is_leaf(t[t.m_root]));
@@ -1390,7 +1390,7 @@ TEST_SUITE("aabb_tree: precondition guards") {
     }
 
     TEST_CASE("update_leaf rejects a stale handle") {
-        tree t;
+        dynamic_aabb_tree t;
         const node_ptr a = insert_leaf(t, 1, box_at(0, 0));
         insert_leaf(t, 2, box_at(10, 0));
 

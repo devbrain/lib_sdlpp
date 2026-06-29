@@ -2,6 +2,32 @@
 // Created by igor on 24/06/2026.
 //
 
+/**
+ * @file grid.hh
+ * @brief A uniform 2D spatial grid (@ref simplex::collide::grid) and its sparse cell storage --
+ *        the static-tilemap broadphase behind @ref simplex::collide::world.
+ *
+ * The grid divides an axis-aligned physical box into a @c W x @c H array of equal cells, each
+ * holding at most one payload @c T (a tile). It maps world coordinates to cells, stores cells
+ * sparsely (a dense payload vector indexed through a flat coord table, with a free list), and
+ * answers the three broadphase traversals the world needs:
+ *   - @ref simplex::collide::grid::query -- the occupied cells overlapping an AABB region.
+ *   - @ref simplex::collide::grid::swept -- the cells a moving shape's bound sweeps over a frame.
+ *   - @ref simplex::collide::grid::raycast -- the occupied cells a segment crosses, near-to-far,
+ *     via an Amanatides-Woo DDA (with supercover handling for exact gridline/corner crossings).
+ *
+ * Cells are addressed two ways. Queries see only geometry (the cell's world-space box); the grid's
+ * OWNER (the world) gets a stable, positional **linear cell handle** (@ref
+ * simplex::collide::grid::to_cell / @ref simplex::collide::grid::at) plus a per-cell **generation**
+ * counter, so a handle to an overwritten or cleared cell reads as stale rather than aliasing a new
+ * tile. @ref simplex::collide::grid::compile_runs is a generic greedy rectangle-merge pass the
+ * world uses to bake adjacent tiles into bigger colliders.
+ *
+ * @note The grid is a generic container over an arbitrary payload @c T; all tile/material/filter
+ *       semantics live in the owner (see @ref world.hh). Construct via @ref
+ *       simplex::collide::grid::from_tile_size for a tilemap-exact cell size.
+ */
+
 #pragma once
 
 #include <algorithm>
@@ -18,27 +44,48 @@
 
 namespace simplex::collide {
     namespace detail {
+        /**
+         * @brief An integer cell coordinate @c (x, y) with an INVALID sentinel.
+         *
+         * A default-constructed coord is INVALID (the "outside the grid" / null result); a coord
+         * tests @c true via @c explicit @c operator bool only when both components are in range.
+         */
         struct grid_coord {
-            static constexpr auto INVALID = std::numeric_limits <uint32_t>::max();
+            static constexpr auto INVALID = std::numeric_limits <uint32_t>::max(); ///< Out-of-grid / null sentinel.
             uint32_t x;
             uint32_t y;
 
+            /// @brief Construct the INVALID (null) coord.
             grid_coord()
                 : x(INVALID), y(INVALID) {
             }
 
+            /// @brief Construct from explicit column @p x_ and row @p y_.
             grid_coord(uint32_t x_, uint32_t y_)
                 : x(x_), y(y_) {
             }
 
+            /// @brief @c true iff neither component is the INVALID sentinel.
             explicit operator bool() const noexcept {
                 return !(x == INVALID || y == INVALID);
             }
         };
 
+        /**
+         * @brief Sparse, generation-tracked storage of payloads @c T over a fixed @c W x @c H cell array.
+         *
+         * Cells are addressed by @ref grid_coord or by a flat linear index (@c y*width+x). Payloads
+         * live in a dense @c m_grid vector reached through the @c m_coords table; a free list recycles
+         * vacated slots. Every @c set / @c clear bumps the cell's monotonic generation counter, so a
+         * captured @c (index, generation) handle goes stale on overwrite/clear instead of aliasing a
+         * new payload. Backs @ref simplex::collide::grid.
+         *
+         * @tparam T The per-cell payload type.
+         */
         template<typename T>
         class grid_storage {
             public:
+                /// @brief Construct an empty @p w x @p h grid (all cells INVALID, generations 0).
                 grid_storage(uint32_t w, uint32_t h)
                     : m_grid_with(w),
                       m_grid_height(h) {
@@ -46,6 +93,13 @@ namespace simplex::collide {
                     m_generation.resize(m_grid_with * m_grid_height, 0u);
                 }
 
+                /**
+                 * @brief Insert or overwrite the payload at cell @p c, constructing @c T in place.
+                 * @tparam Args Constructor argument types for @c T.
+                 * @param c    Target cell (must be in range; aborts otherwise).
+                 * @param args Forwarded to @c T's constructor.
+                 * @note Any set (insert OR overwrite) bumps the cell's generation, invalidating prior handles.
+                 */
                 template<typename... Args>
                 void set(const grid_coord& c, Args&&... args) {
                     ENFORCE(is_valid(c));
@@ -66,6 +120,10 @@ namespace simplex::collide {
                     ++m_generation[idx]; // any set (insert or overwrite) invalidates prior handles
                 }
 
+                /**
+                 * @brief Empty cell @p c (recycle its payload slot), bumping its generation.
+                 * @param c Target cell; an out-of-range or already-empty cell is a tolerant no-op.
+                 */
                 void clear(const grid_coord& c) {
                     if (!is_valid(c)) {
                         return;
@@ -78,6 +136,11 @@ namespace simplex::collide {
                     }
                 }
 
+                /**
+                 * @brief Empty every cell and drop all payloads (capacity retained).
+                 * @note The per-cell generations are deliberately NOT reset -- keeping them monotonic
+                 *       means a handle made before the reset can never alias a cell refilled after it.
+                 */
                 void reset() {
                     std::fill(m_coords.begin(), m_coords.end(), grid_coord::INVALID);
                     m_free_list.clear();
@@ -86,6 +149,11 @@ namespace simplex::collide {
                     // made before the reset can never alias a cell refilled after it.
                 }
 
+                /**
+                 * @brief Pointer to the payload at cell @p c, or @c nullptr if out of range or empty.
+                 * @param c Target cell.
+                 * @return A pointer into the dense store (stable only until the next set/clear/reset).
+                 */
                 [[nodiscard]] const T* get(const grid_coord& c) const noexcept {
                     if (!is_valid(c)) {
                         return nullptr;
@@ -97,6 +165,7 @@ namespace simplex::collide {
                     return &m_grid[m_coords[idx]];
                 }
 
+                /// @copydoc get(const grid_coord&) const
                 [[nodiscard]] T* get(const grid_coord& c) noexcept {
                     if (!is_valid(c)) {
                         return nullptr;
@@ -108,6 +177,11 @@ namespace simplex::collide {
                     return &m_grid[m_coords[idx]];
                 }
 
+                /**
+                 * @brief Is coord @p p a non-null, in-range cell?
+                 * @param p Coord to test.
+                 * @return @c true iff @p p is valid and within @c [0,width) x @c [0,height).
+                 */
                 [[nodiscard]] bool is_valid(const grid_coord& p) const noexcept {
                     if (!p) {
                         return false;
@@ -118,10 +192,18 @@ namespace simplex::collide {
                 // Linear (flat) cell addressing -- a stable handle into the dense m_coords array
                 // (idx = y * width + x). Used by the grid owner to hold a cell by index without
                 // round-tripping through physical coords. Tolerant: out-of-range / empty -> nullptr.
+
+                /// @brief Total addressable cell count (@c width*height), the linear-index domain.
                 [[nodiscard]] uint32_t cell_count() const noexcept {
                     return m_grid_with * m_grid_height;
                 }
 
+                /**
+                 * @brief Payload at flat cell index @p idx (@c y*width+x), or @c nullptr if out of
+                 *        range or empty.
+                 * @param idx Linear cell index.
+                 * @return A pointer into the dense store (stable only until the next set/clear/reset).
+                 */
                 [[nodiscard]] const T* get_linear(uint32_t idx) const noexcept {
                     if (idx >= m_coords.size() || m_coords[idx] == grid_coord::INVALID) {
                         return nullptr;
@@ -129,6 +211,7 @@ namespace simplex::collide {
                     return &m_grid[m_coords[idx]];
                 }
 
+                /// @copydoc get_linear(uint32_t) const
                 [[nodiscard]] T* get_linear(uint32_t idx) noexcept {
                     if (idx >= m_coords.size() || m_coords[idx] == grid_coord::INVALID) {
                         return nullptr;
@@ -136,6 +219,10 @@ namespace simplex::collide {
                     return &m_grid[m_coords[idx]];
                 }
 
+                /**
+                 * @brief Empty the cell at flat index @p idx, bumping its generation.
+                 * @param idx Linear cell index; an out-of-range or empty cell is a tolerant no-op.
+                 */
                 void clear_linear(uint32_t idx) {
                     if (idx >= m_coords.size() || m_coords[idx] == grid_coord::INVALID) {
                         return;
@@ -145,45 +232,72 @@ namespace simplex::collide {
                     ++m_generation[idx];
                 }
 
-                // Per-cell mutation counter -- bumped on every set/clear. A stable handle is current
-                // only while the cell's generation still matches the value captured when it was made.
-                // Out-of-range -> 0. NOT reset by reset() (so handles never alias across a reset).
+                /**
+                 * @brief The mutation counter of cell @p idx -- bumped on every set/clear.
+                 * @param idx Linear cell index.
+                 * @return The current generation (out-of-range -> 0). A stable handle is current only
+                 *         while this still matches the value captured when it was made. NOT reset by
+                 *         @ref reset, so handles never alias across a reset.
+                 */
                 [[nodiscard]] uint32_t generation_linear(uint32_t idx) const noexcept {
                     return idx < m_generation.size() ? m_generation[idx] : 0u;
                 }
 
+                /// @brief The grid width in cells.
                 [[nodiscard]] uint32_t get_width() const noexcept {
                     return m_grid_with;
                 }
 
+                /// @brief The grid height in cells.
                 [[nodiscard]] uint32_t get_height() const noexcept {
                     return m_grid_height;
                 }
 
             private:
+                /// @brief Flat index (@c y*width+x) of coord @p p.
                 [[nodiscard]] uint32_t index(const grid_coord& p) const noexcept {
                     return p.y * m_grid_with + p.x;
                 }
 
             private:
-                std::vector <T> m_grid;
-                std::vector <uint32_t> m_coords;
-                std::vector <uint32_t> m_free_list;
-                std::vector <uint32_t> m_generation; // per-cell mutation counter (handle staleness)
+                std::vector <T> m_grid;              ///< Dense payload store (indexed via m_coords).
+                std::vector <uint32_t> m_coords;     ///< Per-cell slot index into m_grid, or INVALID if empty.
+                std::vector <uint32_t> m_free_list;  ///< Recycled m_grid slots from cleared cells.
+                std::vector <uint32_t> m_generation; ///< Per-cell mutation counter (handle staleness).
 
-                uint32_t m_grid_with;
-                uint32_t m_grid_height;
+                uint32_t m_grid_with;                ///< Grid width in cells.
+                uint32_t m_grid_height;              ///< Grid height in cells.
         };
     }
 
-    // Test-only access to the grid's internal mapping. Defined only in the test TU.
+    /// @brief Test-only access to the grid's internal mapping. Defined only in the test TU.
     struct grid_test_access;
 
+    /**
+     * @brief A uniform 2D spatial grid over an axis-aligned physical box -- the static-tilemap
+     *        broadphase behind @ref world.
+     *
+     * Divides its physical bounds into @c W x @c H equal cells, each holding at most one payload
+     * @c T. Maps world coordinates to cells, stores them sparsely (see @ref detail::grid_storage),
+     * and offers AABB (@ref query), swept (@ref swept), and ray (@ref raycast) traversals plus the
+     * owner-facing stable cell handle API (@ref to_cell / @ref at / @ref cell_generation) and the
+     * generic @ref compile_runs rectangle-merge pass.
+     *
+     * @tparam T The per-cell payload type (the world stores a tile record).
+     * @see from_tile_size for tilemap-exact construction.
+     */
     template<typename T>
     class grid {
         public:
+            /// @brief Grants the test harness access to the private physical<->cell mapping.
             friend struct grid_test_access;
 
+            /**
+             * @brief Construct a @p w x @p h grid spanning the physical box @p grid_min .. @p grid_max.
+             * @param w,h           Cell counts along x and y.
+             * @param grid_min      World-space minimum corner of the grid's extent.
+             * @param grid_max      World-space maximum corner; the cell size is the box divided by w/h.
+             */
             grid(uint32_t w, uint32_t h, const vec& grid_min, const vec& grid_max)
                 : m_grid(w, h),
                   m_physical_bounds(grid_min, grid_max),
@@ -193,9 +307,17 @@ namespace simplex::collide {
                   } {
             }
 
-            // Tilemap-friendly construction: an origin, a cell size, and a cell count. The physical
-            // extent is DERIVED (max = origin + count * tile_size), so the cell size is exactly
-            // tile_size -- there is no separate, possibly-mismatched physical box to specify.
+            /**
+             * @brief Tilemap-friendly construction from an origin, a cell size, and a cell count.
+             *
+             * The physical extent is DERIVED (@c max = @p origin + count * @p tile_size), so the cell
+             * size is exactly @p tile_size -- there is no separate, possibly-mismatched physical box.
+             *
+             * @param origin    World-space minimum corner (tile (0,0)'s corner).
+             * @param tile_size Per-cell size.
+             * @param cols,rows Cell counts along x and y.
+             * @return The constructed grid.
+             */
             [[nodiscard]] static grid from_tile_size(const vec& origin, const vec& tile_size,
                                                      uint32_t cols, uint32_t rows) {
                 const vec grid_max{
@@ -205,23 +327,39 @@ namespace simplex::collide {
                 return grid(cols, rows, origin, grid_max);
             }
 
+            /**
+             * @brief Insert or overwrite the payload in the cell containing world point @p v.
+             * @tparam Args Constructor argument types for @c T.
+             * @param v    World point selecting the target cell (must be inside the grid).
+             * @param args Forwarded to @c T's constructor.
+             */
             template<typename... Args>
             void set(const vec& v, Args&&... args) {
                 m_grid.set(physical_to_grid(v), std::forward <Args>(args)...);
             }
 
+            /**
+             * @brief Payload of the cell containing world point @p v, or @c nullptr if empty/outside.
+             * @param v World point.
+             */
             const T* get(const vec& v) const {
                 return m_grid.get(physical_to_grid(v));
             }
 
+            /// @copydoc get(const vec&) const
             T* get(const vec& v) {
                 return m_grid.get(physical_to_grid(v));
             }
 
+            /**
+             * @brief Empty the cell containing world point @p v.
+             * @param v World point; outside the grid is a tolerant no-op.
+             */
             void clear(const vec& v) {
                 m_grid.clear(physical_to_grid(v));
             }
 
+            /// @brief Empty every cell (generations stay monotonic; see @ref detail::grid_storage::reset).
             void reset() {
                 m_grid.reset();
             }
@@ -231,8 +369,16 @@ namespace simplex::collide {
             // handle to a cell -- like a pool slot index for a body. to_cell(v) gives the linear
             // index of the cell containing v (INVALID_CELL if v is outside); at()/clear_at()
             // address a cell by that handle. Stable: the index is positional and never moves.
+
+            /// @brief Sentinel returned by @ref to_cell for a point outside the grid.
             static constexpr uint32_t INVALID_CELL = std::numeric_limits <uint32_t>::max();
 
+            /**
+             * @brief The stable linear handle of the cell containing world point @p v.
+             * @param v World point.
+             * @return The cell's flat index (@c y*width+x), or @ref INVALID_CELL if @p v is outside
+             *         the grid. The index is positional and never moves.
+             */
             [[nodiscard]] uint32_t to_cell(const vec& v) const {
                 const auto c = physical_to_grid(v);
                 if (!c) {
@@ -241,35 +387,59 @@ namespace simplex::collide {
                 return c.y * m_grid.get_width() + c.x;
             }
 
+            /**
+             * @brief Payload of the cell with linear handle @p cell, or @c nullptr if empty/out of range.
+             * @param cell Linear cell handle (e.g. from @ref to_cell).
+             */
             [[nodiscard]] const T* at(uint32_t cell) const { return m_grid.get_linear(cell); }
+            /// @copydoc at(uint32_t) const
             [[nodiscard]] T* at(uint32_t cell) { return m_grid.get_linear(cell); }
+            /**
+             * @brief Empty the cell with linear handle @p cell.
+             * @param cell Linear cell handle; out of range / empty is a tolerant no-op.
+             */
             void clear_at(uint32_t cell) { m_grid.clear_linear(cell); }
 
-            // Generation of a cell (handle) -- bumped on every set/clear. The owner stamps this into
-            // a handle at creation and re-checks it to detect a cell overwritten/refilled since.
+            /**
+             * @brief The generation of cell @p cell -- bumped on every set/clear.
+             * @param cell Linear cell handle.
+             * @return The current generation. The owner stamps this into a handle at creation and
+             *         re-checks it to detect a cell overwritten/refilled since.
+             */
             [[nodiscard]] uint32_t cell_generation(uint32_t cell) const { return m_grid.generation_linear(cell); }
 
-            // World-space box of a cell addressed by its linear handle (for the owner's
-            // "does the payload fit its cell" checks).
+            /**
+             * @brief World-space box of the cell with linear handle @p cell.
+             * @param cell Linear cell handle.
+             * @return The cell's AABB (for the owner's "does the payload fit its cell" checks).
+             */
             [[nodiscard]] aabb cell_box_at(uint32_t cell) const {
                 const uint32_t w = m_grid.get_width();
                 return cell_box(detail::grid_coord{cell % w, cell / w});
             }
 
-            // Generic boundary-compile post-process (pure spatial, semantics-free): greedily merge
-            // maximal RECTANGLES of occupied cells that the caller deems one group, emit each merged
-            // region as a world-space aabb (the union of its cell boxes) with a sample payload, and
-            // CLEAR those cells from the grid. Cells the caller never groups are left in place.
-            //
-            //   same_group(const T& seed, const T& cell, const aabb& cell_box) -> bool
-            //       true iff `cell` is mergeable AND belongs to `seed`'s group. A cell is a rectangle
-            //       seed iff same_group(cell, cell, cell_box) holds. The owner encodes ALL semantics
-            //       here (e.g. "a solid block tile filling its cell, same material/filter, opted-in").
-            //   on_run(const aabb& region, const T& sample) -> void   per merged rectangle.
-            //
-            // The owner turns each region into its own collider (e.g. a merged BVH resident), so the
-            // grid keeps only the un-merged remainder -- removing the internal tile seams that cause
-            // ghost-vertex snagging on long flat/sloped runs.
+            /**
+             * @brief Generic boundary-compile post-process: greedily merge maximal RECTANGLES of
+             *        same-group occupied cells, emit each as a world-space AABB, and clear them.
+             *
+             * Pure spatial and semantics-free: the caller's @p same_group predicate encodes ALL
+             * meaning. Each merged region is the union of its cell boxes; cells the caller never
+             * groups are left in place. The owner turns each region into its own collider (e.g. a
+             * merged BVH resident), so the grid keeps only the un-merged remainder -- removing the
+             * internal tile seams that cause ghost-vertex snagging on long flat/sloped runs.
+             *
+             * @tparam SameGroup Predicate @c same_group(const T& seed, const T& cell, const aabb&
+             *                   cell_box) -> bool: @c true iff @c cell is mergeable AND belongs to
+             *                   @c seed's group. A cell is a rectangle seed iff
+             *                   @c same_group(cell, cell, cell_box) holds (e.g. "a solid block tile
+             *                   filling its cell, same material/filter, opted-in").
+             * @tparam OnRun     Callback @c on_run(const aabb& region, const T& sample) -> void,
+             *                   invoked once per merged rectangle with a sample payload.
+             * @param same_group The grouping predicate.
+             * @param on_run     Per-merged-rectangle sink.
+             * @warning Destructive: the merged source cells are cleared from the grid (their per-cell
+             *          handles go stale).
+             */
             template<class SameGroup, class OnRun>
             void compile_runs(SameGroup&& same_group, OnRun&& on_run) {
                 const uint32_t w = m_grid.get_width();
@@ -328,6 +498,13 @@ namespace simplex::collide {
                 }
             }
 
+            /**
+             * @brief Visit every occupied cell overlapping the AABB @p region.
+             * @tparam Fn Callback @c (const T&, const aabb& cell_box). A @c void callback visits every
+             *            occupied cell; a @c bool callback returns @c false to stop the walk early.
+             * @param region   The world-space query box (clipped to the grid extent).
+             * @param callback Per-cell sink.
+             */
             template<typename Fn>
             void query(const aabb& region, Fn&& callback) const {
                 if (!intersects(region, m_physical_bounds)) {
@@ -360,27 +537,41 @@ namespace simplex::collide {
                 }
             }
 
-            // Swept broadphase for a MOVING shape: enumerate the occupied cells the shape can
-            // overlap as its bound travels `start_bound` -> `start_bound + delta` over a frame.
-            // The swept band is the cell rectangle of the union of the bound at both ends, which
-            // covers the whole path (anti-tunnelling at the cell level for per-frame moves). Pure
-            // broadphase -- the world narrow-phases (swept) each cell and keeps the earliest TOI.
-            // Same callback contract as query: (const T&, cell_box), void-or-bool early-out.
-            // `start_bound` is the shape's enclosing aabb at the start (enclose(shape)); a circle
-            // sweeps the same way via its bounding box.
+            /**
+             * @brief Swept broadphase: visit the occupied cells a moving shape's bound can overlap as
+             *        it travels @p start_bound -> @p start_bound + @p delta over a frame.
+             *
+             * The swept band is the cell rectangle of the union of the bound at both ends, covering
+             * the whole path (cell-level anti-tunnelling for per-frame moves). Pure broadphase -- the
+             * world narrow-phases (swept) each cell and keeps the earliest TOI.
+             *
+             * @tparam Fn Same callback contract as @ref query: @c (const T&, const aabb&), void-or-bool.
+             * @param start_bound The shape's enclosing AABB at the start (a circle sweeps via its box).
+             * @param delta       The frame displacement.
+             * @param callback    Per-cell sink.
+             */
             template<typename Fn>
             void swept(const aabb& start_bound, const vec& delta, Fn&& callback) const {
                 const aabb band = aabb::combine(start_bound, translate(start_bound, delta));
                 query(band, std::forward<Fn>(callback));
             }
 
-            // Amanatides-Woo DDA: visit the cells the segment from->to crosses, in near-to-far
-            // order, calling callback(const T&, cell_box, t) for each OCCUPIED cell. `t` is the
-            // entry parameter along the ORIGINAL from->to ray (in [0,1]), so it is comparable with
-            // the BVH raycast for a grid+BVH merge. The callback may return void (visit every
-            // crossed occupied cell) or bool (return false to stop early -- the world's first
-            // confirmed narrow-phase hit). Handles non-unit / rectangular cells and axis-aligned
-            // rays; an out-of-grid ray is a tolerant no-op (clipped away).
+            /**
+             * @brief Visit the occupied cells the segment @p from -> @p to crosses, near-to-far, via
+             *        an Amanatides-Woo DDA.
+             *
+             * Handles non-unit / rectangular cells and axis-aligned rays, with supercover treatment
+             * of exact gridline and cell-corner crossings (so no diagonal corner tunnelling). An
+             * out-of-grid ray is a tolerant no-op (clipped away first).
+             *
+             * @tparam Fn Callback @c (const T&, const aabb& cell_box, float t). @c t is the entry
+             *            parameter along the ORIGINAL @p from -> @p to ray (in [0,1]), comparable with
+             *            the BVH raycast for a grid+BVH merge. A @c void callback visits every crossed
+             *            occupied cell; a @c bool callback returns @c false to stop early.
+             * @param from     Ray origin.
+             * @param to       Ray endpoint.
+             * @param callback Per-cell sink.
+             */
             template<typename Fn>
             void raycast(const vec& from, const vec& to, Fn&& callback) const {
                 const auto clipped = clip(m_physical_bounds, segment{from, to});
@@ -540,6 +731,11 @@ namespace simplex::collide {
             }
 
         private:
+            /**
+             * @brief Map world point @p v to its cell coord.
+             * @param v World point.
+             * @return The containing cell's coord, or the INVALID coord if @p v is outside the grid.
+             */
             [[nodiscard]] detail::grid_coord physical_to_grid(const vec& v) const {
                 if (!contains(m_physical_bounds, v)) {
                     return {};
@@ -550,6 +746,11 @@ namespace simplex::collide {
                 return {cx, cy};
             }
 
+            /**
+             * @brief World-space box of cell coord @p c.
+             * @param c A valid cell coord (aborts if INVALID).
+             * @return The cell's AABB in world space.
+             */
             [[nodiscard]] aabb cell_box(const detail::grid_coord& c) const {
                 ENFORCE(c);
                 const vec p{
@@ -560,9 +761,15 @@ namespace simplex::collide {
                 return {corner, corner + m_cell_dim};
             }
 
-            // Report cell `c` at entry parameter `t` to the raycast callback. Empty / out-of-range
-            // cells (get -> nullptr) are skipped. Returns false only when a bool-returning callback
-            // asks to stop; a void callback always continues.
+            /**
+             * @brief Report cell @p c at entry parameter @p t to the raycast @p callback.
+             * @tparam Fn The raycast callback @c (const T&, const aabb&, float).
+             * @param c        Cell coord; empty / out-of-range cells are skipped.
+             * @param t        Entry parameter along the ray.
+             * @param callback The per-cell sink.
+             * @return @c false only when a bool-returning callback asks to stop; a void callback
+             *         always returns @c true (continue).
+             */
             template<typename Fn>
             bool visit_cell(const detail::grid_coord& c, float t, Fn&& callback) const {
                 const T* e = m_grid.get(c); // tolerant: nullptr if empty or out of range
@@ -578,8 +785,8 @@ namespace simplex::collide {
             }
 
         private:
-            detail::grid_storage <T> m_grid;
-            aabb m_physical_bounds;
-            const vec m_cell_dim;
+            detail::grid_storage <T> m_grid; ///< Sparse per-cell payload storage + generations.
+            aabb m_physical_bounds;          ///< World-space extent the grid tiles.
+            const vec m_cell_dim;            ///< Per-cell size (extent / cell count along each axis).
     };
-};
+}
