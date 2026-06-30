@@ -8,7 +8,9 @@
 #include <onyx_font/font_factory.hh>
 #include <onyx_font/bitmap_font.hh>
 #include <onyx_font/vector_font.hh>
+#if defined(ONYX_FONT_HAS_LOADER_TTF)
 #include <onyx_font/ttf_font.hh>
+#endif
 
 #include <fstream>
 #include <cmath>
@@ -25,8 +27,10 @@ struct font::impl {
     std::variant<
         std::monostate,
         onyx_font::bitmap_font,
-        onyx_font::vector_font,
-        onyx_font::ttf_font
+        onyx_font::vector_font
+#if defined(ONYX_FONT_HAS_LOADER_TTF)
+        , onyx_font::ttf_font
+#endif
     > loaded_font;
 
     std::unique_ptr<onyx_font::font_source> source;
@@ -123,6 +127,7 @@ expected<font, std::string> font::load(std::span<const std::uint8_t> data, std::
                 break;
             }
 
+#if defined(ONYX_FONT_HAS_LOADER_TTF)
             case onyx_font::font_type::OUTLINE: {
                 auto ttf = onyx_font::font_factory::load_ttf(data, index);
                 f.m_impl->loaded_font = std::move(ttf);
@@ -131,6 +136,7 @@ expected<font, std::string> font::load(std::span<const std::uint8_t> data, std::
                     onyx_font::font_source::from_ttf(*ttf_ptr));
                 break;
             }
+#endif
 
             default:
                 return make_unexpectedf("Unknown font type");
@@ -196,8 +202,10 @@ font_type font::type() const {
         return font_type::BITMAP;
     } else if (std::holds_alternative<onyx_font::vector_font>(m_impl->loaded_font)) {
         return font_type::VECTOR;
+#if defined(ONYX_FONT_HAS_LOADER_TTF)
     } else if (std::holds_alternative<onyx_font::ttf_font>(m_impl->loaded_font)) {
         return font_type::OUTLINE;
+#endif
     }
     return font_type::UNKNOWN;
 }
