@@ -21,6 +21,7 @@
 #include <sdlpp/video/color.hh>
 #include <sdlpp/video/blend_mode.hh>
 #include <sdlpp/video/window.hh>
+#include <sdlpp/detail/geometry_conversion.hh>
 #include <string>
 #include <vector>
 #include <span>
@@ -44,26 +45,7 @@ namespace sdlpp {
      */
     using renderer_ptr = pointer <SDL_Renderer, SDL_DestroyRenderer>;
 
-    // SDL conversion helpers for renderer-specific types
-    namespace detail {
-        template<point_like P>
-        [[nodiscard]] SDL_FPoint to_sdl_fpoint(const P& p) {
-            return SDL_FPoint{
-                static_cast<float>(get_x(p)),
-                static_cast<float>(get_y(p))
-            };
-        }
 
-        template<rect_like R>
-        [[nodiscard]] SDL_FRect to_sdl_frect(const R& r) {
-            return SDL_FRect{
-                static_cast<float>(get_x(r)),
-                static_cast<float>(get_y(r)),
-                static_cast<float>(get_width(r)),
-                static_cast<float>(get_height(r))
-            };
-        }
-    }
 
     /**
      * @brief Renderer driver names
@@ -672,33 +654,37 @@ namespace sdlpp {
 
             /**
              * @brief Set viewport (clipping rectangle)
-             * @tparam R Rectangle type (must satisfy rect_like)
-             * @param viewport Optional rectangle defining the viewport (nullopt for entire target)
+             * @param viewport Rectangle defining the viewport (nullopt for entire target)
              * @return Expected<void> - empty on success, error message on failure
              */
-            template<rect_like R = void>
-            expected <void, std::string> set_viewport(const std::optional <R>& viewport) {
+            expected <void, std::string> set_viewport(std::nullopt_t = std::nullopt) {
                 if (!ptr) {
                     return make_unexpectedf("Invalid renderer");
                 }
-
-                if (viewport) {
-                    SDL_Rect sdl_rect{
-                        static_cast<int>(get_x(*viewport)),
-                        static_cast<int>(get_y(*viewport)),
-                        static_cast<int>(get_width(*viewport)),
-                        static_cast<int>(get_height(*viewport))
-                    };
-                    if (!SDL_SetRenderViewport(ptr.get(), &sdl_rect)) {
-                        return make_unexpectedf(get_error());
-                    }
-                } else {
-                    if (!SDL_SetRenderViewport(ptr.get(), nullptr)) {
-                        return make_unexpectedf(get_error());
-                    }
+                if (!SDL_SetRenderViewport(ptr.get(), nullptr)) {
+                    return make_unexpectedf(get_error());
                 }
-
                 return {};
+            }
+
+            template<rect_like R>
+            expected <void, std::string> set_viewport(const R& viewport) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+                SDL_Rect sdl_rect = detail::to_sdl_rect(viewport);
+                if (!SDL_SetRenderViewport(ptr.get(), &sdl_rect)) {
+                    return make_unexpectedf(get_error());
+                }
+                return {};
+            }
+
+            template<rect_like R>
+            expected <void, std::string> set_viewport(const std::optional <R>& viewport) {
+                if (viewport) {
+                    return set_viewport(*viewport);
+                }
+                return set_viewport(std::nullopt);
             }
 
             /**
@@ -729,33 +715,37 @@ namespace sdlpp {
 
             /**
              * @brief Set clipping rectangle
-             * @tparam R Rectangle type (must satisfy rect_like)
-             * @param clip Optional rectangle defining the clipping area (nullopt to disable)
+             * @param clip Rectangle defining the clipping area (nullopt to disable)
              * @return Expected<void> - empty on success, error message on failure
              */
-            template<rect_like R = void>
-            expected <void, std::string> set_clip_rect(const std::optional <R>& clip) {
+            expected <void, std::string> set_clip_rect(std::nullopt_t = std::nullopt) {
                 if (!ptr) {
                     return make_unexpectedf("Invalid renderer");
                 }
-
-                if (clip) {
-                    SDL_Rect sdl_rect{
-                        static_cast<int>(get_x(*clip)),
-                        static_cast<int>(get_y(*clip)),
-                        static_cast<int>(get_width(*clip)),
-                        static_cast<int>(get_height(*clip))
-                    };
-                    if (!SDL_SetRenderClipRect(ptr.get(), &sdl_rect)) {
-                        return make_unexpectedf(get_error());
-                    }
-                } else {
-                    if (!SDL_SetRenderClipRect(ptr.get(), nullptr)) {
-                        return make_unexpectedf(get_error());
-                    }
+                if (!SDL_SetRenderClipRect(ptr.get(), nullptr)) {
+                    return make_unexpectedf(get_error());
                 }
-
                 return {};
+            }
+
+            template<rect_like R>
+            expected <void, std::string> set_clip_rect(const R& clip) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+                SDL_Rect sdl_rect = detail::to_sdl_rect(clip);
+                if (!SDL_SetRenderClipRect(ptr.get(), &sdl_rect)) {
+                    return make_unexpectedf(get_error());
+                }
+                return {};
+            }
+
+            template<rect_like R>
+            expected <void, std::string> set_clip_rect(const std::optional <R>& clip) {
+                if (clip) {
+                    return set_clip_rect(*clip);
+                }
+                return set_clip_rect(std::nullopt);
             }
 
             /**
@@ -953,29 +943,30 @@ namespace sdlpp {
              * @param dst_rect Destination rectangle (nullopt for entire target)
              * @return Expected<void> - empty on success, error message on failure
              */
-            template<rect_like R = void>
-            expected <void, std::string> copy(
-                const texture& texture,
-                const std::optional <R>& src_rect = std::nullopt,
-                const std::optional <R>& dst_rect = std::nullopt);
+            /**
+             * @brief Copy entire texture to entire rendering target
+             * @param texture Texture to copy
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> copy(const texture& texture);
 
             /**
-             * @brief Copy texture to rendering target with floating-point rectangles
-             * @tparam R Rectangle type (must satisfy rect_like with floating-point value_type)
+             * @brief Copy texture to rendering target
+             * @tparam R1 Source rectangle parameter (rect_like, optional<rect_like>, or nullopt)
+             * @tparam R2 Destination rectangle parameter (rect_like, optional<rect_like>, or nullopt)
              * @param texture Texture to copy
              * @param src_rect Source rectangle (nullopt for entire texture)
              * @param dst_rect Destination rectangle (nullopt for entire target)
              * @return Expected<void> - empty on success, error message on failure
              */
-            template<rect_like R>
-            requires std::is_floating_point_v<typename R::value_type>
+            template<rect_param R1, rect_param R2 = std::nullopt_t>
             expected <void, std::string> copy(
                 const texture& texture,
-                const std::optional <R>& src_rect,
-                const std::optional <R>& dst_rect);
+                const R1& src_rect,
+                const R2& dst_rect = std::nullopt);
 
             /**
-             * @brief Copy texture with rotation and flipping (integer rectangles)
+             * @brief Copy texture with rotation and flipping
              * @param texture Texture to copy
              * @param src_rect Source rectangle (nullopt for entire texture)
              * @param dst_rect Destination rectangle (nullopt for entire target)
@@ -984,120 +975,39 @@ namespace sdlpp {
              * @param flip Flip mode
              * @return Expected<void> - empty on success, error message on failure
              */
-            template<rect_like R = void, point_like P = void>
+            template<rect_param R1 = std::nullopt_t, rect_param R2 = std::nullopt_t, point_param P = std::nullopt_t>
             expected <void, std::string> copy_ex(
                 const texture& texture,
-                const std::optional <R>& src_rect,
-                const std::optional <R>& dst_rect,
+                const R1& src_rect,
+                const R2& dst_rect,
                 double angle,
-                const std::optional <P>& center,
+                const P& center = std::nullopt,
                 flip_mode flip = flip_mode::none);
 
             /**
-             * @brief Copy texture with rotation and flipping (floating-point rectangles)
-             * @param texture Texture to copy
-             * @param src_rect Source rectangle (nullopt for entire texture)
-             * @param dst_rect Destination rectangle (nullopt for entire target)
-             * @param angle Rotation angle in degrees
-             * @param center Rotation center (nullopt for dst_rect center)
-             * @param flip Flip mode
-             * @return Expected<void> - empty on success, error message on failure
+             * @brief Copy texture with rotation using euler angles (radians)
              */
-            template<rect_like R, point_like P>
-            requires (std::is_floating_point_v<typename R::value_type> && 
-                     std::is_floating_point_v<typename P::value_type>)
+            template<rect_param R1 = std::nullopt_t, rect_param R2 = std::nullopt_t, point_param P = std::nullopt_t>
             expected <void, std::string> copy_ex(
                 const texture& texture,
-                const std::optional <R>& src_rect,
-                const std::optional <R>& dst_rect,
-                double angle,
-                const std::optional <P>& center,
-                flip_mode flip = flip_mode::none);
-
-            /**
-             * @brief Copy texture with rotation using euler angles (integer rectangles)
-             * @param texture Texture to copy
-             * @param src_rect Source rectangle (nullopt for entire texture)
-             * @param dst_rect Destination rectangle (nullopt for entire target)
-             * @param angle Rotation angle in radians
-             * @param center Rotation center (nullopt for dst_rect center)
-             * @param flip Flip mode
-             * @return Expected<void> - empty on success, error message on failure
-             */
-            template<rect_like R = void, point_like P = void>
-            expected <void, std::string> copy_ex(
-                const texture& texture,
-                const std::optional <R>& src_rect,
-                const std::optional <R>& dst_rect,
+                const R1& src_rect,
+                const R2& dst_rect,
                 euler::radian<double> angle,
-                const std::optional <P>& center,
+                const P& center = std::nullopt,
                 flip_mode flip = flip_mode::none) {
                 return copy_ex(texture, src_rect, dst_rect, euler::to_degrees(angle), center, flip);
             }
 
             /**
-             * @brief Copy texture with rotation using euler angles (floating-point rectangles)
-             * @param texture Texture to copy
-             * @param src_rect Source rectangle (nullopt for entire texture)
-             * @param dst_rect Destination rectangle (nullopt for entire target)
-             * @param angle Rotation angle in radians
-             * @param center Rotation center (nullopt for dst_rect center)
-             * @param flip Flip mode
-             * @return Expected<void> - empty on success, error message on failure
+             * @brief Copy texture with rotation using euler angles (degrees)
              */
-            template<rect_like R, point_like P>
-            requires (std::is_floating_point_v<typename R::value_type> && 
-                     std::is_floating_point_v<typename P::value_type>)
+            template<rect_param R1 = std::nullopt_t, rect_param R2 = std::nullopt_t, point_param P = std::nullopt_t>
             expected <void, std::string> copy_ex(
                 const texture& texture,
-                const std::optional <R>& src_rect,
-                const std::optional <R>& dst_rect,
-                euler::radian<double> angle,
-                const std::optional <P>& center,
-                flip_mode flip = flip_mode::none) {
-                return copy_ex(texture, src_rect, dst_rect, euler::to_degrees(angle), center, flip);
-            }
-
-            /**
-             * @brief Copy texture with rotation using euler angles (integer rectangles)
-             * @param texture Texture to copy
-             * @param src_rect Source rectangle (nullopt for entire texture)
-             * @param dst_rect Destination rectangle (nullopt for entire target)
-             * @param angle Rotation angle in degrees
-             * @param center Rotation center (nullopt for dst_rect center)
-             * @param flip Flip mode
-             * @return Expected<void> - empty on success, error message on failure
-             */
-            template<rect_like R = void, point_like P = void>
-            expected <void, std::string> copy_ex(
-                const texture& texture,
-                const std::optional <R>& src_rect,
-                const std::optional <R>& dst_rect,
+                const R1& src_rect,
+                const R2& dst_rect,
                 euler::degree<double> angle,
-                const std::optional <P>& center,
-                flip_mode flip = flip_mode::none) {
-                return copy_ex(texture, src_rect, dst_rect, angle.value(), center, flip);
-            }
-
-            /**
-             * @brief Copy texture with rotation using euler angles (floating-point rectangles)
-             * @param texture Texture to copy
-             * @param src_rect Source rectangle (nullopt for entire texture)
-             * @param dst_rect Destination rectangle (nullopt for entire target)
-             * @param angle Rotation angle in degrees
-             * @param center Rotation center (nullopt for dst_rect center)
-             * @param flip Flip mode
-             * @return Expected<void> - empty on success, error message on failure
-             */
-            template<rect_like R, point_like P>
-            requires (std::is_floating_point_v<typename R::value_type> && 
-                     std::is_floating_point_v<typename P::value_type>)
-            expected <void, std::string> copy_ex(
-                const texture& texture,
-                const std::optional <R>& src_rect,
-                const std::optional <R>& dst_rect,
-                euler::degree<double> angle,
-                const std::optional <P>& center,
+                const P& center = std::nullopt,
                 flip_mode flip = flip_mode::none) {
                 return copy_ex(texture, src_rect, dst_rect, angle.value(), center, flip);
             }
@@ -1131,15 +1041,21 @@ namespace sdlpp {
              * @param tile_scale Scale factor for tiling (1.0 = original size)
              * @return Expected<void> - empty on success, error message on failure
              */
-            template<rect_like R>
+            template<rect_param R1 = std::nullopt_t, rect_like R2 = 
+#ifdef SDLPP_HAS_BUILTIN_GEOMETRY
+                rect_f
+#else
+                void
+#endif
+            >
             expected<void, std::string> copy_9grid_tiled(
                 const texture& texture,
-                const std::optional<R>& src_rect,
+                const R1& src_rect,
                 float left_width, float right_width,
                 float top_height, float bottom_height,
                 float scale,
-                const R& dst_rect,
-                float tile_scale);
+                const R2& dst_rect,
+                float tile_scale = 1.0f);
 
             /**
              * @brief Set texture address mode for geometry rendering (SDL 3.4.0+)

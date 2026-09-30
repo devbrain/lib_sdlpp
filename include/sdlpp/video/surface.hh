@@ -20,6 +20,7 @@
 #include <sdlpp/detail/export.hh>
 #include <sdlpp/video/pixels.hh>
 #include <sdlpp/utility/geometry.hh>
+#include <sdlpp/detail/geometry_conversion.hh>
 #include <sdlpp/io/iostream.hh>
 #include <sdlpp/video/palette.hh>
 #include <sdlpp/video/blend_mode.hh>
@@ -577,34 +578,50 @@ namespace sdlpp {
             }
 
             /**
+             * @brief Blit this surface to another surface (entire surface to 0,0)
+             * @param dst Destination surface
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> blit_to(surface& dst) const {
+                if (!ptr || !dst.ptr) {
+                    return make_unexpectedf("Invalid surface");
+                }
+                SDL_Rect dst_r = {0, 0, 0, 0};
+                if (!SDL_BlitSurface(ptr.get(), nullptr, dst.ptr.get(), &dst_r)) {
+                    return make_unexpectedf(get_error());
+                }
+                return {};
+            }
+
+            /**
+             * @brief Blit this surface to another surface at destination position
+             * @param dst Destination surface
+             * @param dst_pos Destination position
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            template<point_like P>
+            expected <void, std::string> blit_to(surface& dst, const P& dst_pos) const {
+                return blit_to(dst, std::nullopt, dst_pos);
+            }
+
+            /**
              * @brief Blit this surface to another surface
-             * @tparam R Rectangle type (must satisfy rect_like)
-             * @tparam P Point type (must satisfy point_like)
              * @param dst Destination surface
              * @param src_rect Source rectangle (nullopt for entire surface)
              * @param dst_pos Destination position
              * @return Expected<void> - empty on success, error message on failure
              */
-            template<rect_like R = void, point_like P = void>
+            template<rect_param R, point_like P>
             expected <void, std::string> blit_to(
                 surface& dst,
-                std::optional <R> src_rect = std::nullopt,
-                P dst_pos = P{0, 0}) const {
+                const R& src_rect,
+                const P& dst_pos) const {
                 if (!ptr || !dst.ptr) {
                     return make_unexpectedf("Invalid surface");
                 }
 
-                SDL_Rect src_r;
-                SDL_Rect* src_ptr = nullptr;
-                if (src_rect) {
-                    src_r = SDL_Rect{
-                        static_cast<int>(get_x(*src_rect)),
-                        static_cast<int>(get_y(*src_rect)),
-                        static_cast<int>(get_width(*src_rect)),
-                        static_cast<int>(get_height(*src_rect))
-                    };
-                    src_ptr = &src_r;
-                }
+                auto src_opt = detail::to_optional_sdl_rect(src_rect);
+                const SDL_Rect* src_ptr = src_opt ? &*src_opt : nullptr;
 
                 SDL_Rect dst_r = {static_cast<int>(get_x(dst_pos)), 
                                   static_cast<int>(get_y(dst_pos)), 0, 0};
@@ -617,49 +634,42 @@ namespace sdlpp {
             }
 
             /**
+             * @brief Scaled blit to another surface (entire surface to entire destination)
+             * @param dst Destination surface
+             * @param mode Scale mode to use
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> blit_scaled_to(
+                surface& dst,
+                scale_mode mode = scale_mode::linear) const {
+                return blit_scaled_to(dst, std::nullopt, std::nullopt, mode);
+            }
+
+            /**
              * @brief Scaled blit to another surface
-             * @tparam R Rectangle type (must satisfy rect_like)
              * @param dst Destination surface
              * @param src_rect Source rectangle (nullopt for entire surface)
              * @param dst_rect Destination rectangle (nullopt for entire surface)
              * @param mode Scale mode to use
              * @return Expected<void> - empty on success, error message on failure
              */
-            template<rect_like R = void>
+            template<rect_param R1, rect_param R2 = std::nullopt_t>
             expected <void, std::string> blit_scaled_to(
                 surface& dst,
-                std::optional <R> src_rect = std::nullopt,
-                std::optional <R> dst_rect = std::nullopt,
+                const R1& src_rect,
+                const R2& dst_rect = std::nullopt,
                 scale_mode mode = scale_mode::linear) const {
                 if (!ptr || !dst.ptr) {
                     return make_unexpectedf("Invalid surface");
                 }
 
-                SDL_Rect src_r, dst_r;
-                SDL_Rect* src_ptr = nullptr;
-                SDL_Rect* dst_ptr = nullptr;
+                auto src_opt = detail::to_optional_sdl_rect(src_rect);
+                auto dst_opt = detail::to_optional_sdl_rect(dst_rect);
 
-                if (src_rect) {
-                    src_r = SDL_Rect{
-                        static_cast<int>(get_x(*src_rect)),
-                        static_cast<int>(get_y(*src_rect)),
-                        static_cast<int>(get_width(*src_rect)),
-                        static_cast<int>(get_height(*src_rect))
-                    };
-                    src_ptr = &src_r;
-                }
+                const SDL_Rect* src_ptr = src_opt ? &*src_opt : nullptr;
+                const SDL_Rect* dst_ptr = dst_opt ? &*dst_opt : nullptr;
 
-                if (dst_rect) {
-                    dst_r = SDL_Rect{
-                        static_cast<int>(get_x(*dst_rect)),
-                        static_cast<int>(get_y(*dst_rect)),
-                        static_cast<int>(get_width(*dst_rect)),
-                        static_cast<int>(get_height(*dst_rect))
-                    };
-                    dst_ptr = &dst_r;
-                }
-
-                if (!SDL_BlitSurfaceScaled(ptr.get(), src_ptr, dst.ptr.get(), dst_ptr,
+                if (!SDL_BlitSurfaceScaled(ptr.get(), src_ptr, dst.ptr.get(), const_cast<SDL_Rect*>(dst_ptr),
                                            static_cast <SDL_ScaleMode>(mode))) {
                     return make_unexpectedf(get_error());
                 }
@@ -783,33 +793,37 @@ namespace sdlpp {
 
             /**
              * @brief Set surface clipping rectangle
-             * @tparam R Rectangle type (must satisfy rect_like)
              * @param clip Optional rectangle defining the clipping area (nullopt to disable)
              * @return Expected<void> - empty on success, error message on failure
              */
-            template<rect_like R = void>
-            expected <void, std::string> set_clip_rect(const std::optional <R>& clip) {
+            expected <void, std::string> set_clip_rect(std::nullopt_t = std::nullopt) {
                 if (!ptr) {
                     return make_unexpectedf("Invalid surface");
                 }
-
-                if (clip) {
-                    SDL_Rect sdl_rect{
-                        static_cast<int>(get_x(*clip)),
-                        static_cast<int>(get_y(*clip)),
-                        static_cast<int>(get_width(*clip)),
-                        static_cast<int>(get_height(*clip))
-                    };
-                    if (!SDL_SetSurfaceClipRect(ptr.get(), &sdl_rect)) {
-                        return make_unexpectedf(get_error());
-                    }
-                } else {
-                    if (!SDL_SetSurfaceClipRect(ptr.get(), nullptr)) {
-                        return make_unexpectedf(get_error());
-                    }
+                if (!SDL_SetSurfaceClipRect(ptr.get(), nullptr)) {
+                    return make_unexpectedf(get_error());
                 }
-
                 return {};
+            }
+
+            template<rect_like R>
+            expected <void, std::string> set_clip_rect(const R& clip) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid surface");
+                }
+                SDL_Rect sdl_rect = detail::to_sdl_rect(clip);
+                if (!SDL_SetSurfaceClipRect(ptr.get(), &sdl_rect)) {
+                    return make_unexpectedf(get_error());
+                }
+                return {};
+            }
+
+            template<rect_like R>
+            expected <void, std::string> set_clip_rect(const std::optional <R>& clip) {
+                if (clip) {
+                    return set_clip_rect(*clip);
+                }
+                return set_clip_rect(std::nullopt);
             }
 
             /**

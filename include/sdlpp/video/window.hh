@@ -19,6 +19,7 @@
 #include <sdlpp/detail/pointer.hh>
 #include <sdlpp/utility/geometry.hh>
 #include <sdlpp/video/pixels.hh>
+#include <sdlpp/detail/geometry_conversion.hh>
 #include <sdlpp/utility/dimension.hh>
 #include <string>
 #include <span>
@@ -27,19 +28,6 @@
 namespace sdlpp {
     // Forward declarations
     class renderer;
-
-    // SDL conversion helpers for window-specific types
-    namespace detail {
-        template<rect_like R>
-        [[nodiscard]] SDL_Rect to_sdl_rect(const R& r) {
-            return SDL_Rect{
-                static_cast<int>(get_x(r)),
-                static_cast<int>(get_y(r)),
-                static_cast<int>(get_width(r)),
-                static_cast<int>(get_height(r))
-            };
-        }
-    }
 
     /**
      * @brief Smart pointer type for SDL_Window with automatic cleanup

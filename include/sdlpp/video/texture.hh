@@ -17,6 +17,7 @@
 #include <sdlpp/detail/expected.hh>
 #include <sdlpp/detail/pointer.hh>
 #include <sdlpp/utility/geometry.hh>
+#include <sdlpp/detail/geometry_conversion.hh>
 #include <sdlpp/video/color.hh>
 #include <sdlpp/video/pixels.hh>
 #include <sdlpp/video/blend_mode.hh>
@@ -253,14 +254,46 @@ namespace sdlpp {
             }
 
             /**
-             * @brief Update texture with new pixel data
-             * @param rect Area to update (nullopt for entire texture)
+             * @brief Update texture with new pixel data (entire texture)
              * @param pixels Pixel data
              * @param pitch Number of bytes per row
              * @return Expected<void> - empty on success, error message on failure
              */
-            template<rect_like R = void>
-            expected <void, std::string> update(const std::optional <R>& update_rect,
+            expected <void, std::string> update(const void* pixels, int pitch) {
+                return update(std::nullopt, pixels, pitch);
+            }
+
+            /**
+             * @brief Update texture with new pixel data (entire texture, explicit nullopt)
+             * @param pixels Pixel data
+             * @param pitch Number of bytes per row
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> update(std::nullopt_t, const void* pixels, int pitch) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid texture");
+                }
+
+                if (!pixels) {
+                    return make_unexpectedf("Invalid pixel data");
+                }
+
+                if (!SDL_UpdateTexture(ptr.get(), nullptr, pixels, pitch)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Update texture sub-rectangle with new pixel data
+             * @param update_rect Area to update
+             * @param pixels Pixel data
+             * @param pitch Number of bytes per row
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            template<rect_like R>
+            expected <void, std::string> update(const R& update_rect,
                                                 const void* pixels, int pitch) {
                 if (!ptr) {
                     return make_unexpectedf("Invalid texture");
@@ -270,57 +303,85 @@ namespace sdlpp {
                     return make_unexpectedf("Invalid pixel data");
                 }
 
-                if (update_rect) {
-                    SDL_Rect sdl_rect{
-                        static_cast<int>(get_x(*update_rect)),
-                        static_cast<int>(get_y(*update_rect)),
-                        static_cast<int>(get_width(*update_rect)),
-                        static_cast<int>(get_height(*update_rect))
-                    };
-                    if (!SDL_UpdateTexture(ptr.get(), &sdl_rect, pixels, pitch)) {
-                        return make_unexpectedf(get_error());
-                    }
-                } else {
-                    if (!SDL_UpdateTexture(ptr.get(), nullptr, pixels, pitch)) {
-                        return make_unexpectedf(get_error());
-                    }
+                SDL_Rect sdl_rect = detail::to_sdl_rect(update_rect);
+                if (!SDL_UpdateTexture(ptr.get(), &sdl_rect, pixels, pitch)) {
+                    return make_unexpectedf(get_error());
                 }
 
                 return {};
             }
 
             /**
-             * @brief Lock texture for direct pixel access
-             * @param rect Area to lock (nullopt for entire texture)
+             * @brief Update texture with new pixel data (optional sub-rectangle)
+             * @param update_rect Area to update (nullopt for entire texture)
+             * @param pixels Pixel data
+             * @param pitch Number of bytes per row
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            template<rect_like R>
+            expected <void, std::string> update(const std::optional <R>& update_rect,
+                                                const void* pixels, int pitch) {
+                if (update_rect) {
+                    return update(*update_rect, pixels, pitch);
+                }
+                return update(std::nullopt, pixels, pitch);
+            }
+
+            /**
+             * @brief Lock texture for direct pixel access (entire texture)
              * @return Expected containing pixels pointer and pitch, or error message
              * @note Only works for streaming textures
              */
-            template<rect_like R = void>
-            expected <std::pair <void*, int>, std::string> lock(const std::optional <R>& lock_rect = std::nullopt) {
+            expected <std::pair <void*, int>, std::string> lock(std::nullopt_t = std::nullopt) {
                 if (!ptr) {
                     return make_unexpectedf("Invalid texture");
                 }
 
-                void* pixels;
-                int pitch;
+                void* pixels = nullptr;
+                int pitch = 0;
 
-                if (lock_rect) {
-                    SDL_Rect sdl_rect{
-                        static_cast<int>(get_x(*lock_rect)),
-                        static_cast<int>(get_y(*lock_rect)),
-                        static_cast<int>(get_width(*lock_rect)),
-                        static_cast<int>(get_height(*lock_rect))
-                    };
-                    if (!SDL_LockTexture(ptr.get(), &sdl_rect, &pixels, &pitch)) {
-                        return make_unexpectedf(get_error());
-                    }
-                } else {
-                    if (!SDL_LockTexture(ptr.get(), nullptr, &pixels, &pitch)) {
-                        return make_unexpectedf(get_error());
-                    }
+                if (!SDL_LockTexture(ptr.get(), nullptr, &pixels, &pitch)) {
+                    return make_unexpectedf(get_error());
                 }
 
                 return std::make_pair(pixels, pitch);
+            }
+
+            /**
+             * @brief Lock texture for direct pixel access (sub-rectangle)
+             * @param lock_rect Area to lock
+             * @return Expected containing pixels pointer and pitch, or error message
+             * @note Only works for streaming textures
+             */
+            template<rect_like R>
+            expected <std::pair <void*, int>, std::string> lock(const R& lock_rect) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid texture");
+                }
+
+                void* pixels = nullptr;
+                int pitch = 0;
+
+                SDL_Rect sdl_rect = detail::to_sdl_rect(lock_rect);
+                if (!SDL_LockTexture(ptr.get(), &sdl_rect, &pixels, &pitch)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return std::make_pair(pixels, pitch);
+            }
+
+            /**
+             * @brief Lock texture for direct pixel access (optional sub-rectangle)
+             * @param lock_rect Area to lock (nullopt for entire texture)
+             * @return Expected containing pixels pointer and pitch, or error message
+             * @note Only works for streaming textures
+             */
+            template<rect_like R>
+            expected <std::pair <void*, int>, std::string> lock(const std::optional <R>& lock_rect) {
+                if (lock_rect) {
+                    return lock(*lock_rect);
+                }
+                return lock(std::nullopt);
             }
 
             /**
@@ -377,8 +438,25 @@ namespace sdlpp {
                     void* pixels = nullptr;
                     int pitch = 0;
 
-                    template<rect_like R = void>
-                    explicit lock_guard(texture& t, const std::optional <R>& area = std::nullopt)
+                    explicit lock_guard(texture& t, std::nullopt_t = std::nullopt)
+                        : tex(&t), locked(false) {
+                        if (auto lock_result = tex->lock(std::nullopt)) {
+                            std::tie(pixels, pitch) = *lock_result;
+                            locked = true;
+                        }
+                    }
+
+                    template<rect_like R>
+                    explicit lock_guard(texture& t, const R& area)
+                        : tex(&t), locked(false) {
+                        if (auto lock_result = tex->lock(area)) {
+                            std::tie(pixels, pitch) = *lock_result;
+                            locked = true;
+                        }
+                    }
+
+                    template<rect_like R>
+                    explicit lock_guard(texture& t, const std::optional <R>& area)
                         : tex(&t), locked(false) {
                         if (auto lock_result = tex->lock(area)) {
                             std::tie(pixels, pitch) = *lock_result;
@@ -538,11 +616,7 @@ namespace sdlpp {
     };
 
     // Now add texture-related methods to renderer
-    template<rect_like R>
-    inline expected <void, std::string> renderer::copy(
-        const texture& texture,
-        const std::optional <R>& src_rect,
-        const std::optional <R>& dst_rect) {
+    inline expected <void, std::string> renderer::copy(const texture& texture) {
         if (!ptr) {
             return make_unexpectedf("Invalid renderer");
         }
@@ -551,39 +625,18 @@ namespace sdlpp {
             return make_unexpectedf("Invalid texture");
         }
 
-        SDL_FRect src, dst;
-        SDL_FRect* src_ptr = nullptr;
-        SDL_FRect* dst_ptr = nullptr;
-
-        if (src_rect) {
-            src = {
-                static_cast <float>(get_x(*src_rect)), static_cast <float>(get_y(*src_rect)),
-                static_cast <float>(get_width(*src_rect)), static_cast <float>(get_height(*src_rect))
-            };
-            src_ptr = &src;
-        }
-
-        if (dst_rect) {
-            dst = {
-                static_cast <float>(get_x(*dst_rect)), static_cast <float>(get_y(*dst_rect)),
-                static_cast <float>(get_width(*dst_rect)), static_cast <float>(get_height(*dst_rect))
-            };
-            dst_ptr = &dst;
-        }
-
-        if (!SDL_RenderTexture(ptr.get(), texture.get(), src_ptr, dst_ptr)) {
+        if (!SDL_RenderTexture(ptr.get(), texture.get(), nullptr, nullptr)) {
             return make_unexpectedf(get_error());
         }
 
         return {};
     }
 
-    template<rect_like R>
-    requires std::is_floating_point_v<typename R::value_type>
+    template<rect_param R1, rect_param R2>
     inline expected <void, std::string> renderer::copy(
         const texture& texture,
-        const std::optional <R>& src_rect,
-        const std::optional <R>& dst_rect) {
+        const R1& src_rect,
+        const R2& dst_rect) {
         if (!ptr) {
             return make_unexpectedf("Invalid renderer");
         }
@@ -592,19 +645,11 @@ namespace sdlpp {
             return make_unexpectedf("Invalid texture");
         }
 
-        SDL_FRect src, dst;
-        SDL_FRect* src_ptr = nullptr;
-        SDL_FRect* dst_ptr = nullptr;
+        auto src_opt = detail::to_optional_sdl_frect(src_rect);
+        auto dst_opt = detail::to_optional_sdl_frect(dst_rect);
 
-        if (src_rect) {
-            src = detail::to_sdl_frect(*src_rect);
-            src_ptr = &src;
-        }
-
-        if (dst_rect) {
-            dst = detail::to_sdl_frect(*dst_rect);
-            dst_ptr = &dst;
-        }
+        const SDL_FRect* src_ptr = src_opt ? &*src_opt : nullptr;
+        const SDL_FRect* dst_ptr = dst_opt ? &*dst_opt : nullptr;
 
         if (!SDL_RenderTexture(ptr.get(), texture.get(), src_ptr, dst_ptr)) {
             return make_unexpectedf(get_error());
@@ -613,13 +658,13 @@ namespace sdlpp {
         return {};
     }
 
-    template<rect_like R, point_like P>
+    template<rect_param R1, rect_param R2, point_param P>
     inline expected <void, std::string> renderer::copy_ex(
         const texture& texture,
-        const std::optional <R>& src_rect,
-        const std::optional <R>& dst_rect,
+        const R1& src_rect,
+        const R2& dst_rect,
         double angle,
-        const std::optional <P>& center,
+        const P& center,
         flip_mode flip) {
         if (!ptr) {
             return make_unexpectedf("Invalid renderer");
@@ -629,26 +674,13 @@ namespace sdlpp {
             return make_unexpectedf("Invalid texture");
         }
 
-        SDL_FRect src, dst;
-        SDL_FRect* src_ptr = nullptr;
-        SDL_FRect* dst_ptr = nullptr;
-        SDL_FPoint cnt;
-        SDL_FPoint* cnt_ptr = nullptr;
+        auto src_opt = detail::to_optional_sdl_frect(src_rect);
+        auto dst_opt = detail::to_optional_sdl_frect(dst_rect);
+        auto cnt_opt = detail::to_optional_sdl_fpoint(center);
 
-        if (src_rect) {
-            src = detail::to_sdl_frect(*src_rect);
-            src_ptr = &src;
-        }
-
-        if (dst_rect) {
-            dst = detail::to_sdl_frect(*dst_rect);
-            dst_ptr = &dst;
-        }
-
-        if (center) {
-            cnt = detail::to_sdl_fpoint(*center);
-            cnt_ptr = &cnt;
-        }
+        const SDL_FRect* src_ptr = src_opt ? &*src_opt : nullptr;
+        const SDL_FRect* dst_ptr = dst_opt ? &*dst_opt : nullptr;
+        const SDL_FPoint* cnt_ptr = cnt_opt ? &*cnt_opt : nullptr;
 
         if (!SDL_RenderTextureRotated(ptr.get(), texture.get(),
                                       src_ptr, dst_ptr,
@@ -660,89 +692,14 @@ namespace sdlpp {
         return {};
     }
 
-    template<rect_like R, point_like P>
-    requires (std::is_floating_point_v<typename R::value_type> && 
-             std::is_floating_point_v<typename P::value_type>)
-    inline expected <void, std::string> renderer::copy_ex(
-        const texture& texture,
-        const std::optional <R>& src_rect,
-        const std::optional <R>& dst_rect,
-        double angle,
-        const std::optional <P>& center,
-        flip_mode flip) {
-        if (!ptr) {
-            return make_unexpectedf("Invalid renderer");
-        }
-
-        if (!texture) {
-            return make_unexpectedf("Invalid texture");
-        }
-
-        SDL_FRect src, dst;
-        SDL_FRect* src_ptr = nullptr;
-        SDL_FRect* dst_ptr = nullptr;
-        SDL_FPoint cnt;
-        SDL_FPoint* cnt_ptr = nullptr;
-
-        if (src_rect) {
-            src = detail::to_sdl_frect(*src_rect);
-            src_ptr = &src;
-        }
-
-        if (dst_rect) {
-            dst = detail::to_sdl_frect(*dst_rect);
-            dst_ptr = &dst;
-        }
-
-        if (center) {
-            cnt = detail::to_sdl_fpoint(*center);
-            cnt_ptr = &cnt;
-        }
-
-        if (!SDL_RenderTextureRotated(ptr.get(), texture.get(),
-                                      src_ptr, dst_ptr,
-                                      angle, cnt_ptr,
-                                      static_cast <SDL_FlipMode>(flip))) {
-            return make_unexpectedf(get_error());
-        }
-
-        return {};
-    }
-
-    /**
-     * @brief Render a texture using 9-grid tiled scaling (SDL 3.4.0+)
-     *
-     * Renders a texture using 9-grid (9-slice) scaling where corners remain
-     * unscaled, edges are stretched in one direction, and the center is tiled.
-     * This is useful for UI elements like buttons, panels, and windows that
-     * need to scale without distorting corners.
-     *
-     * @param texture The texture to render
-     * @param src_rect Source rectangle (nullopt for entire texture)
-     * @param left_width Width of the left column
-     * @param right_width Width of the right column
-     * @param top_height Height of the top row
-     * @param bottom_height Height of the bottom row
-     * @param scale Scale factor for the center stretched area
-     * @param dst_rect Destination rectangle
-     * @param tile_scale Scale factor for tiling (1.0 = original size)
-     * @return Expected<void> - empty on success, error message on failure
-     *
-     * Example:
-     * @code
-     * // Button texture with 10px borders
-     * renderer.copy_9grid_tiled(button_tex, std::nullopt,
-     *     10.0f, 10.0f, 10.0f, 10.0f, 1.0f, dest_rect, 1.0f);
-     * @endcode
-     */
-    template<rect_like R>
+    template<rect_param R1, rect_like R2>
     inline expected<void, std::string> renderer::copy_9grid_tiled(
         const texture& texture,
-        const std::optional<R>& src_rect,
+        const R1& src_rect,
         float left_width, float right_width,
         float top_height, float bottom_height,
         float scale,
-        const R& dst_rect,
+        const R2& dst_rect,
         float tile_scale) {
         if (!ptr) {
             return make_unexpectedf("Invalid renderer");
@@ -752,25 +709,10 @@ namespace sdlpp {
             return make_unexpectedf("Invalid texture");
         }
 
-        SDL_FRect src;
-        SDL_FRect* src_ptr = nullptr;
+        auto src_opt = detail::to_optional_sdl_frect(src_rect);
+        const SDL_FRect* src_ptr = src_opt ? &*src_opt : nullptr;
 
-        if (src_rect) {
-            src = {
-                static_cast<float>(get_x(*src_rect)),
-                static_cast<float>(get_y(*src_rect)),
-                static_cast<float>(get_width(*src_rect)),
-                static_cast<float>(get_height(*src_rect))
-            };
-            src_ptr = &src;
-        }
-
-        SDL_FRect dst = {
-            static_cast<float>(get_x(dst_rect)),
-            static_cast<float>(get_y(dst_rect)),
-            static_cast<float>(get_width(dst_rect)),
-            static_cast<float>(get_height(dst_rect))
-        };
+        SDL_FRect dst = detail::to_sdl_frect(dst_rect);
 
         if (!SDL_RenderTexture9GridTiled(ptr.get(), texture.get(),
                                          src_ptr,

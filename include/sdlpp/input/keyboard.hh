@@ -232,18 +232,29 @@ namespace sdlpp {
              * @param window The window to receive text input
              * @param area Optional text input area for IME
              */
-            template<rect_like R = rect_i>
-            explicit text_input_session(const window& win,
-                                        std::optional<R> area = std::nullopt)
+            explicit text_input_session(const window& win, std::nullopt_t = std::nullopt)
+                : window_(&win), was_active_(win.get() ? SDL_TextInputActive(win.get()) : false) {
+                if (win.get() && !was_active_) {
+                    SDL_StartTextInput(win.get());
+                }
+            }
+
+            template<rect_like R>
+            explicit text_input_session(const window& win, const R& area)
+                : window_(&win), was_active_(win.get() ? SDL_TextInputActive(win.get()) : false) {
+                if (win.get() && !was_active_) {
+                    SDL_Rect sdl_area = detail::to_sdl_rect(area);
+                    SDL_SetTextInputArea(win.get(), &sdl_area, 0);
+                    SDL_StartTextInput(win.get());
+                }
+            }
+
+            template<rect_like R>
+            explicit text_input_session(const window& win, const std::optional<R>& area)
                 : window_(&win), was_active_(win.get() ? SDL_TextInputActive(win.get()) : false) {
                 if (win.get() && !was_active_) {
                     if (area) {
-                        SDL_Rect sdl_area{
-                            static_cast<int>(get_x(*area)),
-                            static_cast<int>(get_y(*area)),
-                            static_cast<int>(get_width(*area)),
-                            static_cast<int>(get_height(*area))
-                        };
+                        SDL_Rect sdl_area = detail::to_sdl_rect(*area);
                         SDL_SetTextInputArea(win.get(), &sdl_area, 0);
                     }
                     SDL_StartTextInput(win.get());
@@ -306,15 +317,25 @@ namespace sdlpp {
              * @param rect The input area
              * @param cursor Cursor position within the text
              */
+            void set_input_area(std::nullopt_t, int cursor = 0) {
+                if (window_ && window_->get()) {
+                    SDL_SetTextInputArea(window_->get(), nullptr, cursor);
+                }
+            }
+
             template<rect_like R>
             void set_input_area(const R& r, int cursor = 0) {
-                SDL_Rect area{
-                    static_cast<int>(get_x(r)),
-                    static_cast<int>(get_y(r)),
-                    static_cast<int>(get_width(r)),
-                    static_cast<int>(get_height(r))
-                };
+                SDL_Rect area = detail::to_sdl_rect(r);
                 set_input_area(area, cursor);
+            }
+
+            template<rect_like R>
+            void set_input_area(const std::optional<R>& r, int cursor = 0) {
+                if (r) {
+                    set_input_area(*r, cursor);
+                } else {
+                    set_input_area(std::nullopt, cursor);
+                }
             }
 
             /**

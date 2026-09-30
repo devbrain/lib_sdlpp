@@ -456,21 +456,61 @@ TEST_SUITE("renderer and texture") {
             if (!tex_result) return;
             auto& tex = *tex_result;
             
-            // Lock texture
+            // Lock texture with default constructor
             {
-                texture::lock_guard lock(tex, std::optional<rect_i>{});
+                texture::lock_guard lock(tex);
                 CHECK(lock.is_locked());
                 CHECK(lock.pixels != nullptr);
                 CHECK(lock.pitch > 0);
-                
-                // Could write to pixels here
             }
-            // Automatically unlocked
+
+            // Lock texture with std::nullopt
+            {
+                texture::lock_guard lock(tex, std::nullopt);
+                CHECK(lock.is_locked());
+                CHECK(lock.pixels != nullptr);
+                CHECK(lock.pitch > 0);
+            }
+
+            // Lock texture with direct lock() call
+            {
+                auto lock_res = tex.lock();
+                CHECK(lock_res.has_value());
+                CHECK(lock_res->first != nullptr);
+                CHECK(lock_res->second > 0);
+                tex.unlock();
+            }
+
+            // Lock texture with lock(std::nullopt)
+            {
+                auto lock_res = tex.lock(std::nullopt);
+                CHECK(lock_res.has_value());
+                CHECK(lock_res->first != nullptr);
+                CHECK(lock_res->second > 0);
+                tex.unlock();
+            }
+
+            // Lock texture with sub-rect
+            {
+                rect_i sub_rect{0, 0, 8, 8};
+                auto lock_res = tex.lock(sub_rect);
+                CHECK(lock_res.has_value());
+                tex.unlock();
+            }
             
-            // Update texture
+            // Update texture without rect parameter
             std::vector<uint32_t> pixels(16 * 16, 0xFF0000FF); // Red pixels
-            auto update = tex.update(std::optional<rect_i>{}, pixels.data(), 16 * sizeof(uint32_t));
-            CHECK(update.has_value());
+            auto update1 = tex.update(pixels.data(), 16 * sizeof(uint32_t));
+            CHECK(update1.has_value());
+
+            // Update texture with std::nullopt
+            auto update2 = tex.update(std::nullopt, pixels.data(), 16 * sizeof(uint32_t));
+            CHECK(update2.has_value());
+
+            // Update texture with direct rect
+            rect_i update_rect{0, 0, 8, 8};
+            auto update3 = tex.update(update_rect, pixels.data(), 16 * sizeof(uint32_t));
+            CHECK(update3.has_value());
         }
         
         SUBCASE("render texture") {
@@ -484,24 +524,52 @@ TEST_SUITE("renderer and texture") {
             if (!tex_result) return;
             auto& tex = *tex_result;
             
-            // Basic copy
-            auto copy = rend.copy(tex, std::optional<rect_i>{}, std::optional<rect_i>{});
+            // Basic copy (omitting rects entirely)
+            auto copy0 = rend.copy(tex);
+            CHECK(copy0.has_value());
+
+            // Basic copy with explicit nullopt
+            auto copy = rend.copy(tex, std::nullopt, std::nullopt);
             CHECK(copy.has_value());
             
-            // Copy with source and destination
+            // Copy with source and destination (direct rects without optional)
             rect_i src{0, 0, 16, 16};
             rect_i dst{100, 100, 32, 32};
-            auto copy2 = rend.copy(tex, std::make_optional(src), std::make_optional(dst));
+            auto copy2 = rend.copy(tex, src, dst);
             CHECK(copy2.has_value());
+
+            // Copy with nullopt src and direct rect dst
+            auto copy3 = rend.copy(tex, std::nullopt, dst);
+            CHECK(copy3.has_value());
             
-            // Copy with rotation and flip
-            auto copy_ex = rend.copy_ex(tex, std::optional<rect_i>{}, std::make_optional(dst), 45.0, std::optional<point_i>{}, flip_mode::horizontal);
+            // Copy with rotation and flip (using std::nullopt)
+            auto copy_ex = rend.copy_ex(tex, std::nullopt, dst, 45.0, std::nullopt, flip_mode::horizontal);
             CHECK(copy_ex.has_value());
+
+            // Copy with rotation and flip (using radian euler angle and std::nullopt)
+            auto copy_ex_rad = rend.copy_ex(tex, std::nullopt, dst, euler::radian<double>(0.5), std::nullopt, flip_mode::none);
+            CHECK(copy_ex_rad.has_value());
             
-            // Floating point destination
+            // Floating point destination directly
             rect_f fdst{50.5f, 50.5f, 64.0f, 64.0f};
-            auto copy_f = rend.copy(tex, std::optional<rect_f>{}, std::optional<rect_f>{fdst});
+            auto copy_f = rend.copy(tex, std::nullopt, fdst);
             CHECK(copy_f.has_value());
+        }
+
+        SUBCASE("viewport and clip rect with nullopt") {
+            // Viewport reset with no args and nullopt
+            CHECK(rend.set_viewport().has_value());
+            CHECK(rend.set_viewport(std::nullopt).has_value());
+            rect_i vp{10, 10, 100, 100};
+            CHECK(rend.set_viewport(vp).has_value());
+            CHECK(rend.set_viewport().has_value());
+
+            // Clip rect reset with no args and nullopt
+            CHECK(rend.set_clip_rect().has_value());
+            CHECK(rend.set_clip_rect(std::nullopt).has_value());
+            rect_i clip{20, 20, 50, 50};
+            CHECK(rend.set_clip_rect(clip).has_value());
+            CHECK(rend.set_clip_rect().has_value());
         }
 
 #if SDL_VERSION_ATLEAST(3, 4, 0)

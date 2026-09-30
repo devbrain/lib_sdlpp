@@ -12,6 +12,7 @@
 #include <concepts>
 #include <type_traits>
 #include <cstddef>
+#include <optional>
 
 namespace sdlpp {
 
@@ -184,6 +185,57 @@ struct geometry_value_type {
 
 template<typename T>
 using geometry_value_type_t = typename geometry_value_type<T>::type;
+
+/**
+ * @brief Trait to inspect optional wrapper
+ */
+template<typename T>
+struct is_optional : std::false_type {};
+
+template<typename T>
+struct is_optional<std::optional<T>> : std::true_type {};
+
+template<typename T>
+inline constexpr bool is_optional_v = is_optional<std::remove_cvref_t<T>>::value;
+
+template<typename T>
+struct optional_underlying_type {
+    using type = T;
+};
+
+template<typename T>
+struct optional_underlying_type<std::optional<T>> {
+    using type = T;
+};
+
+template<typename T>
+using optional_underlying_type_t = typename optional_underlying_type<std::remove_cvref_t<T>>::type;
+
+/**
+ * @brief Concept for parameters that can represent a rectangle or nullopt
+ *
+ * Accepts:
+ * - std::nullopt_t
+ * - any type satisfying rect_like
+ * - std::optional<R> where R satisfies rect_like
+ */
+template<typename T>
+concept rect_param = std::same_as<std::remove_cvref_t<T>, std::nullopt_t> ||
+                     rect_like<std::remove_cvref_t<T>> ||
+                     (is_optional_v<T> && rect_like<optional_underlying_type_t<T>>);
+
+/**
+ * @brief Concept for parameters that can represent a point or nullopt
+ *
+ * Accepts:
+ * - std::nullopt_t
+ * - any type satisfying point_like
+ * - std::optional<P> where P satisfies point_like
+ */
+template<typename T>
+concept point_param = std::same_as<std::remove_cvref_t<T>, std::nullopt_t> ||
+                      point_like<std::remove_cvref_t<T>> ||
+                      (is_optional_v<T> && point_like<optional_underlying_type_t<T>>);
 
 // Utility functions that work with any geometry type
 
