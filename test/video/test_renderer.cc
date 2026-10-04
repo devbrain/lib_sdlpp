@@ -3,6 +3,7 @@
 //
 
 #include <doctest/doctest.h>
+#include <cstdint>
 #include <vector>
 
 #include "sdlpp/video/renderer.hh"
@@ -734,6 +735,26 @@ TEST_SUITE("renderer and texture") {
             CHECK(result.has_value());
         }
         
+        SUBCASE("render geometry with 16-bit indices") {
+            std::vector<SDL_Vertex> vertices = {
+                renderer::make_vertex(point_f{10.0f, 10.0f}, colors::red),
+                renderer::make_vertex(point_f{50.0f, 10.0f}, colors::green),
+                renderer::make_vertex(point_f{50.0f, 50.0f}, colors::blue),
+                renderer::make_vertex(point_f{10.0f, 50.0f}, colors::white)
+            };
+            std::vector<std::uint16_t> indices = {0, 1, 2, 0, 2, 3};
+            CHECK(rend.render_geometry(nullptr, vertices, indices).has_value());
+
+            std::vector<std::uint16_t> out_of_range = {0, 1, 4};
+            auto bad = rend.render_geometry(nullptr, vertices, out_of_range);
+            CHECK(!bad.has_value());
+            CHECK(bad.error() == "Index out of bounds");
+
+            std::vector<std::uint16_t> two = {0, 1};
+            auto not_triangles = rend.render_geometry(nullptr, vertices, two);
+            CHECK(!not_triangles.has_value());
+        }
+
         SUBCASE("error cases") {
             // Empty vertices
             std::vector<SDL_Vertex> empty_verts;

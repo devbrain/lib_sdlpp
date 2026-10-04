@@ -24,6 +24,7 @@
 #include <sdlpp/detail/geometry_conversion.hh>
 #include <string>
 #include <vector>
+#include <cstdint>
 #include <span>
 #include <optional>
 #include <array>
@@ -1167,6 +1168,59 @@ namespace sdlpp {
                 if (!SDL_RenderGeometry(ptr.get(), texture,
                                         vertices.data(), static_cast <int>(vertices.size()),
                                         indices.data(), static_cast <int>(indices.size()))) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Render textured triangles with 16-bit indices (SDL_RenderGeometryRaw)
+             *
+             * The same as the `int` overload, for vertex/index buffers produced by tools that emit 16-bit
+             * indices (e.g. immediate-mode GUI libraries), without copying them into an `int` buffer.
+             *
+             * @param texture Texture to use (nullptr for solid color)
+             * @param vertices Vertex data (positions, colors, texture coords)
+             * @param indices Index data for triangles (3 indices per triangle)
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> render_geometry(
+                SDL_Texture* texture,
+                std::span <const SDL_Vertex> vertices,
+                std::span <const std::uint16_t> indices) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+
+                if (vertices.empty() || indices.empty()) {
+                    return {}; // Nothing to render
+                }
+
+                if (indices.size() % 3 != 0) {
+                    return make_unexpectedf("Index count must be multiple of 3 for triangles");
+                }
+
+                if (vertices.size() > static_cast <size_t>(std::numeric_limits <int>::max()) ||
+                    indices.size() > static_cast <size_t>(std::numeric_limits <int>::max())) {
+                    return make_unexpectedf("Too many vertices or indices for SDL API");
+                }
+
+                for (const auto idx : indices) {
+                    if (static_cast <size_t>(idx) >= vertices.size()) {
+                        return make_unexpectedf("Index out of bounds");
+                    }
+                }
+
+                const SDL_Vertex* v = vertices.data();
+                constexpr int stride = static_cast <int>(sizeof(SDL_Vertex));
+                if (!SDL_RenderGeometryRaw(ptr.get(), texture,
+                                           &v->position.x, stride,
+                                           &v->color, stride,
+                                           &v->tex_coord.x, stride,
+                                           static_cast <int>(vertices.size()),
+                                           indices.data(), static_cast <int>(indices.size()),
+                                           static_cast <int>(sizeof(std::uint16_t)))) {
                     return make_unexpectedf(get_error());
                 }
 
