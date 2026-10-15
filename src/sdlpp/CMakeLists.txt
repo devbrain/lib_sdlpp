@@ -37,10 +37,6 @@ neutrino_fetch_euler()
 include(${NEUTRINO_CMAKE_DIR}/deps/failsafe.cmake)
 neutrino_fetch_failsafe()
 
-# expected - std::expected backport
-include(${NEUTRINO_CMAKE_DIR}/deps/expected.cmake)
-neutrino_fetch_expected()
-
 # =============================================================================
 # Optional Dependencies
 # =============================================================================
@@ -165,7 +161,6 @@ target_link_libraries(sdlpp
         SDL3::SDL3
         euler::euler
         failsafe
-        tl::expected
 )
 
 # =============================================================================
