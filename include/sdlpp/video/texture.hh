@@ -377,11 +377,11 @@ namespace sdlpp {
              * @note Only works for streaming textures
              */
             template<rect_like R>
-            expected <std::pair <void*, int>, std::string> lock(const std::optional <R>& lock_rect) {
+            expected <std::pair <void*, int>, std::string> lock(const std::optional <R>& lock_rect = std::nullopt) {
                 if (lock_rect) {
                     return lock(*lock_rect);
                 }
-                return lock(std::nullopt);
+                return lock();
             }
 
             /**
