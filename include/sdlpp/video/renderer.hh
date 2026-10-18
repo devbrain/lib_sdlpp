@@ -71,6 +71,17 @@ namespace sdlpp {
     };
 
     /**
+     * @brief How a logical rendering size is fitted to the current target.
+     */
+    enum class logical_presentation : int {
+        disabled = SDL_LOGICAL_PRESENTATION_DISABLED,
+        stretch = SDL_LOGICAL_PRESENTATION_STRETCH,
+        letterbox = SDL_LOGICAL_PRESENTATION_LETTERBOX,
+        overscan = SDL_LOGICAL_PRESENTATION_OVERSCAN,
+        integer_scale = SDL_LOGICAL_PRESENTATION_INTEGER_SCALE
+    };
+
+    /**
      * @brief Texture address mode for wrapping behavior (SDL 3.4.0+)
      *
      * Controls how textures are sampled when UV coordinates exceed [0, 1].
@@ -140,7 +151,9 @@ namespace sdlpp {
                     return make_unexpectedf("Invalid renderer");
                 }
 
-                SDL_RenderClear(ptr.get());
+                if (!SDL_RenderClear(ptr.get())) {
+                    return make_unexpectedf(get_error());
+                }
 
                 return {};
             }
@@ -189,6 +202,33 @@ namespace sdlpp {
                 }
 
                 return color{r, g, b, a};
+            }
+
+            /**
+             * @brief Set the draw color without quantizing floating-point channels.
+             */
+            expected <void, std::string> set_draw_color_float(const fcolor& c) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+                if (!SDL_SetRenderDrawColorFloat(ptr.get(), c.r, c.g, c.b, c.a)) {
+                    return make_unexpectedf(get_error());
+                }
+                return {};
+            }
+
+            /**
+             * @brief Get the draw color with floating-point channel precision.
+             */
+            [[nodiscard]] expected <fcolor, std::string> get_draw_color_float() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+                fcolor c;
+                if (!SDL_GetRenderDrawColorFloat(ptr.get(), &c.r, &c.g, &c.b, &c.a)) {
+                    return make_unexpectedf(get_error());
+                }
+                return c;
             }
 
             /**
@@ -786,6 +826,23 @@ namespace sdlpp {
              */
             [[nodiscard]] bool is_clip_enabled() const {
                 return ptr && SDL_RenderClipEnabled(ptr.get());
+            }
+
+            /**
+             * @brief Set the logical rendering size and fit mode for the current target.
+             *
+             * Each texture target and the window retain their own presentation settings.
+             */
+            expected <void, std::string> set_logical_presentation(
+                int width, int height, logical_presentation mode) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+                if (!SDL_SetRenderLogicalPresentation(ptr.get(), width, height,
+                        static_cast <SDL_RendererLogicalPresentation>(mode))) {
+                    return make_unexpectedf(get_error());
+                }
+                return {};
             }
 
             /**

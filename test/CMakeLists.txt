@@ -34,6 +34,7 @@ add_executable(sdlpp_unittest
     video/test_window.cc
     video/test_window_geometry.cc
     video/test_renderer.cc
+    video/test_renderer_state.cc
     video/test_renderer_geometry.cc
     video/test_surface.cc
     video/test_color.cc

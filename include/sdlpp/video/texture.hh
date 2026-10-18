@@ -759,13 +759,31 @@ namespace sdlpp {
         private:
             renderer& r_;
             SDL_Texture* prev_target_;
+            bool restored_ = false;
         public:
-            target_guard(renderer& r, const texture& target) : r_(r) {
-                prev_target_ = SDL_GetRenderTarget(r_.get());
+            /// Save the current target without taking ownership or changing it.
+            /// The renderer and saved target must outlive the guard.
+            explicit target_guard(renderer& r)
+                : r_(r), prev_target_(r ? SDL_GetRenderTarget(r.get()) : nullptr) {}
+
+            target_guard(renderer& r, const texture& target) : target_guard(r) {
                 r_.set_target(target);
             }
             ~target_guard() {
-                SDL_SetRenderTarget(r_.get(), prev_target_);
+                if (!restored_ && r_) {
+                    SDL_SetRenderTarget(r_.get(), prev_target_);
+                }
+            }
+
+            /// Restore early with error reporting; retry in the destructor on failure.
+            expected <void, std::string> restore() {
+                if (restored_) return {};
+                if (!r_) return make_unexpectedf("Invalid renderer");
+                if (!SDL_SetRenderTarget(r_.get(), prev_target_)) {
+                    return make_unexpectedf(get_error());
+                }
+                restored_ = true;
+                return {};
             }
             target_guard(const target_guard&) = delete;
             target_guard& operator=(const target_guard&) = delete;
