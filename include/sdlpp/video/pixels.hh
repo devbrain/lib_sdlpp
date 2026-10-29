@@ -76,6 +76,13 @@ namespace sdlpp {
         ABGR8888 = SDL_PIXELFORMAT_ABGR8888, ///< 32-bit ABGR (8-8-8-8)
         BGRA8888 = SDL_PIXELFORMAT_BGRA8888, ///< 32-bit BGRA (8-8-8-8)
         ARGB2101010 = SDL_PIXELFORMAT_ARGB2101010, ///< 32-bit ARGB (2-10-10-10)
+
+        // Byte-order aliases: the channels are laid out in memory in the named order on
+        // every platform (each equals one of the packed formats above, chosen by endianness).
+        RGBA32 = SDL_PIXELFORMAT_RGBA32, ///< Bytes R, G, B, A in memory
+        ARGB32 = SDL_PIXELFORMAT_ARGB32, ///< Bytes A, R, G, B in memory
+        BGRA32 = SDL_PIXELFORMAT_BGRA32, ///< Bytes B, G, R, A in memory
+        ABGR32 = SDL_PIXELFORMAT_ABGR32, ///< Bytes A, B, G, R in memory
     };
 
     /**

@@ -2,6 +2,7 @@
 // Created by igor on 7/13/25.
 //
 #include <doctest/doctest.h>
+#include <cstring>
 #include <vector>
 
 #include "sdlpp/video/pixels.hh"
@@ -54,6 +55,19 @@ TEST_SUITE("pixels") {
         CHECK((c_back.g >= 127 && c_back.g <= 128));
         CHECK((c_back.b >= 63 && c_back.b <= 64));
         CHECK(c_back.a == 255);
+    }
+
+    TEST_CASE("RGBA32 stores bytes in R, G, B, A order") {
+        pixel_format fmt(pixel_format_enum::RGBA32);
+
+        const Uint32 pixel = fmt.map_rgba(color(10, 20, 30, 40));
+        unsigned char bytes[4];
+        std::memcpy(bytes, &pixel, sizeof(bytes));
+
+        CHECK(bytes[0] == 10);
+        CHECK(bytes[1] == 20);
+        CHECK(bytes[2] == 30);
+        CHECK(bytes[3] == 40);
     }
 
     TEST_CASE("pixel_format RAII allocates and frees") {
