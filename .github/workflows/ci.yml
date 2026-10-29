@@ -20,11 +20,12 @@ jobs:
             compiler: gcc
             version: 13
 
-          # Linux Clang
-          - os: ubuntu-latest
+          # Linux Clang -- pinned to 24.04: apt.llvm.org has no clang 17 / 18 packages
+          # for the release ubuntu-latest points at (26.04 "resolute").
+          - os: ubuntu-24.04
             compiler: clang
             version: 17
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             compiler: clang
             version: 18
 
