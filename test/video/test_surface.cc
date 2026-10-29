@@ -228,6 +228,29 @@ TEST_SUITE("surface") {
             auto alpha_result = surf.set_alpha_mod(128);  // Half transparent
             CHECK(alpha_result.has_value());
         }
+
+        SUBCASE("color key") {
+            CHECK(!surf.color_key().has_value());
+
+            REQUIRE(surf.set_color_key(colors::red).has_value());
+            const auto key = surf.color_key();
+            REQUIRE(key.has_value());
+            CHECK(*key == SDL_MapSurfaceRGBA(surf.get(), 255, 0, 0, 255));
+
+            REQUIRE(surf.clear_color_key().has_value());
+            CHECK(!surf.color_key().has_value());
+        }
+    }
+
+    TEST_CASE("surface color key on an indexed surface") {
+        auto result = surface::create_rgb(4, 4, pixel_format_enum::INDEX8);
+        REQUIRE(result.has_value());
+        auto& surf = *result;
+
+        REQUIRE(surf.set_color_key(uint32_t{7}).has_value());
+        const auto key = surf.color_key();
+        REQUIRE(key.has_value());
+        CHECK(*key == 7u);
     }
     
     TEST_CASE("surface conversion and duplication") {

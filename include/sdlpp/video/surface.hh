@@ -542,6 +542,71 @@ namespace sdlpp {
             }
 
             /**
+             * @brief Set the transparent colour key from a raw pixel value
+             * @param key Pixel value in the surface's format (a palette index for INDEX8)
+             * @return Expected<void> - empty on success, error message on failure
+             * @note Pixels equal to the key are skipped when blitting
+             */
+            expected <void, std::string> set_color_key(uint32_t key) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid surface");
+                }
+
+                if (!SDL_SetSurfaceColorKey(ptr.get(), true, key)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Set the transparent colour key from a colour
+             * @param c Colour mapped to the surface's format (closest palette entry for indexed surfaces)
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> set_color_key(const color& c) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid surface");
+                }
+
+                return set_color_key(SDL_MapSurfaceRGBA(ptr.get(), c.r, c.g, c.b, c.a));
+            }
+
+            /**
+             * @brief Disable the colour key
+             * @return Expected<void> - empty on success, error message on failure
+             */
+            expected <void, std::string> clear_color_key() {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid surface");
+                }
+
+                if (!SDL_SetSurfaceColorKey(ptr.get(), false, 0)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return {};
+            }
+
+            /**
+             * @brief Get the colour key as a raw pixel value
+             * @return The key (a palette index for INDEX8), or std::nullopt when the surface
+             *         is invalid or has no colour key
+             */
+            [[nodiscard]] std::optional <uint32_t> color_key() const {
+                if (!ptr || !SDL_SurfaceHasColorKey(ptr.get())) {
+                    return std::nullopt;
+                }
+
+                uint32_t key;
+                if (!SDL_GetSurfaceColorKey(ptr.get(), &key)) {
+                    return std::nullopt;
+                }
+
+                return key;
+            }
+
+            /**
              * @brief Convert surface to a different pixel format
              * @param format Target pixel format
              * @return Expected containing new surface, or error message
