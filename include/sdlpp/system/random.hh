@@ -56,7 +56,7 @@ namespace sdlpp::random {
 
         template<integer_type T, typename Engine>
         [[nodiscard]] T uniform_int_with(Engine& engine, T min_inclusive, T max_inclusive) {
-            ENFORCE_LE(min_inclusive, max_inclusive)("Invalid random integer range");
+            ENFORCE_LE(min_inclusive, max_inclusive, "Invalid random integer range");
 
             using dist_type = distribution_integer_t<T>;
             std::uniform_int_distribution<dist_type> distribution{
@@ -68,7 +68,7 @@ namespace sdlpp::random {
 
         template<std::floating_point T, typename Engine>
         [[nodiscard]] T uniform_real_with(Engine& engine, T min_inclusive, T max_exclusive) {
-            ENFORCE_LE(min_inclusive, max_exclusive)("Invalid random real range");
+            ENFORCE_LE(min_inclusive, max_exclusive, "Invalid random real range");
 
             if (min_inclusive == max_exclusive) {
                 return min_inclusive;
@@ -122,7 +122,7 @@ namespace sdlpp::random {
      * @brief Generate an integer in [0, upper_exclusive).
      */
     [[nodiscard]] inline std::int32_t uniform_int(std::int32_t upper_exclusive) {
-        ENFORCE_GT(upper_exclusive, 0)("Random upper bound must be positive");
+        ENFORCE_GT(upper_exclusive, 0, "Random upper bound must be positive");
         return SDL_rand(upper_exclusive);
     }
 
@@ -140,7 +140,7 @@ namespace sdlpp::random {
      */
     template<detail::integer_type T>
     [[nodiscard]] T uniform_int(T upper_exclusive) {
-        ENFORCE_GT(upper_exclusive, T{0})("Random upper bound must be positive");
+        ENFORCE_GT(upper_exclusive, T{0}, "Random upper bound must be positive");
         return uniform_int(T{0}, static_cast<T>(upper_exclusive - T{1}));
     }
 
@@ -215,13 +215,13 @@ namespace sdlpp::random {
             }
 
             [[nodiscard]] std::int32_t uniform_int(std::int32_t upper_exclusive) {
-                ENFORCE_GT(upper_exclusive, 0)("Random upper bound must be positive");
+                ENFORCE_GT(upper_exclusive, 0, "Random upper bound must be positive");
                 return SDL_rand_r(&state_, upper_exclusive);
             }
 
             template<detail::integer_type T>
             [[nodiscard]] T uniform_int(T upper_exclusive) {
-                ENFORCE_GT(upper_exclusive, T{0})("Random upper bound must be positive");
+                ENFORCE_GT(upper_exclusive, T{0}, "Random upper bound must be positive");
                 return uniform_int(T{0}, static_cast<T>(upper_exclusive - T{1}));
             }
 
@@ -300,8 +300,8 @@ namespace sdlpp::random {
      */
     template<detail::random_value T, std::uniform_random_bit_generator Engine>
     [[nodiscard]] sdlpp::point<T> point(Engine& engine, const sdlpp::rect<T>& bounds) {
-        ENFORCE_GT(bounds.w, T{0})("Random point bounds width must be positive");
-        ENFORCE_GT(bounds.h, T{0})("Random point bounds height must be positive");
+        ENFORCE_GT(bounds.w, T{0}, "Random point bounds width must be positive");
+        ENFORCE_GT(bounds.h, T{0}, "Random point bounds height must be positive");
 
         return point(
             engine,
@@ -373,8 +373,8 @@ namespace sdlpp::random {
         Engine& engine,
         const sdlpp::rect<T>& bounds,
         const sdlpp::size<T>& dimensions) {
-        ENFORCE_GE(bounds.w, dimensions.width)("Random rectangle width must fit inside bounds");
-        ENFORCE_GE(bounds.h, dimensions.height)("Random rectangle height must fit inside bounds");
+        ENFORCE_GE(bounds.w, dimensions.width, "Random rectangle width must fit inside bounds");
+        ENFORCE_GE(bounds.h, dimensions.height, "Random rectangle height must fit inside bounds");
 
         const auto x = detail::value_with(
             engine,
@@ -406,10 +406,10 @@ namespace sdlpp::random {
         const sdlpp::rect<T>& bounds,
         const sdlpp::size<T>& min_size,
         const sdlpp::size<T>& max_size) {
-        ENFORCE_LE(min_size.width, max_size.width)("Invalid random rectangle width range");
-        ENFORCE_LE(min_size.height, max_size.height)("Invalid random rectangle height range");
-        ENFORCE_LE(max_size.width, bounds.w)("Random rectangle maximum width must fit inside bounds");
-        ENFORCE_LE(max_size.height, bounds.h)("Random rectangle maximum height must fit inside bounds");
+        ENFORCE_LE(min_size.width, max_size.width, "Invalid random rectangle width range");
+        ENFORCE_LE(min_size.height, max_size.height, "Invalid random rectangle height range");
+        ENFORCE_LE(max_size.width, bounds.w, "Random rectangle maximum width must fit inside bounds");
+        ENFORCE_LE(max_size.height, bounds.h, "Random rectangle maximum height must fit inside bounds");
 
         return rect(engine, bounds, size(engine, min_size, max_size));
     }
@@ -452,9 +452,9 @@ namespace sdlpp::random {
         const sdlpp::rect<T>& bounds,
         T min_radius,
         T max_radius) {
-        ENFORCE_LE(min_radius, max_radius)("Invalid random circle radius range");
-        ENFORCE_LE(max_radius * T{2}, bounds.w)("Random circle maximum diameter must fit inside bounds width");
-        ENFORCE_LE(max_radius * T{2}, bounds.h)("Random circle maximum diameter must fit inside bounds height");
+        ENFORCE_LE(min_radius, max_radius, "Invalid random circle radius range");
+        ENFORCE_LE(max_radius * T{2}, bounds.w, "Random circle maximum diameter must fit inside bounds width");
+        ENFORCE_LE(max_radius * T{2}, bounds.h, "Random circle maximum diameter must fit inside bounds height");
 
         const auto radius = detail::value_with(engine, min_radius, max_radius);
         const auto center = point(
