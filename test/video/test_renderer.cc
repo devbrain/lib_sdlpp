@@ -369,6 +369,25 @@ TEST_SUITE("renderer and texture") {
             }
         }
         
+        SUBCASE("texture access") {
+            for (const auto access : {texture_access::static_access, texture_access::streaming,
+                                      texture_access::target}) {
+                auto tex = texture::create(rend, pixel_format_enum::RGBA8888, access, 8, 8);
+                REQUIRE(tex.has_value());
+                auto got = tex->get_access();
+                REQUIRE(got.has_value());
+                CHECK(*got == access);
+            }
+
+            auto surf = surface::create_rgb(4, 4, pixel_format_enum::RGBA8888);
+            REQUIRE(surf.has_value());
+            auto from_surface = texture::create(rend, *surf);
+            REQUIRE(from_surface.has_value());
+            auto got = from_surface->get_access();
+            REQUIRE(got.has_value());
+            CHECK(*got == texture_access::static_access);
+        }
+
         SUBCASE("texture from surface") {
             // Create a small surface
             auto tex_surf = surface::create_rgb(32, 32, pixel_format_enum::RGBA8888);
@@ -653,7 +672,10 @@ TEST_SUITE("renderer and texture") {
         SUBCASE("invalid texture operations") {
             auto size = invalid_tex.get_size();
             CHECK(!size.has_value());
-            
+
+            auto access = invalid_tex.get_access();
+            CHECK(!access.has_value());
+
             auto blend = invalid_tex.set_blend_mode(blend_mode::blend);
             CHECK(!blend.has_value());
         }

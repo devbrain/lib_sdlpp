@@ -118,6 +118,27 @@ namespace sdlpp {
             }
 
             /**
+             * @brief Get the access the texture was created with
+             *
+             * SDL records it at creation (SDL_PROP_TEXTURE_ACCESS_NUMBER) and it never changes.
+             * @return Expected containing the access, or error message
+             */
+            [[nodiscard]] expected <texture_access, std::string> get_access() const {
+                auto props = get_properties();
+                if (!props) {
+                    return make_unexpectedf(props.error());
+                }
+
+                const auto access = SDL_GetNumberProperty(*props, SDL_PROP_TEXTURE_ACCESS_NUMBER, -1);
+                switch (access) {
+                    case SDL_TEXTUREACCESS_STATIC: return texture_access::static_access;
+                    case SDL_TEXTUREACCESS_STREAMING: return texture_access::streaming;
+                    case SDL_TEXTUREACCESS_TARGET: return texture_access::target;
+                    default: return make_unexpectedf("Unknown texture access: ", access);
+                }
+            }
+
+            /**
              * @brief Set blend mode
              * @param mode Blend mode to set (defaults to none)
              * @return Expected<void> - empty on success, error message on failure
