@@ -82,6 +82,15 @@ namespace sdlpp {
     };
 
     /**
+     * @brief A target's logical rendering size and fit mode (renderer::get_logical_presentation()).
+     */
+    struct logical_presentation_info {
+        int width = 0;
+        int height = 0;
+        logical_presentation mode = logical_presentation::disabled;
+    };
+
+    /**
      * @brief Texture address mode for wrapping behavior (SDL 3.4.0+)
      *
      * Controls how textures are sampled when UV coordinates exceed [0, 1].
@@ -182,7 +191,9 @@ namespace sdlpp {
                     return make_unexpectedf("Invalid renderer");
                 }
 
-                SDL_SetRenderDrawColor(ptr.get(), c.r, c.g, c.b, c.a);
+                if (!SDL_SetRenderDrawColor(ptr.get(), c.r, c.g, c.b, c.a)) {
+                    return make_unexpectedf(get_error());
+                }
 
                 return {};
             }
@@ -846,6 +857,111 @@ namespace sdlpp {
             }
 
             /**
+             * @brief Get the logical rendering size and fit mode of the current target.
+             * @return Expected containing the size and mode (mode is disabled when none is set),
+             *         or error message
+             */
+            [[nodiscard]] expected <logical_presentation_info, std::string> get_logical_presentation() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+                logical_presentation_info info;
+                SDL_RendererLogicalPresentation mode = SDL_LOGICAL_PRESENTATION_DISABLED;
+                if (!SDL_GetRenderLogicalPresentation(ptr.get(), &info.width, &info.height, &mode)) {
+                    return make_unexpectedf(get_error());
+                }
+                info.mode = static_cast <logical_presentation>(mode);
+                return info;
+            }
+
+            /**
+             * @brief Map a point in window coordinates to render coordinates.
+             *
+             * Uses the window's view whatever target is current: its pixel density, logical
+             * presentation, scale and viewport. The inverse of coordinates_to_window().
+             * @tparam P Point type (must satisfy point_like)
+             * @return Expected containing the point in render coordinates, or error message
+             */
+            template<point_like P>
+            [[nodiscard]] expected <P, std::string> coordinates_from_window(const P& window_point) const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+                float x = 0.0f;
+                float y = 0.0f;
+                if (!SDL_RenderCoordinatesFromWindow(ptr.get(), static_cast <float>(window_point.x),
+                                                     static_cast <float>(window_point.y), &x, &y)) {
+                    return make_unexpectedf(get_error());
+                }
+                return P{static_cast <typename P::value_type>(x), static_cast <typename P::value_type>(y)};
+            }
+
+            /**
+             * @brief Map a point in render coordinates to window coordinates.
+             *
+             * The inverse of coordinates_from_window(), using the same window view.
+             * @tparam P Point type (must satisfy point_like)
+             * @return Expected containing the point in window coordinates, or error message
+             */
+            template<point_like P>
+            [[nodiscard]] expected <P, std::string> coordinates_to_window(const P& render_point) const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+                float x = 0.0f;
+                float y = 0.0f;
+                if (!SDL_RenderCoordinatesToWindow(ptr.get(), static_cast <float>(render_point.x),
+                                                   static_cast <float>(render_point.y), &x, &y)) {
+                    return make_unexpectedf(get_error());
+                }
+                return P{static_cast <typename P::value_type>(x), static_cast <typename P::value_type>(y)};
+            }
+
+            /**
+             * @brief Get renderer properties
+             * @return Expected containing properties ID, or error message
+             */
+            [[nodiscard]] expected <SDL_PropertiesID, std::string> get_properties() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+
+                SDL_PropertiesID props = SDL_GetRendererProperties(ptr.get());
+                if (!props) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return props;
+            }
+
+            /**
+             * @brief Get the largest texture width and height the renderer supports
+             *        (SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER).
+             * @return Expected containing the size in pixels (0 if the driver does not report one),
+             *         or error message
+             */
+            [[nodiscard]] expected <int, std::string> get_max_texture_size() const {
+                auto props = get_properties();
+                if (!props) {
+                    return make_unexpectedf(props.error());
+                }
+                const Sint64 size = SDL_GetNumberProperty(*props, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, 0);
+                if (size <= 0 || size > std::numeric_limits <int>::max()) {
+                    return 0;
+                }
+                return static_cast <int>(size);
+            }
+
+            /**
+             * @brief Read the current target's pixels back to the CPU.
+             *
+             * Reads the window between drawing and present (its contents are undefined after
+             * present), or the bound target texture. Slow: it stalls the GPU.
+             * @return Expected containing a new surface, or error message
+             */
+            [[nodiscard]] SDLPP_EXPORT expected <surface, std::string> read_pixels() const;
+
+            /**
              * @brief Set render scale
              * @param scale_x X axis scale factor
              * @param scale_y Y axis scale factor
@@ -1072,9 +1188,12 @@ namespace sdlpp {
 
             /**
              * @brief Get current render target
-             * @return Expected containing target texture (empty texture for default), or error
+             *
+             * The texture is borrowed, not owned: the renderer keeps using it, so it must not be
+             * wrapped in an owning @ref texture. Use @ref target_guard to save and restore it.
+             * @return Expected containing the target (nullptr for the window), or error message
              */
-            [[nodiscard]] expected <texture, std::string> get_target() const;
+            [[nodiscard]] expected <SDL_Texture*, std::string> get_target() const;
 
             /**
              * @brief Set render target

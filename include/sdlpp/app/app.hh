@@ -163,6 +163,17 @@ namespace sdlpp {
          */
         [[nodiscard]] bool is_running() const noexcept;
 
+        /**
+         * @brief Initialize SDL subsystems beyond those passed to the constructor
+         *
+         * For subsystems that are optional at runtime (e.g. gamepad): unlike the constructor's
+         * flags, a failure here does not abort startup. They shut down with the rest of SDL.
+         * @param flags Subsystems to initialize
+         * @return true on success; false if SDL is not initialized yet or a subsystem failed
+         *         (get_error() says why)
+         */
+        [[nodiscard]] bool init_subsystem(init_flags flags) noexcept;
+
         /// @internal Initialize SDL (called by entry_point)
         void init_sdl_();
 

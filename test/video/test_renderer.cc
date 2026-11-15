@@ -239,11 +239,11 @@ TEST_SUITE("renderer and texture") {
                         renderer::target_guard target_g(rend, tex);
                         auto current = rend.get_target();
                         REQUIRE(current.has_value());
-                        CHECK(current->get() == tex.get());
+                        CHECK(*current == tex.get());
                     }
                     auto current = rend.get_target();
                     REQUIRE(current.has_value());
-                    CHECK(current->get() == nullptr);
+                    CHECK(*current == nullptr);
                 }
             }
         }

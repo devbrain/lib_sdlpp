@@ -66,6 +66,10 @@ namespace sdlpp {
         return running_.load(std::memory_order_acquire);
     }
 
+    bool abstract_application::init_subsystem(init_flags flags) noexcept {
+        return sdl_init_.has_value() && sdl_init_->init_subsystem(flags);
+    }
+
     void abstract_application::init_sdl_() { sdl_init_.emplace(init_flags_); }
 
     void abstract_application::shutdown_sdl_() noexcept { sdl_init_.reset(); }

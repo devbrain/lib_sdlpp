@@ -139,6 +139,32 @@ namespace sdlpp {
     }
 
     /**
+     * @brief Mouse state with SDL's sub-pixel position (see get_mouse_state_f())
+     */
+    struct mouse_state_f {
+        float x = 0.0f;
+        float y = 0.0f;
+        mouse_button_mask buttons = mouse_button_mask::none;
+
+        [[nodiscard]] bool is_button_pressed(mouse_button button) const noexcept {
+            return has_button(buttons, button_to_mask(button));
+        }
+    };
+
+    /**
+     * @brief Get the current mouse state relative to the focused window, keeping the
+     *        fractional position that get_mouse_state() truncates
+     *
+     * @return Current mouse state
+     */
+    [[nodiscard]] inline mouse_state_f get_mouse_state_f() noexcept {
+        mouse_state_f state;
+        const Uint32 button_state = SDL_GetMouseState(&state.x, &state.y);
+        state.buttons = static_cast <mouse_button_mask>(button_state);
+        return state;
+    }
+
+    /**
      * @brief Get the global mouse state
      *
      * @return Current global mouse state

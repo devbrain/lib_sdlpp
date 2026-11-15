@@ -37,6 +37,7 @@ add_executable(sdlpp_unittest
     video/test_renderer_state.cc
     video/test_renderer_geometry.cc
     video/test_surface.cc
+    video/test_surface_renderer.cc
     video/test_color.cc
     video/test_display.cc
     video/test_gl.cc
@@ -103,6 +104,7 @@ add_executable(sdlpp_unittest
     utility/test_dimension_concepts.cc
     utility/test_geometry.cc
     utility/test_guid.cc
+    utility/test_hash.cc
 
     # Simplex tests
     simplex/test_collide.cc

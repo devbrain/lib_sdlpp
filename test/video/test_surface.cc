@@ -448,4 +448,28 @@ TEST_SUITE("surface") {
             CHECK(loaded.height() == surf.height());
         }
     }
+
+    TEST_CASE("lock reports success and pixels() spans the rows") {
+        auto result = surface::create_rgb(4, 3, pixel_format_enum::RGBA8888);
+        REQUIRE(result.has_value());
+        auto& surf = *result;
+
+        // SDL3's SDL_LockSurface returns true on success; a success must not read as failure.
+        CHECK(surf.lock().has_value());
+        surf.unlock();
+        {
+            surface::lock_guard guard(surf);
+            CHECK(guard.is_locked());
+        }
+
+        const auto bytes = surf.pixels();
+        CHECK(bytes.size() == surf.height() * surf.pitch());
+        REQUIRE(surf.fill(color{10, 20, 30, 255}).has_value());
+        const auto& view = surf;
+        CHECK(view.pixels().data() == bytes.data());
+
+        surface empty;
+        CHECK(empty.pixels().empty());
+        CHECK_FALSE(empty.lock().has_value());
+    }
 }

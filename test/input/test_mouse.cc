@@ -30,6 +30,13 @@ TEST_SUITE("mouse") {
             // Get global mouse state
             [[maybe_unused]] auto global_state = get_global_mouse_state();
             CHECK(true);
+
+            // The float state keeps the position get_mouse_state() truncates
+            const auto precise = get_mouse_state_f();
+            const auto truncated = get_mouse_state();
+            CHECK(static_cast<int>(precise.x) == truncated.x);
+            CHECK(static_cast<int>(precise.y) == truncated.y);
+            CHECK(precise.buttons == truncated.buttons);
             
             // Check cursor visibility
             [[maybe_unused]] bool visible = is_cursor_visible();

@@ -107,6 +107,7 @@ target_sources(sdlpp PRIVATE
         video/pixels.cc
         video/renderer.cc
         video/renderer_dda.cc
+        video/renderer_read_pixels.cc
         video/surface.cc
         video/surface_renderer.cc
 )

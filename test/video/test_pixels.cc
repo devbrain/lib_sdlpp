@@ -96,4 +96,12 @@ TEST_SUITE("pixels") {
         CHECK(result.has_value());
     }
 
+    TEST_CASE("bytes_per_pixel follows SDL_BYTESPERPIXEL") {
+        CHECK(bytes_per_pixel(pixel_format_enum::RGBA8888) == 4);
+        CHECK(bytes_per_pixel(pixel_format_enum::RGB24) == 3);
+        CHECK(bytes_per_pixel(pixel_format_enum::RGB565) == 2);
+        CHECK(bytes_per_pixel(pixel_format_enum::INDEX8) == 1);
+        CHECK(bytes_per_pixel(pixel_format_enum::INDEX1LSB) == 0);
+        static_assert(bytes_per_pixel(pixel_format_enum::ARGB8888) == 4);
+    }
 }

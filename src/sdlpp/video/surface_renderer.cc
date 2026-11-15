@@ -13,9 +13,9 @@ namespace sdlpp {
 // Surface lock implementation
 surface_renderer::surface_lock::surface_lock(SDL_Surface* s) 
     : surface_(s), locked_(false) {
-    if (surface_ && SDL_MUSTLOCK(surface_)) {
-        locked_ = SDL_LockSurface(surface_) == 0;
-    }
+    // Always lock: is_locked() means the pixels may be accessed. SDL3 returns true on
+    // success (SDL2 returned 0), and locking a surface that needs no lock just counts it.
+    locked_ = surface_ != nullptr && SDL_LockSurface(surface_);
 }
 
 surface_renderer::surface_lock::~surface_lock() {
@@ -124,7 +124,7 @@ expected<void, std::string> surface_renderer::clear() {
     }
     
     // Use SDL_FillSurfaceRect for efficiency
-    if (SDL_FillSurfaceRect(surface_, nullptr, mapped_color_) != 0) {
+    if (!SDL_FillSurfaceRect(surface_, nullptr, mapped_color_)) {
         return make_unexpectedf(std::string(SDL_GetError()));
     }
     

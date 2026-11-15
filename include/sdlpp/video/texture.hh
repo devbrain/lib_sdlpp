@@ -746,19 +746,13 @@ namespace sdlpp {
         return {};
     }
 
-    inline expected <texture, std::string> renderer::get_target() const {
+    inline expected <SDL_Texture*, std::string> renderer::get_target() const {
         if (!ptr) {
             return make_unexpectedf("Invalid renderer");
         }
 
-        SDL_Texture* target = SDL_GetRenderTarget(ptr.get());
-        if (!target) {
-            // No target is not an error - it means rendering to default target
-            return texture();
-        }
-
-        // We don't own this texture, but we need to be careful about lifetime
-        return texture(target);
+        // nullptr is not an error: it means rendering to the window.
+        return SDL_GetRenderTarget(ptr.get());
     }
 
     inline expected <void, std::string> renderer::set_target(const texture& target) {
@@ -778,37 +772,59 @@ namespace sdlpp {
 
     class renderer::target_guard {
         private:
-            renderer& r_;
+            renderer* r_;
             SDL_Texture* prev_target_;
             bool restored_ = false;
+
+            void restore_quietly() noexcept {
+                if (!restored_ && r_ && *r_) {
+                    SDL_SetRenderTarget(r_->get(), prev_target_);
+                }
+                restored_ = true;
+            }
         public:
             /// Save the current target without taking ownership or changing it.
             /// The renderer and saved target must outlive the guard.
             explicit target_guard(renderer& r)
-                : r_(r), prev_target_(r ? SDL_GetRenderTarget(r.get()) : nullptr) {}
+                : r_(&r), prev_target_(r ? SDL_GetRenderTarget(r.get()) : nullptr) {}
 
             target_guard(renderer& r, const texture& target) : target_guard(r) {
-                r_.set_target(target);
+                r_->set_target(target);
             }
             ~target_guard() {
-                if (!restored_ && r_) {
-                    SDL_SetRenderTarget(r_.get(), prev_target_);
-                }
+                restore_quietly();
             }
 
             /// Restore early with error reporting; retry in the destructor on failure.
             expected <void, std::string> restore() {
                 if (restored_) return {};
-                if (!r_) return make_unexpectedf("Invalid renderer");
-                if (!SDL_SetRenderTarget(r_.get(), prev_target_)) {
+                if (!r_ || !*r_) return make_unexpectedf("Invalid renderer");
+                if (!SDL_SetRenderTarget(r_->get(), prev_target_)) {
                     return make_unexpectedf(get_error());
                 }
                 restored_ = true;
                 return {};
             }
+
+            /// Moving transfers the duty to restore; the moved-from guard restores nothing.
+            target_guard(target_guard&& other) noexcept
+                : r_(other.r_), prev_target_(other.prev_target_), restored_(other.restored_) {
+                other.restored_ = true;
+            }
+
+            /// Restores this guard's saved target first, then takes over @p other's.
+            target_guard& operator=(target_guard&& other) noexcept {
+                if (this != &other) {
+                    restore_quietly();
+                    r_ = other.r_;
+                    prev_target_ = other.prev_target_;
+                    restored_ = other.restored_;
+                    other.restored_ = true;
+                }
+                return *this;
+            }
+
             target_guard(const target_guard&) = delete;
             target_guard& operator=(const target_guard&) = delete;
-            target_guard(target_guard&&) = delete;
-            target_guard& operator=(target_guard&&) = delete;
     };
 } // namespace sdlpp

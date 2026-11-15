@@ -86,6 +86,16 @@ namespace sdlpp {
     };
 
     /**
+     * @brief Bytes per pixel of @p fmt, as SDL_BYTESPERPIXEL reports it.
+     *
+     * Formats below 8 bits per pixel (INDEX1 / INDEX2 / INDEX4) report 0. FourCC (YUV) formats
+     * report 2 for YUY2, UYVY, YVYU and P010, and 1 for the others.
+     */
+    [[nodiscard]] constexpr int bytes_per_pixel(pixel_format_enum fmt) noexcept {
+        return SDL_BYTESPERPIXEL(static_cast <SDL_PixelFormat>(fmt));
+    }
+
+    /**
      * @brief Wrapper for SDL pixel format operations
      * 
      * This struct provides RAII management and convenient methods for working

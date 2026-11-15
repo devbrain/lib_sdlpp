@@ -27,6 +27,7 @@
 #include <string>
 #include <optional>
 #include <cstring>
+#include <span>
 #include <sdlpp/utility/dimension.hh>
 
 namespace sdlpp {
@@ -162,30 +163,27 @@ namespace sdlpp {
                            : pixel_format_enum::unknown;
             }
 
-            // Note: pixels() methods commented out due to std::span issues in some environments
-            // TODO: Uncomment when span is properly available
+            /**
+             * @brief Get direct access to pixel data
+             * @return The pixel bytes, height() * pitch() of them; empty for an empty surface
+             * @warning If SDL_MUSTLOCK() holds, lock the surface (lock_guard) before accessing pixels
+             */
+            [[nodiscard]] std::span<uint8_t> pixels() {
+                if (!ptr || !ptr->pixels || ptr->h <= 0 || ptr->pitch <= 0) return {};
+                return {static_cast<uint8_t*>(ptr->pixels),
+                        static_cast<size_t>(ptr->h) * static_cast<size_t>(ptr->pitch)};
+            }
 
-            // /**
-            //  * @brief Get direct access to pixel data
-            //  * @return Span of pixel data bytes
-            //  * @warning The surface must be locked before accessing pixels
-            //  */
-            // [[nodiscard]] std::span<uint8_t> pixels() {
-            //     if (!ptr || !ptr->pixels) return {};
-            //     return {static_cast<uint8_t*>(ptr->pixels),
-            //             static_cast<size_t>(ptr->h * ptr->pitch)};
-            // }
-
-            // /**
-            //  * @brief Get read-only access to pixel data
-            //  * @return Span of pixel data bytes
-            //  * @warning The surface must be locked before accessing pixels
-            //  */
-            // [[nodiscard]] std::span<const uint8_t> pixels() const {
-            //     if (!ptr || !ptr->pixels) return {};
-            //     return {static_cast<const uint8_t*>(ptr->pixels),
-            //             static_cast<size_t>(ptr->h * ptr->pitch)};
-            // }
+            /**
+             * @brief Get read-only access to pixel data
+             * @return The pixel bytes, height() * pitch() of them; empty for an empty surface
+             * @warning If SDL_MUSTLOCK() holds, lock the surface (lock_guard) before accessing pixels
+             */
+            [[nodiscard]] std::span<const uint8_t> pixels() const {
+                if (!ptr || !ptr->pixels || ptr->h <= 0 || ptr->pitch <= 0) return {};
+                return {static_cast<const uint8_t*>(ptr->pixels),
+                        static_cast<size_t>(ptr->h) * static_cast<size_t>(ptr->pitch)};
+            }
 
             /**
              * @brief Lock surface for direct pixel access
@@ -195,7 +193,8 @@ namespace sdlpp {
                 if (!ptr) {
                     return make_unexpectedf("Invalid surface");
                 }
-                if (SDL_LockSurface(ptr.get()) != 0) {
+                // SDL3 returns true on success (SDL2 returned 0).
+                if (!SDL_LockSurface(ptr.get())) {
                     return make_unexpectedf(get_error());
                 }
                 return {};

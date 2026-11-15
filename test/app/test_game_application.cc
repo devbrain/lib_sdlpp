@@ -31,6 +31,16 @@ TEST_SUITE("game_application") {
         CHECK_FALSE(static_cast<bool>(state));
     }
 
+    TEST_CASE("init_subsystem needs SDL initialized and adds subsystems") {
+        input_probe app;
+        CHECK_FALSE(app.init_subsystem(sdlpp::init_flags::events));
+        app.init_sdl_();
+        CHECK(app.init_subsystem(sdlpp::init_flags::events));
+        CHECK(SDL_WasInit(SDL_INIT_EVENTS) == SDL_INIT_EVENTS);
+        app.shutdown_sdl_();
+        CHECK_FALSE(app.init_subsystem(sdlpp::init_flags::events));
+    }
+
     TEST_CASE("input accessors are available before input") {
         input_probe app;
 

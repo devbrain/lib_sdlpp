@@ -368,7 +368,7 @@ public:
         
         // Use SDL's efficient fill function
         SDL_Rect sdl_rect{rect_to_fill.x, rect_to_fill.y, rect_to_fill.w, rect_to_fill.h};
-        if (SDL_FillSurfaceRect(surface_, &sdl_rect, mapped_color_) != 0) {
+        if (!SDL_FillSurfaceRect(surface_, &sdl_rect, mapped_color_)) {
             return make_unexpectedf(std::string(SDL_GetError()));
         }
         
