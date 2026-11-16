@@ -139,6 +139,26 @@ namespace sdlpp {
             }
 
             /**
+             * @brief Get the renderer that created this texture
+             *
+             * The renderer is borrowed, not owned: it must not be wrapped in an owning
+             * @ref renderer. A texture can be drawn and bound only by this renderer.
+             * @return Expected containing the renderer, or error message
+             */
+            [[nodiscard]] expected <SDL_Renderer*, std::string> get_renderer() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid texture");
+                }
+
+                SDL_Renderer* owner = SDL_GetRendererFromTexture(ptr.get());
+                if (!owner) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return owner;
+            }
+
+            /**
              * @brief Set blend mode
              * @param mode Blend mode to set (defaults to none)
              * @return Expected<void> - empty on success, error message on failure

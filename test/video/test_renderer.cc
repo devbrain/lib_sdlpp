@@ -388,6 +388,25 @@ TEST_SUITE("renderer and texture") {
             CHECK(*got == texture_access::static_access);
         }
 
+        SUBCASE("texture renderer") {
+            auto tex = texture::create(rend, pixel_format_enum::RGBA8888, texture_access::target, 8, 8);
+            REQUIRE(tex.has_value());
+            auto owner = tex->get_renderer();
+            REQUIRE(owner.has_value());
+            CHECK(*owner == rend.get());
+
+            auto surf = surface::create_rgb(4, 4, pixel_format_enum::RGBA8888);
+            REQUIRE(surf.has_value());
+            auto other = renderer::create_software(surf->get());
+            REQUIRE(other.has_value());
+            auto foreign = texture::create(*other, pixel_format_enum::RGBA8888, texture_access::target, 4, 4);
+            REQUIRE(foreign.has_value());
+            auto foreign_owner = foreign->get_renderer();
+            REQUIRE(foreign_owner.has_value());
+            CHECK(*foreign_owner == other->get());
+            CHECK(*foreign_owner != rend.get());
+        }
+
         SUBCASE("texture from surface") {
             // Create a small surface
             auto tex_surf = surface::create_rgb(32, 32, pixel_format_enum::RGBA8888);
@@ -675,6 +694,9 @@ TEST_SUITE("renderer and texture") {
 
             auto access = invalid_tex.get_access();
             CHECK(!access.has_value());
+
+            auto owner = invalid_tex.get_renderer();
+            CHECK(!owner.has_value());
 
             auto blend = invalid_tex.set_blend_mode(blend_mode::blend);
             CHECK(!blend.has_value());
