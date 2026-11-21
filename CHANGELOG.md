@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Typed coordinate spaces
+- Added `utility/coordinate_spaces.hh`: coordinates tagged with their space (`display`,
+  `window`, `render`, `output`, `texel`, `normalized`, or a library's own) and kind (`pos`,
+  `delta`, `extent`, `area`), with an algebra that only compiles meaningful operations
+  (`pos - pos = delta`, `pos + delta = pos`; no `pos + pos`, nothing across spaces). Int
+  widens to float implicitly within a space; float to int is explicit (`round_to_int`,
+  `floor_to_int`, `ceil_to_int`). The float types have SDL_FPoint / SDL_FRect's layout.
+- Added typed conversions: `renderer::to_render` / `to_window` for window positions and
+  deltas (a delta converts with the scale only), `renderer::to_render` / `to_output` for
+  output pixels, `renderer::get_logical_presentation_rect()`; `window::to_window` for
+  normalized and display positions, `window::to_display`.
+
 #### Application Framework
 - Added comprehensive SDL3 application model support (`app/*.hh`)
   - `app.hh` - Base application interface and class with automatic window/renderer management
@@ -62,6 +74,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `formatters.hh` - Custom formatters for SDL types
 
 ### Changed
+- **Breaking:** `namespace sdlpp::window_pos` (the `centered` / `undefined` window
+  placement constants) is now `sdlpp::window_placement`; `sdlpp::window_pos` is the
+  window-space position type.
 - Updated all wrappers to use `std::filesystem::path` where appropriate
 - Improved error handling consistency across all modules
 - Enhanced platform detection with runtime device type checks

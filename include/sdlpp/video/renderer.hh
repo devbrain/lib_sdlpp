@@ -109,6 +109,22 @@ namespace sdlpp {
      */
     class renderer {
         private:
+            // The output pixels per window coordinate of the renderer's window.
+            [[nodiscard]] expected <float, std::string> pixel_density() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+                SDL_Window* w = SDL_GetRenderWindow(ptr.get());
+                if (!w) {
+                    return make_unexpectedf("the renderer has no window: output and window coordinates do not apply");
+                }
+                const float density = SDL_GetWindowPixelDensity(w);
+                if (density <= 0.0f) {
+                    return make_unexpectedf(get_error());
+                }
+                return density;
+            }
+
             renderer_ptr ptr;
             line_style style_ = line_style::solid();
 
@@ -915,6 +931,116 @@ namespace sdlpp {
                     return make_unexpectedf(get_error());
                 }
                 return P{static_cast <typename P::value_type>(x), static_cast <typename P::value_type>(y)};
+            }
+
+            // ---- typed coordinate conversions (coordinate_spaces.hh) ------------------------
+
+            /**
+             * @brief A window position in render coordinates (SDL_RenderCoordinatesFromWindow).
+             *
+             * Uses the window's view whatever target is current: its pixel density, logical
+             * presentation, scale and viewport.
+             */
+            [[nodiscard]] expected <render_pos, std::string> to_render(const window_pos& p) const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+                render_pos r;
+                if (!SDL_RenderCoordinatesFromWindow(ptr.get(), p.x, p.y, &r.x, &r.y)) {
+                    return make_unexpectedf(get_error());
+                }
+                return r;
+            }
+
+            /**
+             * @brief A window displacement in render coordinates: the scale only, without the
+             *        letterbox or viewport offset a position gets.
+             *
+             * Relative mouse motion converted as a position would gain that offset.
+             */
+            [[nodiscard]] expected <render_delta, std::string> to_render(const window_delta& d) const {
+                const auto from = to_render(window_pos{});
+                if (!from) {
+                    return make_unexpectedf(from.error());
+                }
+                const auto to = to_render(window_pos{d.x, d.y});
+                if (!to) {
+                    return make_unexpectedf(to.error());
+                }
+                return *to - *from;
+            }
+
+            /// @brief A render position in window coordinates (SDL_RenderCoordinatesToWindow).
+            ///        The inverse of to_render(const window_pos&).
+            [[nodiscard]] expected <window_pos, std::string> to_window(const render_pos& p) const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+                window_pos w;
+                if (!SDL_RenderCoordinatesToWindow(ptr.get(), p.x, p.y, &w.x, &w.y)) {
+                    return make_unexpectedf(get_error());
+                }
+                return w;
+            }
+
+            /// @brief A render displacement in window coordinates: the scale only. The inverse
+            ///        of to_render(const window_delta&).
+            [[nodiscard]] expected <window_delta, std::string> to_window(const render_delta& d) const {
+                const auto from = to_window(render_pos{});
+                if (!from) {
+                    return make_unexpectedf(from.error());
+                }
+                const auto to = to_window(render_pos{d.x, d.y});
+                if (!to) {
+                    return make_unexpectedf(to.error());
+                }
+                return *to - *from;
+            }
+
+            /**
+             * @brief A position in the window's real output pixels (output_pos, read-back
+             *        pixels) in render coordinates.
+             *
+             * Output pixels are window coordinates times the window's pixel density, so this
+             * divides by it and maps the result as to_render(const window_pos&) does. Takes int
+             * or float positions. Fails if the renderer draws to a surface, not a window.
+             */
+            [[nodiscard]] expected <render_pos, std::string> to_render(const pos <output_space, float>& p) const {
+                const auto density = pixel_density();
+                if (!density) {
+                    return make_unexpectedf(density.error());
+                }
+                return to_render(window_pos{p.x / *density, p.y / *density});
+            }
+
+            /// @brief A render position in the window's real output pixels. The inverse of
+            ///        to_render(const pos<output_space, float>&).
+            [[nodiscard]] expected <pos <output_space, float>, std::string> to_output(const render_pos& p) const {
+                const auto density = pixel_density();
+                if (!density) {
+                    return make_unexpectedf(density.error());
+                }
+                const auto w = to_window(p);
+                if (!w) {
+                    return make_unexpectedf(w.error());
+                }
+                return pos <output_space, float>{w->x * *density, w->y * *density};
+            }
+
+            /**
+             * @brief Where the logical presentation puts the render space in the real output
+             *        (SDL_GetRenderLogicalPresentationRect): the letterboxed picture, in output
+             *        pixels. Without logical presentation, the whole output.
+             */
+            [[nodiscard]] expected <area <output_space, float>, std::string> get_logical_presentation_rect() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+                SDL_FRect r{};
+                if (!SDL_GetRenderLogicalPresentationRect(ptr.get(), &r)) {
+                    return make_unexpectedf(get_error());
+                }
+                return area <output_space, float>{r.x, r.y, r.w, r.h};
             }
 
             /**

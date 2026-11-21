@@ -21,6 +21,7 @@
 #include <sdlpp/video/pixels.hh>
 #include <sdlpp/detail/geometry_conversion.hh>
 #include <sdlpp/utility/dimension.hh>
+#include <sdlpp/utility/coordinate_spaces.hh>
 #include <string>
 #include <span>
 #include <vector>
@@ -37,7 +38,7 @@ namespace sdlpp {
     /**
      * @brief Window position constants
      */
-    namespace window_pos {
+    namespace window_placement {
         constexpr int undefined = SDL_WINDOWPOS_UNDEFINED;
         constexpr int centered = SDL_WINDOWPOS_CENTERED;
     }
@@ -144,6 +145,32 @@ namespace sdlpp {
      */
     class window {
         private:
+            // The window's size in window coordinates, as floats, for the conversions.
+            [[nodiscard]] expected <extent <window_space, float>, std::string> window_size_f() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid window");
+                }
+                int w = 0;
+                int h = 0;
+                if (!SDL_GetWindowSize(ptr.get(), &w, &h)) {
+                    return make_unexpectedf(get_error());
+                }
+                return extent <window_space, float>{static_cast <float>(w), static_cast <float>(h)};
+            }
+
+            // The window's top-left corner on the desktop, as floats, for the conversions.
+            [[nodiscard]] expected <pos <display_space, float>, std::string> position_f() const {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid window");
+                }
+                int x = 0;
+                int y = 0;
+                if (!SDL_GetWindowPosition(ptr.get(), &x, &y)) {
+                    return make_unexpectedf(get_error());
+                }
+                return pos <display_space, float>{static_cast <float>(x), static_cast <float>(y)};
+            }
+
             window_ptr ptr;
 
         public:
@@ -248,8 +275,8 @@ namespace sdlpp {
 
             /**
              * @brief Set window position
-             * @param x X coordinate (or window_pos constant)
-             * @param y Y coordinate (or window_pos constant)
+             * @param x X coordinate (or window_placement constant)
+             * @param y Y coordinate (or window_placement constant)
              * @return Expected<void> - empty on success, error message on failure
              */
             expected <void, std::string> set_position(int x, int y) {
@@ -298,6 +325,54 @@ namespace sdlpp {
                 }
 
                 return S{w, h};
+            }
+
+            // ---- typed coordinate conversions (coordinate_spaces.hh) ------------------------
+
+            /**
+             * @brief A position given as fractions of this window (touch fingers) in window
+             *        coordinates: scaled by the window's size.
+             */
+            [[nodiscard]] expected <window_pos, std::string> to_window(const normalized_pos& p) const {
+                const auto size = window_size_f();
+                if (!size) {
+                    return make_unexpectedf(size.error());
+                }
+                return window_pos{p.x * size->width, p.y * size->height};
+            }
+
+            /// @brief A displacement given as fractions of this window, in window coordinates.
+            [[nodiscard]] expected <window_delta, std::string> to_window(const normalized_delta& d) const {
+                const auto size = window_size_f();
+                if (!size) {
+                    return make_unexpectedf(size.error());
+                }
+                return window_delta{d.x * size->width, d.y * size->height};
+            }
+
+            /**
+             * @brief A desktop position (the global mouse, say) in this window's coordinates:
+             *        relative to the window's top-left corner. Takes int or float positions.
+             */
+            [[nodiscard]] expected <window_pos, std::string> to_window(
+                const pos <display_space, float>& p) const {
+                const auto origin = position_f();
+                if (!origin) {
+                    return make_unexpectedf(origin.error());
+                }
+                const auto d = p - *origin;
+                return window_pos{d.x, d.y};
+            }
+
+            /// @brief A position in this window's coordinates on the desktop. The inverse of
+            ///        to_window(const pos<display_space, float>&).
+            [[nodiscard]] expected <pos <display_space, float>, std::string> to_display(
+                const window_pos& p) const {
+                const auto origin = position_f();
+                if (!origin) {
+                    return make_unexpectedf(origin.error());
+                }
+                return *origin + delta <display_space, float>{p.x, p.y};
             }
 
             /**
@@ -1073,8 +1148,8 @@ namespace sdlpp {
             /**
              * @brief Create a window with position (compatibility overload)
              * @param title Window title
-             * @param x X position (or window_pos constant)
-             * @param y Y position (or window_pos constant)
+             * @param x X position (or window_placement constant)
+             * @param y Y position (or window_placement constant)
              * @param width Window width
              * @param height Window height
              * @param flags Window creation flags
@@ -1110,7 +1185,7 @@ namespace sdlpp {
                 const std::string& title,
                 int width, int height,
                 window_flags flags = window_flags::none) {
-                return create_at(title, window_pos::centered, window_pos::centered,
+                return create_at(title, window_placement::centered, window_placement::centered,
                                  width, height, flags);
             }
     };

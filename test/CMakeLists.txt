@@ -45,6 +45,7 @@ add_executable(sdlpp_unittest
     video/test_palette.cc
     video/test_pixels.cc
     video/test_camera.cc
+    video/test_coordinate_conversions.cc
 
     # Audio tests
     audio/test_audio.cc
@@ -103,6 +104,7 @@ add_executable(sdlpp_unittest
     utility/test_dimension.cc
     utility/test_dimension_concepts.cc
     utility/test_geometry.cc
+    utility/test_coordinate_spaces.cc
     utility/test_guid.cc
     utility/test_hash.cc
 
