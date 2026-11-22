@@ -79,6 +79,38 @@ TEST_CASE("renderer state wrappers preserve precision and target state") {
         CHECK(window->y == doctest::Approx(20.0f));
     }
 
+    SUBCASE("the target size includes the letterbox bars; the current output size does not") {
+        // 80x40 output, 20x40 logical, letterboxed: bars left and right, the picture 20x40.
+        REQUIRE(renderer->set_logical_presentation(20, 40, sdlpp::logical_presentation::letterbox));
+        const auto current = renderer->get_current_output_size();
+        REQUIRE(current);
+        CHECK(current->width == 20);
+        CHECK(current->height == 40);
+        const auto whole = renderer->get_target_size();
+        REQUIRE(whole);
+        CHECK(whole->width == 80);
+        CHECK(whole->height == 40);
+
+        auto canvas = sdlpp::texture::create(*renderer, sdlpp::pixel_format_enum::RGBA8888,
+                                           sdlpp::texture_access::target, 16, 8);
+        REQUIRE(canvas);
+        {
+            sdlpp::renderer::target_guard guard(*renderer, *canvas);
+            REQUIRE(renderer->set_logical_presentation(8, 8, sdlpp::logical_presentation::letterbox));
+            const auto inner = renderer->get_target_size();
+            REQUIRE(inner);
+            CHECK(inner->width == 16);
+            CHECK(inner->height == 8);
+            const auto inner_current = renderer->get_current_output_size();
+            REQUIRE(inner_current);
+            CHECK(inner_current->width == 8);
+        }
+        REQUIRE(renderer->set_logical_presentation(0, 0, sdlpp::logical_presentation::disabled));
+        const auto plain = renderer->get_target_size();
+        REQUIRE(plain);
+        CHECK(plain->width == 80);
+    }
+
     SUBCASE("max texture size and properties are reported") {
         CHECK(renderer->get_properties());
         const auto size = renderer->get_max_texture_size();

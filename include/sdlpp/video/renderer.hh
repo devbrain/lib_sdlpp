@@ -1158,7 +1158,12 @@ namespace sdlpp {
             }
 
             /**
-             * @brief Get current render target size
+             * @brief Get the current output size (SDL_GetCurrentRenderOutputSize)
+             *
+             * The size of what is drawn into now: the bound target, or the window. Under a
+             * logical presentation it is the presentation rect's size, which is smaller than
+             * the target when the presentation leaves letterbox bars; get_target_size() is the
+             * whole target.
              * @tparam S Size type to return (defaults to built-in size if available)
              * @return Expected containing size, or error message
              */
@@ -1181,6 +1186,41 @@ namespace sdlpp {
                 }
 
                 return S{w, h};
+            }
+
+            /**
+             * @brief Get the whole size of the current render target, in pixels
+             *
+             * The bound texture's size, or the window's output size (SDL_GetRenderOutputSize)
+             * when nothing is bound. Unlike get_current_output_size(), a logical presentation
+             * does not change it: letterbox bars are included.
+             * @tparam S Size type to return (defaults to built-in size if available)
+             * @return Expected containing size, or error message
+             */
+            template<size_like S =
+#ifdef SDLPP_HAS_BUILTIN_GEOMETRY
+                size_i
+#else
+                void
+#endif
+            >
+            expected <S, std::string> get_target_size() const
+                requires (!std::is_void_v<S>) {
+                if (!ptr) {
+                    return make_unexpectedf("Invalid renderer");
+                }
+
+                SDL_Texture* target = SDL_GetRenderTarget(ptr.get());
+                if (!target) {
+                    return get_output_size <S>();
+                }
+                float w = 0.0f;
+                float h = 0.0f;
+                if (!SDL_GetTextureSize(target, &w, &h)) {
+                    return make_unexpectedf(get_error());
+                }
+
+                return S{static_cast <int>(w), static_cast <int>(h)};
             }
 
             /**
