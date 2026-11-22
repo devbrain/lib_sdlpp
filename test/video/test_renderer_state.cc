@@ -16,7 +16,8 @@ TEST_CASE("renderer state wrappers reject an empty renderer") {
     CHECK_FALSE(renderer.coordinates_to_window(sdlpp::point_f{1.0f, 1.0f}));
     CHECK_FALSE(renderer.get_max_texture_size());
     CHECK_FALSE(renderer.read_pixels());
-    CHECK_FALSE(renderer.get_target());
+    CHECK_FALSE(renderer.has_texture_target());
+    CHECK_FALSE(renderer.is_target(sdlpp::texture{}));
     CHECK_FALSE(renderer.set_draw_color({1, 2, 3, 4}));
     sdlpp::renderer::target_guard guard(renderer);
     CHECK_FALSE(guard.restore());
@@ -132,23 +133,31 @@ TEST_CASE("renderer state wrappers preserve precision and target state") {
         CHECK(c->b == 0);
     }
 
-    SUBCASE("get_target borrows the target instead of owning it") {
+    SUBCASE("has_texture_target and is_target follow set_target") {
         auto canvas = sdlpp::texture::create(*renderer, sdlpp::pixel_format_enum::RGBA8888,
                                            sdlpp::texture_access::target, 16, 16);
+        auto other = sdlpp::texture::create(*renderer, sdlpp::pixel_format_enum::RGBA8888,
+                                          sdlpp::texture_access::target, 16, 16);
         REQUIRE(canvas);
+        REQUIRE(other);
+        CHECK_FALSE(renderer->has_texture_target());
+        CHECK(renderer->is_target(sdlpp::texture{}));          // the default target
+        CHECK_FALSE(renderer->is_target(*canvas));
+
         REQUIRE(renderer->set_target(*canvas));
         for (int i = 0; i < 2; ++i) {
-            const auto current = renderer->get_target();
-            REQUIRE(current);
-            CHECK(*current == canvas->get());
+            CHECK(renderer->has_texture_target());
+            CHECK(renderer->is_target(*canvas));
+            CHECK_FALSE(renderer->is_target(*other));
+            CHECK_FALSE(renderer->is_target(sdlpp::texture{}));
         }
         // Still alive: the queries above did not destroy it.
         CHECK(canvas->get_size());
         REQUIRE(renderer->clear());
         REQUIRE(renderer->set_target(sdlpp::texture{}));
-        const auto window = renderer->get_target();
-        REQUIRE(window);
-        CHECK(*window == nullptr);
+        CHECK_FALSE(renderer->has_texture_target());
+        CHECK(renderer->is_target(sdlpp::texture{}));
+        CHECK_FALSE(renderer->is_target(*canvas));
     }
 
     SUBCASE("a moved target_guard restores once, from its new owner") {

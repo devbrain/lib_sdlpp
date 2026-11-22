@@ -86,22 +86,28 @@ bool collinear = sdlpp::are_collinear(p1, p2, p3);
 
 ## Geometry Rendering API
 
+### Vertices
+
+A triangle's corner is an `sdlpp::vertex` (`sdlpp/video/vertex.hh`), laid out like
+`SDL_Vertex` so a span of them goes to SDL without copying:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `position` | `render_pos` | where the corner is, in render coordinates, like every draw call |
+| `color` | `fcolor` | multiplies the texture's colour; without a texture, the colour itself (default white) |
+| `tex_coord` | `uv_pos` | the point of the texture shown there, as fractions of its size |
+
+`uv_pos` is in `uv_space`: 0 to 1 across the texture, beyond that with the wrap address mode
+(`set_texture_address_mode`). The texture converts from its pixels: `texture::to_uv(texel_pos)`
+and back with `texture::to_texel(uv_pos)`.
+
 ### Basic Triangle Rendering
 
 ```cpp
 // Create vertices for a colored triangle
-SDL_Vertex v0 = sdlpp::renderer::make_vertex(
-    sdlpp::fpoint{10.0f, 10.0f}, 
-    sdlpp::colors::red
-);
-SDL_Vertex v1 = sdlpp::renderer::make_vertex(
-    sdlpp::fpoint{50.0f, 10.0f}, 
-    sdlpp::colors::green
-);
-SDL_Vertex v2 = sdlpp::renderer::make_vertex(
-    sdlpp::fpoint{30.0f, 50.0f}, 
-    sdlpp::colors::blue
-);
+sdlpp::vertex v0 = sdlpp::renderer::make_vertex(sdlpp::point_f{10.0f, 10.0f}, sdlpp::colors::red);
+sdlpp::vertex v1 = sdlpp::renderer::make_vertex(sdlpp::point_f{50.0f, 10.0f}, sdlpp::colors::green);
+sdlpp::vertex v2 = sdlpp::renderer::make_vertex(sdlpp::point_f{30.0f, 50.0f}, sdlpp::colors::blue);
 
 // Render the triangle
 renderer.render_triangle(v0, v1, v2);
@@ -124,13 +130,13 @@ auto texture = sdlpp::texture::create(renderer, surface);
 // Define triangle positions
 sdlpp::ftriangle tri(10.0f, 10.0f, 50.0f, 10.0f, 30.0f, 50.0f);
 
-// Define texture coordinates (0-1 range)
-sdlpp::ftriangle tex_coords(0.0f, 0.0f, 1.0f, 0.0f, 0.5f, 1.0f);
+// Define texture coordinates: fractions of the texture
+const std::array<sdlpp::uv_pos, 3> tex_coords{{{0.0f, 0.0f}, {1.0f, 0.0f}, {0.5f, 1.0f}}};
 
 // Render textured triangle
 renderer.render_textured_triangle(
-    texture->get(), 
-    tri, 
+    *texture,
+    tri,
     sdlpp::colors::white,  // Color modulation
     tex_coords
 );
@@ -139,13 +145,16 @@ renderer.render_textured_triangle(
 ### Batch Rendering
 
 ```cpp
+using sdlpp::render_pos;
+using sdlpp::uv_pos;
+
 // Create vertices for multiple triangles
-std::vector<SDL_Vertex> vertices = {
+std::vector<sdlpp::vertex> vertices = {
     // First quad (two triangles)
-    renderer::make_vertex({0, 0}, colors::red, {0, 0}),
-    renderer::make_vertex({100, 0}, colors::green, {1, 0}),
-    renderer::make_vertex({100, 100}, colors::blue, {1, 1}),
-    renderer::make_vertex({0, 100}, colors::white, {0, 1})
+    {render_pos{0, 0},     sdlpp::colors::f::red,   uv_pos{0, 0}},
+    {render_pos{100, 0},   sdlpp::colors::f::green, uv_pos{1, 0}},
+    {render_pos{100, 100}, sdlpp::colors::f::blue,  uv_pos{1, 1}},
+    {render_pos{0, 100},   sdlpp::colors::f::white, uv_pos{0, 1}}
 };
 
 // Define triangle indices
@@ -155,28 +164,31 @@ std::vector<int> indices = {
 };
 
 // Render all triangles at once
-renderer.render_geometry(texture->get(), vertices, indices);
+renderer.render_geometry(*texture, vertices, indices);
+
+// Without a texture, in the vertices' colours
+renderer.render_geometry(vertices, indices);
 ```
+
+16-bit indices (`std::span<const std::uint16_t>`) are accepted too, as immediate-mode GUI
+libraries emit them.
 
 ### Vertex Creation Helper
 
 ```cpp
 // Basic vertex (position and color)
-auto v = renderer::make_vertex(
-    sdlpp::fpoint{100.0f, 200.0f},
-    sdlpp::colors::red
-);
+auto v = renderer::make_vertex(sdlpp::point_f{100.0f, 200.0f}, sdlpp::colors::red);
 
 // With texture coordinates
 auto v_tex = renderer::make_vertex(
-    sdlpp::fpoint{100.0f, 200.0f},
+    sdlpp::point_f{100.0f, 200.0f},
     sdlpp::colors::white,
-    sdlpp::fpoint{0.5f, 0.5f}  // UV coordinates
+    sdlpp::uv_pos{0.5f, 0.5f}
 );
 
 // Color is automatically converted from 0-255 to 0.0-1.0 range
 sdlpp::color semi_transparent{255, 128, 64, 128};
-auto v_alpha = renderer::make_vertex({0, 0}, semi_transparent);
+auto v_alpha = renderer::make_vertex(sdlpp::point_f{0, 0}, semi_transparent);
 ```
 
 ## Advanced Examples
@@ -185,7 +197,7 @@ auto v_alpha = renderer::make_vertex({0, 0}, semi_transparent);
 
 ```cpp
 // Create a simple mesh (grid of triangles)
-std::vector<SDL_Vertex> vertices;
+std::vector<sdlpp::vertex> vertices;
 std::vector<int> indices;
 
 const int grid_size = 10;
@@ -194,11 +206,11 @@ const float cell_size = 50.0f;
 // Generate vertices
 for (int y = 0; y <= grid_size; ++y) {
     for (int x = 0; x <= grid_size; ++x) {
-        vertices.push_back(renderer::make_vertex(
-            {x * cell_size, y * cell_size},
-            sdlpp::colors::white,
-            {float(x) / grid_size, float(y) / grid_size}
-        ));
+        vertices.push_back(sdlpp::vertex{
+            sdlpp::render_pos{x * cell_size, y * cell_size},
+            sdlpp::colors::f::white,
+            sdlpp::uv_pos{float(x) / grid_size, float(y) / grid_size}
+        });
     }
 }
 
@@ -223,16 +235,16 @@ for (int y = 0; y < grid_size; ++y) {
 }
 
 // Render the mesh
-renderer.render_geometry(texture->get(), vertices, indices);
+renderer.render_geometry(*texture, vertices, indices);
 ```
 
 ### Gradient Triangle
 
 ```cpp
 // Create triangle with different colors at each vertex
-auto v0 = renderer::make_vertex({100, 50}, {255, 0, 0, 255});    // Red
-auto v1 = renderer::make_vertex({150, 150}, {0, 255, 0, 255});  // Green
-auto v2 = renderer::make_vertex({50, 150}, {0, 0, 255, 255});   // Blue
+auto v0 = renderer::make_vertex(sdlpp::point_f{100, 50}, {255, 0, 0, 255});   // Red
+auto v1 = renderer::make_vertex(sdlpp::point_f{150, 150}, {0, 255, 0, 255});  // Green
+auto v2 = renderer::make_vertex(sdlpp::point_f{50, 150}, {0, 0, 255, 255});   // Blue
 
 // Render - colors will be interpolated across the triangle
 renderer.render_triangle(v0, v1, v2);
@@ -242,7 +254,7 @@ renderer.render_triangle(v0, v1, v2);
 
 ```cpp
 // Create a triangle strip (efficient for connected triangles)
-std::vector<SDL_Vertex> strip_verts;
+std::vector<sdlpp::vertex> strip_verts;
 std::vector<int> strip_indices;
 
 // Create vertices for a zigzag pattern
@@ -251,8 +263,8 @@ for (int i = 0; i < 10; ++i) {
     float y1 = (i % 2 == 0) ? 50.0f : 100.0f;
     float y2 = (i % 2 == 0) ? 100.0f : 50.0f;
     
-    strip_verts.push_back(renderer::make_vertex({x, y1}, colors::red));
-    strip_verts.push_back(renderer::make_vertex({x, y2}, colors::blue));
+    strip_verts.push_back(renderer::make_vertex(sdlpp::point_f{x, y1}, colors::red));
+    strip_verts.push_back(renderer::make_vertex(sdlpp::point_f{x, y2}, colors::blue));
 }
 
 // Generate indices for triangle strip
@@ -299,7 +311,7 @@ if (!result2) {
 ## Limitations
 
 - SDL_RenderGeometry only supports triangles (no quads, lines, or points)
-- Texture coordinates are in 0.0-1.0 range
+- Texture coordinates are fractions of the texture (`uv_pos`), 0.0-1.0 across it
 - Colors are specified per-vertex (no per-pixel shading)
 - No built-in support for triangle fans or other primitive types
 - Performance varies by backend (OpenGL, Direct3D, Metal, etc.)

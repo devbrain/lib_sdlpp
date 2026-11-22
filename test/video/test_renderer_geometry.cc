@@ -186,7 +186,7 @@ TEST_CASE("renderer accepts custom geometry types") {
     // Test make_vertex with custom point types
     {
         CustomPoint pos{100.0f, 200.0f};
-        CustomPoint tex_coord{0.5f, 0.5f};
+        const sdlpp::uv_pos tex_coord{0.5f, 0.5f};
         auto vertex = sdlpp::renderer::make_vertex(pos, sdlpp::color{255, 255, 255, 255}, tex_coord);
         CHECK(vertex.position.x == 100.0f);
         CHECK(vertex.position.y == 200.0f);

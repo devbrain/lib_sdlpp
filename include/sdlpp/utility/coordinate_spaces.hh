@@ -10,7 +10,7 @@
  *
  * SDL works in several coordinate spaces that are all a pair of numbers: the desktop, a
  * window, the renderer's logical space, its real output pixels, the pixels of a texture,
- * fractions of a window. Passing a value of one where another is expected compiles and
+ * fractions of a texture, fractions of a window. Passing a value of one where another is expected compiles and
  * goes wrong silently — window coordinates handed to a draw call work until logical
  * presentation or HiDPI is switched on.
  *
@@ -35,7 +35,7 @@
  *   **Float to int is explicit**, through round_to_int(), floor_to_int() and ceil_to_int().
  * - **Crossing spaces is a named call** on the object that knows the mapping:
  *   renderer::to_render(), renderer::to_window(), renderer::to_output(), window::to_window(),
- *   window::to_display().
+ *   window::to_display(), texture::to_uv(), texture::to_texel().
  * - **Float types have the layout of SDL_FPoint / SDL_FRect** and int ones that of
  *   SDL_Point / SDL_Rect (checked below), so they can be handed to SDL without copying.
  * - **Entering a space from untyped data is explicit:** `render_pos{v.x, v.y}`.
@@ -67,6 +67,9 @@ namespace sdlpp {
     struct output_space {};
     /// @brief Pixels inside a texture: source rectangles, atlas rectangles, texture sizes. Int.
     struct texel_space {};
+    /// @brief Fractions of a texture, 0 to 1 across it (beyond that with the wrap address
+    ///        mode): the texture coordinates of geometry. Float.
+    struct uv_space {};
     /// @brief Fractions of the window, 0 to 1: touch finger positions. Float.
     struct normalized_space {};
 
@@ -490,6 +493,8 @@ namespace sdlpp {
     using texel_delta = delta <texel_space, int>;
     using texel_extent = extent <texel_space, int>;
     using texel_rect = area <texel_space, int>;
+
+    using uv_pos = pos <uv_space>;
 
     using normalized_pos = pos <normalized_space>;
     using normalized_delta = delta <normalized_space>;

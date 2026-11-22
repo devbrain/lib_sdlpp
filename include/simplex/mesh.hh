@@ -103,8 +103,8 @@ namespace simplex {
 
             [[nodiscard]] int cols() const noexcept { return m_cols; }
             [[nodiscard]] int rows() const noexcept { return m_rows; }
-            [[nodiscard]] std::vector<SDL_Vertex>& vertices() noexcept { return m_vertices; }
-            [[nodiscard]] const std::vector<SDL_Vertex>& vertices() const noexcept { return m_vertices; }
+            [[nodiscard]] std::vector<sdlpp::vertex>& vertices() noexcept { return m_vertices; }
+            [[nodiscard]] const std::vector<sdlpp::vertex>& vertices() const noexcept { return m_vertices; }
 
         private:
             template<typename T>
@@ -122,7 +122,7 @@ namespace simplex {
 
             int m_cols{0};
             int m_rows{0};
-            std::vector<SDL_Vertex> m_vertices;
+            std::vector<sdlpp::vertex> m_vertices;
             std::vector<int> m_indices;
     };
 } // namespace simplex

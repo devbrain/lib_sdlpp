@@ -185,16 +185,20 @@ renderer->fill_rects(rects);
 ### Geometry Rendering
 
 ```cpp
-// Render geometric shapes with textures
+// Textured triangles: each corner has a position (render_pos), a colour that multiplies the
+// texture (fcolor) and the point of the texture it shows (uv_pos: fractions of its size)
 std::vector<sdlpp::vertex> vertices = {
-    {{100, 100}, {255, 0, 0, 255}, {0, 0}},
-    {{200, 100}, {0, 255, 0, 255}, {1, 0}},
-    {{150, 200}, {0, 0, 255, 255}, {0.5, 1}}
+    {sdlpp::render_pos{100, 100}, sdlpp::colors::f::red,   sdlpp::uv_pos{0, 0}},
+    {sdlpp::render_pos{200, 100}, sdlpp::colors::f::green, sdlpp::uv_pos{1, 0}},
+    {sdlpp::render_pos{150, 200}, sdlpp::colors::f::blue,  sdlpp::uv_pos{0.5f, 1}}
 };
 
 std::vector<int> indices = {0, 1, 2};
 
-renderer->render_geometry(vertices, indices, texture.get());
+renderer->render_geometry(*texture, vertices, indices);
+
+// Without a texture: the triangles in their vertices' colours
+renderer->render_geometry(vertices, indices);
 ```
 
 ## Renderer Properties
@@ -288,7 +292,7 @@ for (const auto& enemy : enemies) {
     // Add 4 vertices for each enemy quad
     add_sprite_vertices(vertices, enemy);
 }
-renderer->render_geometry(vertices, indices, enemy_texture.get());
+renderer->render_geometry(*enemy_texture, vertices, indices);
 ```
 
 ### Texture Atlas

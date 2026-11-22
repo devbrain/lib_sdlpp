@@ -15,6 +15,7 @@
 
 #include <sdlpp/core/sdl.hh>
 #include <algorithm>
+#include <cstddef>
 #include <type_traits>
 #include <concepts>
 
@@ -235,6 +236,14 @@ namespace sdlpp {
     // Type aliases for common use cases
     using color = basic_color <uint8_t>; ///< Integer RGBA color (0-255)
     using fcolor = basic_color <float>; ///< Floating-point RGBA color (0.0-1.0)
+
+    // fcolor has the layout of SDL_FColor, so vertices holding one go to SDL without copying.
+    static_assert(std::is_standard_layout_v <fcolor> && std::is_trivially_copyable_v <fcolor>);
+    static_assert(sizeof(fcolor) == sizeof(SDL_FColor)
+                  && offsetof(fcolor, r) == offsetof(SDL_FColor, r)
+                  && offsetof(fcolor, g) == offsetof(SDL_FColor, g)
+                  && offsetof(fcolor, b) == offsetof(SDL_FColor, b)
+                  && offsetof(fcolor, a) == offsetof(SDL_FColor, a));
 
     /**
      * @brief Concept for color-like types

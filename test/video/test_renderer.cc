@@ -237,13 +237,9 @@ TEST_SUITE("renderer and texture") {
                 if (tex) {
                     {
                         renderer::target_guard target_g(rend, tex);
-                        auto current = rend.get_target();
-                        REQUIRE(current.has_value());
-                        CHECK(*current == tex.get());
+                        CHECK(rend.is_target(tex));
                     }
-                    auto current = rend.get_target();
-                    REQUIRE(current.has_value());
-                    CHECK(*current == nullptr);
+                    CHECK_FALSE(rend.has_texture_target());
                 }
             }
         }
@@ -728,9 +724,9 @@ TEST_SUITE("renderer and texture") {
         
         SUBCASE("render single triangle") {
             // Create vertices for a simple triangle
-            SDL_Vertex v0 = renderer::make_vertex(point_f{10.0f, 10.0f}, colors::red);
-            SDL_Vertex v1 = renderer::make_vertex(point_f{50.0f, 10.0f}, colors::green);
-            SDL_Vertex v2 = renderer::make_vertex(point_f{30.0f, 50.0f}, colors::blue);
+            vertex v0 = renderer::make_vertex(point_f{10.0f, 10.0f}, colors::red);
+            vertex v1 = renderer::make_vertex(point_f{50.0f, 10.0f}, colors::green);
+            vertex v2 = renderer::make_vertex(point_f{30.0f, 50.0f}, colors::blue);
             
             auto result = rend.render_triangle(v0, v1, v2);
             CHECK(result.has_value());
@@ -754,20 +750,20 @@ TEST_SUITE("renderer and texture") {
             if (!tex_result) return;
             
             triangle_f tri{{10.0f, 10.0f}, {50.0f, 10.0f}, {30.0f, 50.0f}};
-            triangle_f tex_coords{{0.0f, 0.0f}, {1.0f, 0.0f}, {0.5f, 1.0f}};
+            const std::array <uv_pos, 3> tex_coords{{{0.0f, 0.0f}, {1.0f, 0.0f}, {0.5f, 1.0f}}};
             
             auto result = rend.render_textured_triangle(
-                tex_result->get(), tri, colors::white, tex_coords);
+                *tex_result, tri, colors::white, tex_coords);
             CHECK(result.has_value());
         }
         
         SUBCASE("render multiple triangles") {
             // Create vertices for two triangles forming a quad
-            std::vector<SDL_Vertex> vertices = {
-                renderer::make_vertex(point_f{10.0f, 10.0f}, colors::red, point_f{0.0f, 0.0f}),
-                renderer::make_vertex(point_f{50.0f, 10.0f}, colors::green, point_f{1.0f, 0.0f}),
-                renderer::make_vertex(point_f{50.0f, 50.0f}, colors::blue, point_f{1.0f, 1.0f}),
-                renderer::make_vertex(point_f{10.0f, 50.0f}, colors::white, point_f{0.0f, 1.0f})
+            std::vector<vertex> vertices = {
+                renderer::make_vertex(point_f{10.0f, 10.0f}, colors::red, uv_pos{0.0f, 0.0f}),
+                renderer::make_vertex(point_f{50.0f, 10.0f}, colors::green, uv_pos{1.0f, 0.0f}),
+                renderer::make_vertex(point_f{50.0f, 50.0f}, colors::blue, uv_pos{1.0f, 1.0f}),
+                renderer::make_vertex(point_f{10.0f, 50.0f}, colors::white, uv_pos{0.0f, 1.0f})
             };
             
             std::vector<int> indices = {
@@ -780,34 +776,34 @@ TEST_SUITE("renderer and texture") {
         }
         
         SUBCASE("render geometry with 16-bit indices") {
-            std::vector<SDL_Vertex> vertices = {
+            std::vector<vertex> vertices = {
                 renderer::make_vertex(point_f{10.0f, 10.0f}, colors::red),
                 renderer::make_vertex(point_f{50.0f, 10.0f}, colors::green),
                 renderer::make_vertex(point_f{50.0f, 50.0f}, colors::blue),
                 renderer::make_vertex(point_f{10.0f, 50.0f}, colors::white)
             };
             std::vector<std::uint16_t> indices = {0, 1, 2, 0, 2, 3};
-            CHECK(rend.render_geometry(nullptr, vertices, indices).has_value());
+            CHECK(rend.render_geometry(vertices, indices).has_value());
 
             std::vector<std::uint16_t> out_of_range = {0, 1, 4};
-            auto bad = rend.render_geometry(nullptr, vertices, out_of_range);
+            auto bad = rend.render_geometry(vertices, out_of_range);
             CHECK(!bad.has_value());
             CHECK(bad.error() == "Index out of bounds");
 
             std::vector<std::uint16_t> two = {0, 1};
-            auto not_triangles = rend.render_geometry(nullptr, vertices, two);
+            auto not_triangles = rend.render_geometry(vertices, two);
             CHECK(!not_triangles.has_value());
         }
 
         SUBCASE("error cases") {
             // Empty vertices
-            std::vector<SDL_Vertex> empty_verts;
+            std::vector<vertex> empty_verts;
             std::vector<int> indices = {0, 1, 2};
             auto result1 = rend.render_geometry(empty_verts, indices);
             CHECK(result1.has_value()); // Should succeed but render nothing
             
             // Empty indices
-            std::vector<SDL_Vertex> vertices = {
+            std::vector<vertex> vertices = {
                 renderer::make_vertex(point_f{0, 0}, colors::white),
                 renderer::make_vertex(point_f{10, 0}, colors::white),
                 renderer::make_vertex(point_f{5, 10}, colors::white)
@@ -836,7 +832,7 @@ TEST_SUITE("renderer and texture") {
             CHECK(v1.tex_coord.y == 0.0f);
             
             // With texture coordinates
-            auto v2 = renderer::make_vertex(point_f{30.0f, 40.0f}, colors::green, point_f{0.5f, 0.5f});
+            auto v2 = renderer::make_vertex(point_f{30.0f, 40.0f}, colors::green, uv_pos{0.5f, 0.5f});
             CHECK(v2.tex_coord.x == 0.5f);
             CHECK(v2.tex_coord.y == 0.5f);
             
@@ -847,6 +843,81 @@ TEST_SUITE("renderer and texture") {
             CHECK(v3.color.g == doctest::Approx(64.0f / 255.0f));
             CHECK(v3.color.b == doctest::Approx(32.0f / 255.0f));
             CHECK(v3.color.a == doctest::Approx(128.0f / 255.0f));
+        }
+
+        SUBCASE("textured geometry shows the texture at its vertices' texture coordinates") {
+            // A 2x1 texture: a red texel, then a blue one.
+            auto tex_surf = surface::create_rgb(2, 1, pixel_format_enum::RGBA8888);
+            REQUIRE(tex_surf);
+            REQUIRE(tex_surf->fill_rect(rect_i{0, 0, 1, 1}, colors::red));
+            REQUIRE(tex_surf->fill_rect(rect_i{1, 0, 1, 1}, colors::blue));
+            auto tex = texture::create(rend, *tex_surf);
+            REQUIRE(tex);
+            REQUIRE(tex->set_scale_mode(scale_mode::nearest));
+
+            const auto quad = [](float x0, float y0, float x1, float y1, uv_pos uv0, uv_pos uv1) {
+                return std::vector <vertex>{
+                    vertex{render_pos{x0, y0}, colors::f::white, uv_pos{uv0.x, uv0.y}},
+                    vertex{render_pos{x1, y0}, colors::f::white, uv_pos{uv1.x, uv0.y}},
+                    vertex{render_pos{x1, y1}, colors::f::white, uv_pos{uv1.x, uv1.y}},
+                    vertex{render_pos{x0, y1}, colors::f::white, uv_pos{uv0.x, uv1.y}},
+                };
+            };
+            const std::vector <int> indices = {0, 1, 2, 0, 2, 3};
+
+            REQUIRE(rend.set_draw_color(colors::black));
+            REQUIRE(rend.clear());
+            // The whole texture: red on the left half, blue on the right.
+            REQUIRE(rend.render_geometry(*tex, quad(0, 0, 40, 20, {0.0f, 0.0f}, {1.0f, 1.0f}), indices));
+            // Only the blue texel, through 16-bit indices.
+            const std::vector <std::uint16_t> short_indices = {0, 1, 2, 0, 2, 3};
+            REQUIRE(rend.render_geometry(*tex, quad(0, 30, 40, 50, {0.5f, 0.0f}, {1.0f, 1.0f}), short_indices));
+
+            auto shot = rend.read_pixels();
+            REQUIRE(shot);
+            const auto at = [&](int x, int y) {
+                const auto c = shot->get_pixel(x, y);
+                REQUIRE(c.has_value());
+                return *c;
+            };
+            CHECK(at(5, 10) == colors::red);
+            CHECK(at(35, 10) == colors::blue);
+            CHECK(at(5, 40) == colors::blue);
+            CHECK(at(35, 40) == colors::blue);
+            CHECK(at(5, 25) == colors::black);
+        }
+
+        SUBCASE("textured geometry refuses an empty texture") {
+            const std::vector <vertex> vertices = {
+                renderer::make_vertex(point_f{0, 0}, colors::white),
+                renderer::make_vertex(point_f{10, 0}, colors::white),
+                renderer::make_vertex(point_f{5, 10}, colors::white)
+            };
+            const std::vector <int> indices = {0, 1, 2};
+            const auto drawn = rend.render_geometry(texture{}, vertices, indices);
+            REQUIRE_FALSE(drawn.has_value());
+            CHECK(drawn.error() == "Invalid texture");
+        }
+
+        SUBCASE("to_uv and to_texel convert between texels and fractions of the texture") {
+            auto tex_surf = surface::create_rgb(4, 2, pixel_format_enum::RGBA8888);
+            REQUIRE(tex_surf);
+            auto tex = texture::create(rend, *tex_surf);
+            REQUIRE(tex);
+
+            const auto corner = tex->to_uv(texel_pos{2, 1});    // int texels widen implicitly
+            REQUIRE(corner);
+            CHECK(*corner == uv_pos{0.5f, 0.5f});
+            const auto centre = tex->to_uv(pos <texel_space, float>{0.5f, 0.5f});
+            REQUIRE(centre);
+            CHECK(*centre == uv_pos{0.125f, 0.25f});
+
+            const auto back = tex->to_texel(uv_pos{0.75f, 1.0f});
+            REQUIRE(back);
+            CHECK(*back == pos <texel_space, float>{3.0f, 2.0f});
+
+            CHECK_FALSE(texture{}.to_uv(texel_pos{1, 1}));
+            CHECK_FALSE(texture{}.to_texel(uv_pos{0.5f, 0.5f}));
         }
     }
 }

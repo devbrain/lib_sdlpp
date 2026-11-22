@@ -158,7 +158,7 @@ namespace simplex {
     }
 
     sdlpp::expected<void, std::string> application::draw_rect(const dp& x1, const dp& y1, const dp& x2, const dp& y2) {
-        const SDL_FRect fr {
+        const sdlpp::rect_f fr {
             x1.px(), y1.px(), x2.px() - x1.px(), y2.px() - y1.px()
         };
         return get_renderer().draw_rect(fr);
@@ -181,7 +181,7 @@ namespace simplex {
 
     sdlpp::expected<void, std::string> application::draw_rect_fill(const dp& x1, const dp& y1, const dp& x2,
         const dp& y2) {
-        const SDL_FRect fr {
+        const sdlpp::rect_f fr {
             x1.px(), y1.px(), x2.px() - x1.px(), y2.px() - y1.px()
         };
         return get_renderer().fill_rect(fr);

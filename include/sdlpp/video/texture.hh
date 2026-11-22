@@ -118,6 +118,39 @@ namespace sdlpp {
             }
 
             /**
+             * @brief A point of this texture as a texture coordinate: a fraction of its size, for
+             *        vertex::tex_coord.
+             *
+             * A texel's corners are whole numbers; its centre is half a texel in. Int texel
+             * positions convert implicitly.
+             * @return Expected containing the texture coordinate, or error message
+             */
+            [[nodiscard]] expected <uv_pos, std::string> to_uv(const pos <texel_space, float>& p) const {
+                const auto size = get_size();
+                if (!size) {
+                    return make_unexpectedf(size.error());
+                }
+                if (size->width <= 0 || size->height <= 0) {
+                    return make_unexpectedf("Texture has no texels");
+                }
+                return uv_pos{p.x / static_cast <float>(size->width), p.y / static_cast <float>(size->height)};
+            }
+
+            /**
+             * @brief A texture coordinate as a point of this texture, in texels. The inverse of
+             *        to_uv().
+             * @return Expected containing the texel position, or error message
+             */
+            [[nodiscard]] expected <pos <texel_space, float>, std::string> to_texel(const uv_pos& p) const {
+                const auto size = get_size();
+                if (!size) {
+                    return make_unexpectedf(size.error());
+                }
+                return pos <texel_space, float>{p.x * static_cast <float>(size->width),
+                                                p.y * static_cast <float>(size->height)};
+            }
+
+            /**
              * @brief Get the access the texture was created with
              *
              * SDL records it at creation (SDL_PROP_TEXTURE_ACCESS_NUMBER) and it never changes.
@@ -766,13 +799,30 @@ namespace sdlpp {
         return {};
     }
 
-    inline expected <SDL_Texture*, std::string> renderer::get_target() const {
+    inline expected <void, std::string> renderer::render_geometry(
+        const texture& texture, std::span <const vertex> vertices, std::span <const int> indices) {
         if (!ptr) {
             return make_unexpectedf("Invalid renderer");
         }
+        if (!texture) {
+            return make_unexpectedf("Invalid texture");
+        }
+        return detail::render_geometry(ptr.get(), texture.get(), vertices, indices);
+    }
 
-        // nullptr is not an error: it means rendering to the window.
-        return SDL_GetRenderTarget(ptr.get());
+    inline expected <void, std::string> renderer::render_geometry(
+        const texture& texture, std::span <const vertex> vertices, std::span <const std::uint16_t> indices) {
+        if (!ptr) {
+            return make_unexpectedf("Invalid renderer");
+        }
+        if (!texture) {
+            return make_unexpectedf("Invalid texture");
+        }
+        return detail::render_geometry(ptr.get(), texture.get(), vertices, indices);
+    }
+
+    inline bool renderer::is_target(const texture& target) const {
+        return ptr && SDL_GetRenderTarget(ptr.get()) == (target ? target.get() : nullptr);
     }
 
     inline expected <void, std::string> renderer::set_target(const texture& target) {

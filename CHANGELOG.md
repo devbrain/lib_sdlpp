@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deltas (a delta converts with the scale only), `renderer::to_render` / `to_output` for
   output pixels, `renderer::get_logical_presentation_rect()`; `window::to_window` for
   normalized and display positions, `window::to_display`.
+- Added `uv_space` / `uv_pos`: fractions of a texture, the texture coordinates of geometry, with
+  `texture::to_uv()` from texels and `texture::to_texel()` back.
+- Added `video/vertex.hh`: `sdlpp::vertex` (a `render_pos`, an `fcolor`, a `uv_pos`), laid out
+  like SDL_Vertex; `fcolor` is checked to have SDL_FColor's layout.
 
 #### Application Framework
 - Added comprehensive SDL3 application model support (`app/*.hh`)
@@ -74,6 +78,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `formatters.hh` - Custom formatters for SDL types
 
 ### Changed
+- **Breaking:** the geometry calls take sdlpp types, not SDL's: `render_geometry` and
+  `render_triangle` take a `const texture&` (or no texture, for the vertices' colours) and
+  `sdlpp::vertex`; `render_textured_triangle` takes a `const texture&` and three `uv_pos`;
+  `make_vertex` returns a `vertex` and takes a `uv_pos`. The `SDL_Texture*` / `SDL_Vertex`
+  overloads, and `draw_rect` / `fill_rect` taking an `SDL_FRect`, are removed.
+- **Breaking:** `renderer::get_target()`, which returned the bound `SDL_Texture*`, is replaced by
+  `has_texture_target()` (is a texture bound?) and `is_target(const texture&)` (is this one?).
 - **Breaking:** `namespace sdlpp::window_pos` (the `centered` / `undefined` window
   placement constants) is now `sdlpp::window_placement`; `sdlpp::window_pos` is the
   window-space position type.

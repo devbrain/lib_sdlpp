@@ -24,9 +24,9 @@ namespace simplex {
 
                 std::size_t idx = static_cast<std::size_t>(y * (m_cols + 1) + x);
                 m_vertices[idx] = {
-                    .position = { px, py },
+                    .position = sdlpp::render_pos{ px, py },
                     .color = { 1.0f, 1.0f, 1.0f, 1.0f },
-                    .tex_coord = { tx, ty }
+                    .tex_coord = sdlpp::uv_pos{ tx, ty }
                 };
             }
         }
@@ -53,7 +53,7 @@ namespace simplex {
     }
 
     sdlpp::expected<void, std::string> sprite_mesh::render(sdlpp::renderer& r, const sdlpp::texture& tex) const {
-        return r.render_geometry(tex.get(), m_vertices, m_indices);
+        return r.render_geometry(tex, m_vertices, m_indices);
     }
 
     void sprite_mesh::generate_mesh_indices() {

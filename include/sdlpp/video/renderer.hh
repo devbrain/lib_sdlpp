@@ -33,6 +33,7 @@
 // Euler DDA includes (with warning suppression)
 #include <sdlpp/core/euler.hh>
 #include <sdlpp/video/line_style.hh>
+#include <sdlpp/video/vertex.hh>
 
 // Forward declarations
 namespace sdlpp {
@@ -41,6 +42,51 @@ namespace sdlpp {
 }
 
 namespace sdlpp {
+    namespace detail {
+        // SDL_RenderGeometryRaw over vertices laid out like SDL_Vertex, for either index type.
+        template<typename Index>
+        expected <void, std::string> render_geometry(SDL_Renderer* r, SDL_Texture* texture,
+                                                    std::span <const vertex> vertices,
+                                                    std::span <const Index> indices) {
+            if (!r) {
+                return make_unexpectedf("Invalid renderer");
+            }
+            if (vertices.empty() || indices.empty()) {
+                return {}; // Nothing to render
+            }
+            if (indices.size() % 3 != 0) {
+                return make_unexpectedf("Index count must be multiple of 3 for triangles");
+            }
+            if (vertices.size() > static_cast <std::size_t>(std::numeric_limits <int>::max()) ||
+                indices.size() > static_cast <std::size_t>(std::numeric_limits <int>::max())) {
+                return make_unexpectedf("Too many vertices or indices for SDL API");
+            }
+            for (const auto idx : indices) {
+                if constexpr (std::is_signed_v <Index>) {
+                    if (idx < 0) {
+                        return make_unexpectedf("Index out of bounds");
+                    }
+                }
+                if (static_cast <std::size_t>(idx) >= vertices.size()) {
+                    return make_unexpectedf("Index out of bounds");
+                }
+            }
+
+            const vertex* v = vertices.data();
+            constexpr int stride = static_cast <int>(sizeof(vertex));
+            if (!SDL_RenderGeometryRaw(r, texture,
+                                       &v->position.x, stride,
+                                       reinterpret_cast <const SDL_FColor*>(&v->color), stride,
+                                       &v->tex_coord.x, stride,
+                                       static_cast <int>(vertices.size()),
+                                       indices.data(), static_cast <int>(indices.size()),
+                                       static_cast <int>(sizeof(Index)))) {
+                return make_unexpectedf(get_error());
+            }
+            return {};
+        }
+    }
+
     /**
      * @brief Smart pointer type for SDL_Renderer with automatic cleanup
      */
@@ -561,17 +607,6 @@ namespace sdlpp {
                 return {};
             }
 
-            expected <void, std::string> draw_rect(const SDL_FRect& r) {
-                if (!ptr) {
-                    return make_unexpectedf("Invalid renderer");
-                }
-
-                if (!SDL_RenderRect(ptr.get(), &r)) {
-                    return make_unexpectedf(get_error());
-                }
-
-                return {};
-            }
             /**
              * @brief Draw multiple rectangle outlines
              * @tparam Container Container type holding rect_like elements
@@ -639,17 +674,6 @@ namespace sdlpp {
                 return {};
             }
 
-            expected <void, std::string> fill_rect(const SDL_FRect& r) {
-                if (!ptr) {
-                    return make_unexpectedf("Invalid renderer");
-                }
-
-                if (!SDL_RenderFillRect(ptr.get(), &r)) {
-                    return make_unexpectedf(get_error());
-                }
-
-                return {};
-            }
 
             /**
              * @brief Fill a rectangle with floating-point type
@@ -1353,13 +1377,23 @@ namespace sdlpp {
             }
 
             /**
-             * @brief Get current render target
+             * @brief Whether a texture is bound with set_target(): false while the renderer draws
+             *        into its default target, its window (a software renderer's surface).
              *
-             * The texture is borrowed, not owned: the renderer keeps using it, so it must not be
-             * wrapped in an owning @ref texture. Use @ref target_guard to save and restore it.
-             * @return Expected containing the target (nullptr for the window), or error message
+             * False for an invalid renderer. Use @ref target_guard to save and restore the target.
              */
-            [[nodiscard]] expected <SDL_Texture*, std::string> get_target() const;
+            [[nodiscard]] bool has_texture_target() const {
+                return ptr && SDL_GetRenderTarget(ptr.get()) != nullptr;
+            }
+
+            /**
+             * @brief Whether @p target is what the renderer draws into: true right after
+             *        set_target(target).
+             *
+             * An empty texture stands for the default target, as it does in set_target(). False for
+             * an invalid renderer.
+             */
+            [[nodiscard]] bool is_target(const texture& target) const;
 
             /**
              * @brief Set render target
@@ -1472,167 +1506,101 @@ namespace sdlpp {
             // Geometry rendering methods
 
             /**
-             * @brief Render textured triangles (SDL_RenderGeometry)
-             * @param texture Texture to use (nullptr for solid color)
-             * @param vertices Vertex data (positions, colors, texture coords)
-             * @param indices Index data for triangles (3 indices per triangle)
+             * @brief Render textured triangles (SDL_RenderGeometryRaw)
+             * @param texture The texture the triangles show; each vertex's tex_coord picks its point
+             * @param vertices The triangles' corners
+             * @param indices Three per triangle, into @p vertices
              * @return Expected<void> - empty on success, error message on failure
              */
             expected <void, std::string> render_geometry(
-                SDL_Texture* texture,
-                std::span <const SDL_Vertex> vertices,
-                std::span <const int> indices) {
-                if (!ptr) {
-                    return make_unexpectedf("Invalid renderer");
-                }
-
-                if (vertices.empty() || indices.empty()) {
-                    return {}; // Nothing to render
-                }
-
-                if (indices.size() % 3 != 0) {
-                    return make_unexpectedf("Index count must be multiple of 3 for triangles");
-                }
-
-                // Check for size limits
-                if (vertices.size() > static_cast <size_t>(std::numeric_limits <int>::max()) ||
-                    indices.size() > static_cast <size_t>(std::numeric_limits <int>::max())) {
-                    return make_unexpectedf("Too many vertices or indices for SDL API");
-                }
-
-                // Validate indices are within bounds
-                for (const auto& idx : indices) {
-                    if (idx < 0 || idx >= static_cast <int>(vertices.size())) {
-                        return make_unexpectedf("Index out of bounds");
-                    }
-                }
-
-                if (!SDL_RenderGeometry(ptr.get(), texture,
-                                        vertices.data(), static_cast <int>(vertices.size()),
-                                        indices.data(), static_cast <int>(indices.size()))) {
-                    return make_unexpectedf(get_error());
-                }
-
-                return {};
-            }
+                const texture& texture,
+                std::span <const vertex> vertices,
+                std::span <const int> indices);
 
             /**
-             * @brief Render textured triangles with 16-bit indices (SDL_RenderGeometryRaw)
+             * @brief Render textured triangles with 16-bit indices
              *
              * The same as the `int` overload, for vertex/index buffers produced by tools that emit 16-bit
              * indices (e.g. immediate-mode GUI libraries), without copying them into an `int` buffer.
-             *
-             * @param texture Texture to use (nullptr for solid color)
-             * @param vertices Vertex data (positions, colors, texture coords)
-             * @param indices Index data for triangles (3 indices per triangle)
-             * @return Expected<void> - empty on success, error message on failure
              */
             expected <void, std::string> render_geometry(
-                SDL_Texture* texture,
-                std::span <const SDL_Vertex> vertices,
-                std::span <const std::uint16_t> indices) {
-                if (!ptr) {
-                    return make_unexpectedf("Invalid renderer");
-                }
-
-                if (vertices.empty() || indices.empty()) {
-                    return {}; // Nothing to render
-                }
-
-                if (indices.size() % 3 != 0) {
-                    return make_unexpectedf("Index count must be multiple of 3 for triangles");
-                }
-
-                if (vertices.size() > static_cast <size_t>(std::numeric_limits <int>::max()) ||
-                    indices.size() > static_cast <size_t>(std::numeric_limits <int>::max())) {
-                    return make_unexpectedf("Too many vertices or indices for SDL API");
-                }
-
-                for (const auto idx : indices) {
-                    if (static_cast <size_t>(idx) >= vertices.size()) {
-                        return make_unexpectedf("Index out of bounds");
-                    }
-                }
-
-                const SDL_Vertex* v = vertices.data();
-                constexpr int stride = static_cast <int>(sizeof(SDL_Vertex));
-                if (!SDL_RenderGeometryRaw(ptr.get(), texture,
-                                           &v->position.x, stride,
-                                           &v->color, stride,
-                                           &v->tex_coord.x, stride,
-                                           static_cast <int>(vertices.size()),
-                                           indices.data(), static_cast <int>(indices.size()),
-                                           static_cast <int>(sizeof(std::uint16_t)))) {
-                    return make_unexpectedf(get_error());
-                }
-
-                return {};
-            }
+                const texture& texture,
+                std::span <const vertex> vertices,
+                std::span <const std::uint16_t> indices);
 
             /**
-             * @brief Render colored triangles without texture
-             * @param vertices Vertex data (positions and colors)
-             * @param indices Index data for triangles
+             * @brief Render triangles without a texture, in the vertices' colours
+             * @param vertices The triangles' corners
+             * @param indices Three per triangle, into @p vertices
              * @return Expected<void> - empty on success, error message on failure
              */
             expected <void, std::string> render_geometry(
-                std::span <const SDL_Vertex> vertices,
+                std::span <const vertex> vertices,
                 std::span <const int> indices) {
-                return render_geometry(nullptr, vertices, indices);
+                return detail::render_geometry(ptr.get(), nullptr, vertices, indices);
+            }
+
+            /// @brief Render triangles without a texture, with 16-bit indices.
+            expected <void, std::string> render_geometry(
+                std::span <const vertex> vertices,
+                std::span <const std::uint16_t> indices) {
+                return detail::render_geometry(ptr.get(), nullptr, vertices, indices);
             }
 
             /**
              * @brief Render a single textured triangle
-             * @param texture Texture to use (nullptr for solid color)
+             * @param texture The texture the triangle shows
              * @param v0 First vertex
              * @param v1 Second vertex
              * @param v2 Third vertex
              * @return Expected<void> - empty on success, error message on failure
              */
             expected <void, std::string> render_triangle(
-                SDL_Texture* texture,
-                const SDL_Vertex& v0,
-                const SDL_Vertex& v1,
-                const SDL_Vertex& v2) {
-                std::array <SDL_Vertex, 3> vertices = {v0, v1, v2};
-                std::array <int, 3> indices = {0, 1, 2};
+                const texture& texture,
+                const vertex& v0,
+                const vertex& v1,
+                const vertex& v2) {
+                const std::array <vertex, 3> vertices = {v0, v1, v2};
+                constexpr std::array <int, 3> indices = {0, 1, 2};
 
                 return render_geometry(texture, vertices, indices);
             }
 
             /**
-             * @brief Render a single colored triangle
+             * @brief Render a single triangle without a texture, in the vertices' colours
              * @param v0 First vertex
              * @param v1 Second vertex
              * @param v2 Third vertex
              * @return Expected<void> - empty on success, error message on failure
              */
             expected <void, std::string> render_triangle(
-                const SDL_Vertex& v0,
-                const SDL_Vertex& v1,
-                const SDL_Vertex& v2) {
-                return render_triangle(nullptr, v0, v1, v2);
+                const vertex& v0,
+                const vertex& v1,
+                const vertex& v2) {
+                const std::array <vertex, 3> vertices = {v0, v1, v2};
+                constexpr std::array <int, 3> indices = {0, 1, 2};
+
+                return render_geometry(vertices, indices);
             }
 
             /**
-             * @brief Helper to create vertex from point and color
-             * @param p Position
+             * @brief Helper to create a vertex from any point type and an 8-bit colour
+             * @param p Position, in render coordinates
              * @param c Color
              * @param tex_coord Texture coordinate (default 0,0)
-             * @return SDL_Vertex structure
+             * @return The vertex
              */
-            template<point_like P1, point_like P2 = P1>
-            static constexpr SDL_Vertex make_vertex(const P1& p, const color& c,
-                                                    const P2& tex_coord = P2{0, 0}) {
-                return SDL_Vertex{
-                    {static_cast<float>(get_x(p)), static_cast<float>(get_y(p))},
-                    {
+            template<point_like P>
+            static constexpr vertex make_vertex(const P& p, const color& c, const uv_pos& tex_coord = {}) {
+                return vertex{
+                    render_pos{static_cast <float>(get_x(p)), static_cast <float>(get_y(p))},
+                    fcolor{
                         static_cast <float>(c.r) / 255.0f,
                         static_cast <float>(c.g) / 255.0f,
                         static_cast <float>(c.b) / 255.0f,
                         static_cast <float>(c.a) / 255.0f
                     },
-                    {static_cast<float>(get_x(tex_coord)), static_cast<float>(get_y(tex_coord))}
+                    tex_coord
                 };
             }
 
@@ -1656,23 +1624,22 @@ namespace sdlpp {
 
             /**
              * @brief Render a textured triangle from geometry types
-             * @tparam T1 Triangle type for vertices (must satisfy triangle_like)
-             * @tparam T2 Triangle type for texture coordinates (must satisfy triangle_like)
+             * @tparam T Triangle type for vertices (must satisfy triangle_like)
              * @param texture Texture to use
              * @param tri Triangle to render
              * @param c Color modulation for all vertices
-             * @param tex_tri Texture coordinates for each vertex
+             * @param tex_coords Texture coordinates of the triangle's corners, in order
              * @return Expected<void> - empty on success, error message on failure
              */
-            template<triangle_like T1, triangle_like T2>
+            template<triangle_like T>
             expected <void, std::string> render_textured_triangle(
-                SDL_Texture* texture,
-                const T1& tri,
+                const texture& texture,
+                const T& tri,
                 const color& c,
-                const T2& tex_tri) {
-                auto v0 = make_vertex(tri.a, c, tex_tri.a);
-                auto v1 = make_vertex(tri.b, c, tex_tri.b);
-                auto v2 = make_vertex(tri.c, c, tex_tri.c);
+                const std::array <uv_pos, 3>& tex_coords) {
+                auto v0 = make_vertex(tri.a, c, tex_coords[0]);
+                auto v1 = make_vertex(tri.b, c, tex_coords[1]);
+                auto v2 = make_vertex(tri.c, c, tex_coords[2]);
 
                 return render_triangle(texture, v0, v1, v2);
             }
@@ -2242,11 +2209,11 @@ namespace sdlpp {
                 color draw_color = color_result.value();
                 
                 // Create vertices for render_geometry
-                std::vector<SDL_Vertex> sdl_vertices;
-                sdl_vertices.reserve(static_cast<size_t>(count));
+                std::vector<vertex> corners;
+                corners.reserve(static_cast<size_t>(count));
                 
                 for (const auto& v : vertices) {
-                    sdl_vertices.push_back(make_vertex(v, draw_color));
+                    corners.push_back(make_vertex(v, draw_color));
                 }
                 
                 // Create indices for triangle fan
@@ -2259,7 +2226,7 @@ namespace sdlpp {
                     indices.push_back(i + 1);  // Next vertex
                 }
                 
-                return render_geometry(nullptr, sdl_vertices, indices);
+                return render_geometry(corners, indices);
             }
 
             /**
